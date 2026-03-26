@@ -9,9 +9,12 @@
     "dev:renderer": "vite",
     "dev:main": "tsc -p tsconfig.node.json --watch --preserveWatchOutput",
     "dev:electron": "wait-on tcp:5173 dist-electron/electron/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "make:icon": "node scripts/generate-icon.mjs",
     "build": "npm run build:renderer && npm run build:electron",
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.node.json",
+    "dist:portable:builder": "npm run make:icon && npm run build && electron-builder --win portable",
+    "dist:win": "npm run make:icon && npm run build && electron-packager . Diablo2Pets --platform=win32 --arch=x64 --out release --overwrite --icon build/icon.ico --prune=true --asar.unpackDir=automation/python_runtime",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,6 +22,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electron/packager": "^19.1.0",
     "@types/node": "^22.13.11",
     "@types/react": "^18.3.19",
     "@types/react-dom": "^18.3.5",
@@ -26,8 +30,34 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^35.1.0",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.8.2",
     "vite": "^6.2.4",
     "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.locooooooooo.diablo2pets",
+    "productName": "Diablo2Pets",
+    "asar": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "automation/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Diablo2Pets-${version}-portable.${ext}"
+    },
+    "portable": {
+      "artifactName": "Diablo2Pets-${version}-portable.${ext}"
+    }
   }
 }

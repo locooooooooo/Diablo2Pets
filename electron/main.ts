@@ -37,9 +37,26 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const workspaceRoot = resolve(__dirname, '../..');
-const pythonRuntimeRoot = join(workspaceRoot, 'automation', 'python_runtime');
-const pythonCommand = 'python';
 const toggleWindowShortcut = 'Alt+Shift+D';
+
+function getPythonRuntimeRoot(): string {
+  if (app.isPackaged) {
+    const unpackedRuntimeRoot = join(
+      process.resourcesPath,
+      'app.asar.unpacked',
+      'automation',
+      'python_runtime'
+    );
+
+    if (existsSync(unpackedRuntimeRoot)) {
+      return unpackedRuntimeRoot;
+    }
+  }
+
+  return join(workspaceRoot, 'automation', 'python_runtime');
+}
+
+const pythonRuntimeRoot = getPythonRuntimeRoot();
 
 const dataFilePath = () => join(app.getPath('userData'), 'd2-pet', 'data.json');
 const screenshotRoot = () => join(app.getPath('userData'), 'd2-pet', 'screenshots');
@@ -49,6 +66,35 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
+let resolvedPythonCommand: string | null = null;
+
+function getPythonCandidates(): string[] {
+  const home = app.getPath('home');
+
+  return [
+    join(process.resourcesPath, 'python', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python314', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python313', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
+    join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python310', 'python.exe'),
+    'python'
+  ];
+}
+
+function resolvePythonCommand(): string {
+  if (resolvedPythonCommand) {
+    return resolvedPythonCommand;
+  }
+
+  const candidate = getPythonCandidates().find((item) => {
+    return item === 'python' || existsSync(item);
+  });
+
+  resolvedPythonCommand = candidate ?? 'python';
+  return resolvedPythonCommand;
+}
 
 function getDayKey(input: Date): string {
   const year = input.getFullYear();
@@ -777,6 +823,7 @@ async function runBuiltinAutomation(
   args: string[],
   actionLabel: 'dry-run' | 'execute' | AutomationAdminAction
 ): Promise<{ result: IntegrationRunResult; logPath: string }> {
+  const pythonCommand = resolvePythonCommand();
   const result = await executeFileCommand(
     pythonCommand,
     args,
@@ -801,6 +848,7 @@ async function runDropOcr(imagePath: string): Promise<DropOcrResult> {
     throw new Error(`未找到掉落 OCR 脚本：${scriptPath}`);
   }
 
+  const pythonCommand = resolvePythonCommand();
   const result = await executeFileCommand(
     pythonCommand,
     [scriptPath, '--image', imagePath, '--json'],
