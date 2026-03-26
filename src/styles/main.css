@@ -24,13 +24,15 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
 button,
 input,
 textarea,
+select,
 .no-drag {
   -webkit-app-region: no-drag;
 }
@@ -76,6 +78,12 @@ textarea,
   background:
     linear-gradient(180deg, rgba(69, 27, 10, 0.48), rgba(33, 15, 10, 0.18));
   border-bottom: 1px solid rgba(207, 143, 55, 0.22);
+}
+
+.pet-shell-celebrate {
+  background:
+    radial-gradient(circle at top right, rgba(255, 201, 109, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(69, 27, 10, 0.56), rgba(33, 15, 10, 0.18));
 }
 
 .drag-strip,
@@ -133,6 +141,16 @@ textarea,
   animation: drift 4.6s ease-in-out infinite;
 }
 
+.pet-avatar-hunting {
+  animation-duration: 3.6s;
+}
+
+.pet-avatar-celebrate {
+  animation:
+    drift 3s ease-in-out infinite,
+    pulse-celebrate 1.3s ease-in-out infinite;
+}
+
 .pet-core,
 .pet-ring {
   position: absolute;
@@ -180,10 +198,70 @@ textarea,
   box-shadow: 0 0 18px rgba(255, 229, 157, 0.8);
 }
 
+.pet-spark {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 223, 150, 0.7);
+  box-shadow:
+    0 0 24px rgba(255, 182, 77, 0.42),
+    inset 0 0 20px rgba(255, 198, 96, 0.16);
+  animation: spin 3.8s linear infinite;
+}
+
 .pet-status {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.pet-bubble {
+  max-width: 420px;
+  padding: 12px 14px;
+  border-radius: 18px 18px 18px 6px;
+  border: 1px solid rgba(244, 186, 96, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(16, 9, 6, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 226, 176, 0.08);
+}
+
+.pet-bubble p {
+  margin: 8px 0 0;
+  color: #f3e4c2;
+  line-height: 1.6;
+}
+
+.emotion-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(244, 186, 96, 0.22);
+}
+
+.emotion-idle {
+  color: #f3dec0;
+  background: rgba(255, 209, 127, 0.08);
+}
+
+.emotion-hunting {
+  color: #fff0ca;
+  background: rgba(188, 76, 38, 0.2);
+}
+
+.emotion-satisfied {
+  color: #dff8dd;
+  background: rgba(71, 126, 75, 0.22);
+  border-color: rgba(117, 194, 127, 0.28);
+}
+
+.emotion-celebrate {
+  color: #fff8de;
+  background: rgba(255, 181, 66, 0.22);
+  border-color: rgba(255, 214, 141, 0.4);
 }
 
 .pet-status h2 {
@@ -327,7 +405,8 @@ textarea,
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   padding: 12px 14px;
   color: #f8f0dd;
@@ -341,7 +420,8 @@ textarea,
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   border-color: rgba(255, 192, 92, 0.46);
   box-shadow: 0 0 0 3px rgba(191, 118, 44, 0.18);
 }
@@ -480,6 +560,77 @@ textarea,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.report-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 14px;
+}
+
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-summary-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(217, 164, 88, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.card-title.small {
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.highlight-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highlight-row strong {
+  color: #fff0ce;
+}
+
+.highlight-row span {
+  color: #bfa780;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+}
+
+.report-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #f2dfbc;
+}
+
+.report-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-pill-highlight {
+  color: #fff8de;
+  background: rgba(255, 181, 66, 0.2);
+  border-color: rgba(255, 214, 141, 0.3);
 }
 
 .action-tile {
@@ -847,12 +998,25 @@ textarea,
   }
 }
 
+@keyframes pulse-celebrate {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 187, 79, 0);
+  }
+  50% {
+    box-shadow: 0 0 36px rgba(255, 187, 79, 0.3);
+  }
+}
+
 @media (max-width: 560px) {
   .scene {
     padding: 12px;
   }
 
   .companion-hero,
+  .report-hero,
+  .report-summary-grid,
+  .filter-grid,
   .quick-grid,
   .pet-stage,
   .split-grid,

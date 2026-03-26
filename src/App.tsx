@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
@@ -44,6 +44,8 @@ export default function App() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [now, setNow] = useState(Date.now());
+  const [highlightedDropName, setHighlightedDropName] = useState('');
+  const latestDropIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void window.d2Pet
@@ -68,6 +70,40 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    const latestDrop = data.drops[0];
+    if (!latestDrop) {
+      latestDropIdRef.current = null;
+      return;
+    }
+
+    if (!latestDropIdRef.current) {
+      latestDropIdRef.current = latestDrop.id;
+      return;
+    }
+
+    if (latestDropIdRef.current !== latestDrop.id) {
+      latestDropIdRef.current = latestDrop.id;
+      setHighlightedDropName(latestDrop.itemName);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (!highlightedDropName) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setHighlightedDropName('');
+    }, 5200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedDropName]);
+
   if (!data) {
     return (
       <div className="boot-screen">
@@ -83,7 +119,7 @@ export default function App() {
   const todayKey = getDayKey(new Date());
   const todayStats = buildTodayStats(data.runHistory, todayKey);
   const recentRuns = data.runHistory.slice(0, 6);
-  const todayDrops = data.drops.filter((drop) => drop.dayKey === todayKey).slice(0, 8);
+  const todayDrops = data.drops.filter((drop) => drop.dayKey === todayKey).slice(0, 12);
   const activeDurationText = data.activeRun
     ? formatDuration((now - new Date(data.activeRun.startedAt).getTime()) / 1000)
     : '00:00';
@@ -142,6 +178,7 @@ export default function App() {
         ocrItemName: payload.ocrItemName
       });
       setData(nextData);
+      setActiveTab('drops');
       setMessage({ kind: 'success', text: '掉落记录已经保存。' });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
@@ -293,8 +330,10 @@ export default function App() {
         <PetShell
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
-          launchOnStartup={data.settings.launchOnStartup}
+          highlightDropName={highlightedDropName}
+          latestDropName={todayDrops[0]?.itemName ?? ''}
           liveDurationText={activeDurationText}
+          launchOnStartup={data.settings.launchOnStartup}
           notificationsEnabled={data.settings.notificationsEnabled}
           onMinimize={() => void window.d2Pet.minimize()}
           onToggleAlwaysOnTop={() =>
@@ -311,6 +350,7 @@ export default function App() {
             })
           }
           todayCount={todayStats.totalCount}
+          todayDropCount={todayDrops.length}
         />
 
         <nav className="tab-row">
