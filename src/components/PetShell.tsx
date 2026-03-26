@@ -47,14 +47,26 @@ export function PetShell(props: PetShellProps) {
         </div>
 
         <div className="pet-status">
-          <span className="status-chip">{props.activeRun ? '刷图进行中' : '待命中'}</span>
-          <h2>{props.activeRun ? props.activeRun.mapName : '赫拉迪姆桌面助手'}</h2>
+          <span className="status-chip">{props.activeRun ? '陪刷中' : '待命中'}</span>
+          <h2>{props.activeRun ? props.activeRun.mapName : '赫拉迪姆陪刷助手'}</h2>
           <p>
             {props.activeRun
-              ? `本次已耗时 ${props.liveDurationText}`
-              : `今天已记录 ${props.todayCount} 次刷图`}
+              ? `本次已经陪跑 ${props.liveDurationText}`
+              : `今天已经记录 ${props.todayCount} 次刷图`}
           </p>
-          <p className="secondary-text">托盘常驻，快捷键 `Alt+Shift+D` 可随时显示或隐藏。</p>
+          <p className="secondary-text">
+            桌宠首页负责状态和快捷动作，掉落账本与工坊负责沉淀战果和自动化。
+          </p>
+
+          <div className="tag-row no-drag">
+            <span className="mini-pill">陪刷首页</span>
+            <span className="mini-pill">战利品账本</span>
+            <span className="mini-pill">赫拉迪姆工坊</span>
+          </div>
+
+          <p className="secondary-text">
+            托盘常驻，快捷键 <code>Alt+Shift+D</code> 可随时显示或隐藏。
+          </p>
 
           <div className="quick-toggle-row no-drag">
             <button

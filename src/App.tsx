@@ -16,7 +16,7 @@ import type {
   RunAutomationTaskInput
 } from './types';
 
-type TabKey = 'counter' | 'drops' | 'automation';
+type TabKey = 'companion' | 'drops' | 'workshop';
 type Message = { kind: 'success' | 'error'; text: string } | null;
 
 function getErrorMessage(error: unknown): string {
@@ -34,13 +34,13 @@ function getAdminSuccessText(action: RunAutomationAdminInput['action']): string 
     case 'print-profile':
       return '当前 profile 已输出到日志。';
     case 'import-legacy-config':
-      return '旧配置已导入到新的 runtime。';
+      return '旧配置已经导入到新的 runtime。';
   }
 }
 
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>('counter');
+  const [activeTab, setActiveTab] = useState<TabKey>('companion');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
   const [now, setNow] = useState(Date.now());
@@ -74,7 +74,7 @@ export default function App() {
         <div className="boot-card">
           <p className="eyebrow">Booting</p>
           <h2>正在唤醒桌宠助手</h2>
-          <p>首次启动会创建本地数据目录与截图目录。</p>
+          <p>首次启动会创建本地数据目录、截图目录和自动化日志目录。</p>
         </div>
       </div>
     );
@@ -95,7 +95,7 @@ export default function App() {
     try {
       const nextData = await window.d2Pet.startRun({ mapName });
       setData(nextData);
-      setMessage({ kind: 'success', text: '已开始记录本次刷图。' });
+      setMessage({ kind: 'success', text: '已经开始记录本次刷图。' });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
     } finally {
@@ -110,7 +110,7 @@ export default function App() {
     try {
       const nextData = await window.d2Pet.stopRun();
       setData(nextData);
-      setMessage({ kind: 'success', text: '本次刷图已完成并写入统计。' });
+      setMessage({ kind: 'success', text: '本次刷图已经完成并写入统计。' });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
     } finally {
@@ -142,7 +142,7 @@ export default function App() {
         ocrItemName: payload.ocrItemName
       });
       setData(nextData);
-      setMessage({ kind: 'success', text: '掉落记录已保存。' });
+      setMessage({ kind: 'success', text: '掉落记录已经保存。' });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
     } finally {
@@ -190,7 +190,7 @@ export default function App() {
         kind: response.result.success ? 'success' : 'error',
         text: response.result.success
           ? payload.mode === 'dry-run'
-            ? '试运行已完成，计划和日志已经更新。'
+            ? '试运行已经完成，计划和日志已经更新。'
             : '自动化任务执行完成。'
           : response.result.stderr || '自动化任务执行失败。'
       });
@@ -315,36 +315,39 @@ export default function App() {
 
         <nav className="tab-row">
           <button
-            className={activeTab === 'counter' ? 'tab-button active' : 'tab-button'}
-            onClick={() => setActiveTab('counter')}
+            className={activeTab === 'companion' ? 'tab-button active' : 'tab-button'}
+            onClick={() => setActiveTab('companion')}
             type="button"
           >
-            计数器
+            陪刷首页
           </button>
           <button
             className={activeTab === 'drops' ? 'tab-button active' : 'tab-button'}
             onClick={() => setActiveTab('drops')}
             type="button"
           >
-            掉落
+            战利品账本
           </button>
           <button
-            className={activeTab === 'automation' ? 'tab-button active' : 'tab-button'}
-            onClick={() => setActiveTab('automation')}
+            className={activeTab === 'workshop' ? 'tab-button active' : 'tab-button'}
+            onClick={() => setActiveTab('workshop')}
             type="button"
           >
-            自动化
+            赫拉迪姆工坊
           </button>
         </nav>
 
         <div className="panel-stack">
-          {activeTab === 'counter' ? (
+          {activeTab === 'companion' ? (
             <CounterPanel
               activeDurationText={activeDurationText}
               activeRun={data.activeRun}
               busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+              onGoToDrops={() => setActiveTab('drops')}
+              onGoToWorkshop={() => setActiveTab('workshop')}
               onStartRun={handleStartRun}
               onStopRun={handleStopRun}
+              recentDrops={todayDrops}
               recentRuns={recentRuns}
               stats={todayStats}
             />
@@ -360,7 +363,7 @@ export default function App() {
             />
           ) : null}
 
-          {activeTab === 'automation' ? (
+          {activeTab === 'workshop' ? (
             <AutomationPanel
               busyKey={busyKey}
               initialDrafts={data.automationDrafts}
