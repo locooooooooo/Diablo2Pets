@@ -403,21 +403,21 @@ export default function App() {
             onClick={() => setActiveTab('companion')}
             type="button"
           >
-            陪刷首页
+            陪刷
           </button>
           <button
             className={activeTab === 'drops' ? 'tab-button active' : 'tab-button'}
             onClick={() => setActiveTab('drops')}
             type="button"
           >
-            战利品账本
+            战报
           </button>
           <button
             className={activeTab === 'workshop' ? 'tab-button active' : 'tab-button'}
             onClick={() => setActiveTab('workshop')}
             type="button"
           >
-            赫拉迪姆工坊
+            工坊
           </button>
         </nav>
 

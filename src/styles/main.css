@@ -1236,6 +1236,402 @@ select,
   flex-wrap: wrap;
 }
 
+:root {
+  --pet-font-body: 'Microsoft YaHei UI', 'Segoe UI Variable Text', sans-serif;
+  --pet-font-display: 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
+  --pet-bg-0: #120807;
+  --pet-bg-1: #1b0f0d;
+  --pet-bg-2: #241411;
+  --pet-panel: rgba(22, 12, 10, 0.84);
+  --pet-panel-soft: rgba(255, 244, 221, 0.04);
+  --pet-panel-glow: rgba(255, 182, 98, 0.12);
+  --pet-border: rgba(230, 181, 96, 0.22);
+  --pet-border-strong: rgba(244, 201, 128, 0.36);
+  --pet-text-0: #fff3d5;
+  --pet-text-1: #ecd7af;
+  --pet-text-2: #b99d76;
+  --pet-accent: #f2ae58;
+  --pet-accent-hot: #cb5b2d;
+  --pet-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+body {
+  font-family: var(--pet-font-body);
+  color: var(--pet-text-0);
+}
+
+.scene {
+  position: relative;
+  overflow: hidden;
+}
+
+.scene-panel::before,
+.scene-panel::after {
+  content: '';
+  position: absolute;
+  inset: auto;
+  pointer-events: none;
+}
+
+.scene-panel::before {
+  top: -120px;
+  right: -80px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(58, 144, 186, 0.24), transparent 68%);
+  filter: blur(8px);
+}
+
+.scene-panel::after {
+  left: -120px;
+  bottom: -120px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(199, 91, 43, 0.2), transparent 70%);
+  filter: blur(8px);
+}
+
+.app-shell,
+.floating-card {
+  position: relative;
+  border-color: var(--pet-border);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(52, 145, 189, 0.16), transparent 28%),
+    radial-gradient(circle at 100% 0%, rgba(206, 103, 51, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(33, 18, 15, 0.95), rgba(19, 11, 10, 0.95));
+  box-shadow: var(--pet-shadow), inset 0 1px 0 rgba(255, 231, 186, 0.1);
+}
+
+.app-shell::before,
+.app-shell::after,
+.floating-card::before,
+.floating-card::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.app-shell::before,
+.floating-card::before {
+  inset: 10px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 227, 173, 0.05);
+}
+
+.app-shell::after {
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.18;
+  mix-blend-mode: screen;
+}
+
+.floating-card::after {
+  inset: 18px;
+  border-radius: 22px;
+  border: 1px dashed rgba(243, 195, 110, 0.14);
+}
+
+.compact-pet-shell,
+.floating-card {
+  background:
+    radial-gradient(circle at top right, rgba(255, 182, 98, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(62, 24, 11, 0.72), rgba(23, 11, 8, 0.72));
+}
+
+.eyebrow {
+  color: var(--pet-accent);
+  letter-spacing: 0.2em;
+}
+
+.pet-shell h1,
+.panel-header h3,
+.boot-card h2,
+.card-title,
+.action-tile strong,
+.metric-card strong {
+  font-family: var(--pet-font-display);
+}
+
+.compact-subtitle,
+.secondary-text,
+.helper-text,
+.paste-zone p,
+.paste-empty,
+.empty-text,
+.field span {
+  color: var(--pet-text-2);
+}
+
+.compact-subtitle {
+  max-width: 240px;
+}
+
+.compact-meta .mini-pill,
+.status-chip,
+.status-pill,
+.mini-pill {
+  border-color: rgba(255, 217, 150, 0.12);
+  background: rgba(255, 238, 210, 0.06);
+  color: var(--pet-text-1);
+}
+
+.tab-row {
+  position: relative;
+  z-index: 1;
+  padding-top: 10px;
+}
+
+.tab-button {
+  min-height: 44px;
+  border-radius: 999px;
+  color: var(--pet-text-1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(255, 244, 221, 0.03);
+}
+
+.tab-button.active {
+  color: #fff6e0;
+  background:
+    linear-gradient(180deg, rgba(213, 97, 49, 0.42), rgba(97, 34, 18, 0.52)),
+    rgba(255, 199, 115, 0.06);
+  box-shadow: 0 10px 22px rgba(107, 37, 18, 0.22);
+}
+
+.panel-stack {
+  position: relative;
+  z-index: 1;
+}
+
+.panel {
+  gap: 14px;
+}
+
+.panel-header {
+  padding: 4px 2px 0;
+}
+
+.card,
+.metric-card,
+.report-summary-card,
+.action-tile,
+.tool-stack,
+.tool-details,
+.ocr-preview,
+.code-view {
+  background:
+    linear-gradient(180deg, rgba(255, 251, 239, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+  border-color: var(--pet-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 229, 180, 0.06),
+    0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.hero-card,
+.workshop-card {
+  background:
+    radial-gradient(circle at top right, rgba(242, 174, 88, 0.09), transparent 28%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.warm-card {
+  background:
+    radial-gradient(circle at top left, rgba(56, 154, 191, 0.14), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(214, 97, 49, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.76);
+}
+
+.metric-card strong {
+  color: #fff4d7;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.metric-card span,
+.summary-row span,
+.list-row span,
+.highlight-row span {
+  color: var(--pet-text-2);
+}
+
+.summary-row strong,
+.list-row strong,
+.report-group-head strong,
+.highlight-row strong,
+.floating-bubble strong {
+  color: var(--pet-text-0);
+}
+
+.summary-list,
+.list-card,
+.report-group,
+.stack {
+  gap: 12px;
+}
+
+.list-card {
+  padding: 2px 0;
+}
+
+.list-row {
+  padding: 12px 0;
+  border-top-color: rgba(255, 232, 186, 0.08);
+}
+
+.action-tile {
+  position: relative;
+  overflow: hidden;
+}
+
+.action-tile::after {
+  content: '';
+  position: absolute;
+  inset: auto -24px -40px auto;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(86, 165, 189, 0.14), transparent 66%);
+  pointer-events: none;
+}
+
+.primary-button,
+.ghost-button,
+.icon-button,
+.mode-button,
+.quick-toggle,
+.floating-action {
+  min-height: 44px;
+}
+
+.primary-button {
+  background: linear-gradient(180deg, #dc7436, #8c2d14);
+  box-shadow: 0 10px 22px rgba(123, 41, 13, 0.28);
+}
+
+.ghost-button,
+.icon-button,
+.mode-button,
+.quick-toggle,
+.floating-action {
+  border-color: rgba(255, 223, 165, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.icon-button.active,
+.mode-button.active,
+.quick-toggle.active,
+.floating-action.active,
+.floating-action.primary {
+  background:
+    linear-gradient(180deg, rgba(213, 97, 49, 0.44), rgba(97, 34, 18, 0.54)),
+    rgba(255, 199, 115, 0.06);
+}
+
+.field input,
+.field textarea,
+.field select,
+.paste-zone,
+.ocr-preview,
+.code-view {
+  background:
+    linear-gradient(180deg, rgba(7, 4, 4, 0.5), rgba(17, 10, 8, 0.46)),
+    rgba(0, 0, 0, 0.14);
+  border-color: rgba(247, 209, 140, 0.14);
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  border-color: rgba(255, 202, 117, 0.44);
+  box-shadow: 0 0 0 3px rgba(191, 118, 44, 0.14);
+}
+
+.paste-zone.ready {
+  background:
+    linear-gradient(180deg, rgba(71, 162, 189, 0.14), rgba(215, 96, 49, 0.12)),
+    rgba(255, 255, 255, 0.03);
+}
+
+.paste-preview {
+  border-color: rgba(255, 228, 176, 0.14);
+}
+
+.workshop-topbar,
+.integration-head,
+.panel-header {
+  gap: 14px;
+}
+
+.task-toolbar {
+  gap: 10px;
+}
+
+.task-toolbar .ghost-button,
+.task-toolbar .primary-button {
+  flex: 1 0 auto;
+}
+
+.tool-details summary {
+  background: rgba(255, 244, 221, 0.02);
+}
+
+.tool-details[open] summary {
+  border-bottom: 1px solid rgba(255, 232, 186, 0.08);
+}
+
+.sequence-chips .mini-pill {
+  background: rgba(69, 148, 176, 0.08);
+}
+
+.floating-card {
+  overflow: hidden;
+}
+
+.floating-shell .status-chip {
+  width: fit-content;
+}
+
+.floating-bubble {
+  background:
+    linear-gradient(180deg, rgba(255, 249, 236, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(17, 10, 8, 0.62);
+}
+
+.floating-dock {
+  gap: 10px;
+}
+
+.toast {
+  border-color: rgba(255, 224, 168, 0.2);
+  background:
+    linear-gradient(180deg, rgba(28, 16, 13, 0.95), rgba(17, 10, 9, 0.96)),
+    rgba(18, 10, 7, 0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
