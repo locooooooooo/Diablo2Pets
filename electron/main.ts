@@ -881,7 +881,8 @@ async function createMainWindow(): Promise<void> {
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: false
     }
   });
 
