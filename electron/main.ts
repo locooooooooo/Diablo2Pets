@@ -31,7 +31,8 @@ import type {
   SaveImageInput,
   StartRunInput,
   UpdateIntegrationInput,
-  UpdateSettingsInput
+  UpdateSettingsInput,
+  WindowMode
 } from '../src/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -67,6 +68,32 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
 let resolvedPythonCommand: string | null = null;
+
+function getWindowMetrics(mode: WindowMode): {
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+  resizable: boolean;
+} {
+  if (mode === 'floating') {
+    return {
+      width: 230,
+      height: 280,
+      minWidth: 230,
+      minHeight: 280,
+      resizable: false
+    };
+  }
+
+  return {
+    width: 420,
+    height: 760,
+    minWidth: 380,
+    minHeight: 640,
+    resizable: true
+  };
+}
 
 function getPythonCandidates(): string[] {
   const home = app.getPath('home');
@@ -235,7 +262,8 @@ function createDefaultData(): AppData {
     settings: {
       alwaysOnTop: true,
       launchOnStartup: false,
-      notificationsEnabled: true
+      notificationsEnabled: true,
+      windowMode: 'panel'
     }
   };
 }
@@ -264,7 +292,8 @@ function normalizeData(input: Partial<AppData> | undefined): AppData {
       launchOnStartup:
         input?.settings?.launchOnStartup ?? fallback.settings.launchOnStartup,
       notificationsEnabled:
-        input?.settings?.notificationsEnabled ?? fallback.settings.notificationsEnabled
+        input?.settings?.notificationsEnabled ?? fallback.settings.notificationsEnabled,
+      windowMode: input?.settings?.windowMode ?? fallback.settings.windowMode
     }
   };
 }
@@ -338,6 +367,26 @@ function applyAlwaysOnTopState(value: boolean): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setAlwaysOnTop(value, 'screen-saver');
   }
+}
+
+async function applyWindowModeState(mode: WindowMode): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const metrics = getWindowMetrics(mode);
+  mainWindow.setSkipTaskbar(mode === 'floating');
+  mainWindow.setResizable(metrics.resizable);
+  mainWindow.setMinimumSize(metrics.minWidth, metrics.minHeight);
+
+  if (metrics.resizable) {
+    mainWindow.setMaximumSize(10000, 10000);
+  } else {
+    mainWindow.setMaximumSize(metrics.width, metrics.height);
+  }
+
+  mainWindow.setSize(metrics.width, metrics.height, true);
+  mainWindow.center();
 }
 
 async function ensureFolderAndOpen(targetPath: string): Promise<string> {
@@ -459,6 +508,15 @@ async function toggleNotificationsFromTray(): Promise<void> {
   }
 }
 
+async function toggleWindowModeFromTray(): Promise<void> {
+  const data = await readDataStore();
+  data.settings.windowMode =
+    data.settings.windowMode === 'floating' ? 'panel' : 'floating';
+  const nextData = await writeDataStore(data);
+  await applyWindowModeState(nextData.settings.windowMode);
+  applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
+}
+
 async function refreshTrayMenu(data?: AppData): Promise<void> {
   if (!tray) {
     return;
@@ -492,6 +550,15 @@ async function refreshTrayMenu(data?: AppData): Promise<void> {
       checked: currentData.settings.notificationsEnabled,
       click: () => {
         void toggleNotificationsFromTray();
+      }
+    },
+    {
+      label:
+        currentData.settings.windowMode === 'floating'
+          ? '切换为面板模式'
+          : '切换为悬浮模式',
+      click: () => {
+        void toggleWindowModeFromTray();
       }
     },
     { type: 'separator' },
@@ -864,17 +931,24 @@ async function runDropOcr(imagePath: string): Promise<DropOcrResult> {
 
 async function createMainWindow(): Promise<void> {
   const data = await readDataStore();
+  const metrics = getWindowMetrics(data.settings.windowMode);
 
   mainWindow = new BrowserWindow({
-    width: 460,
-    height: 860,
-    minWidth: 420,
-    minHeight: 760,
+    width: metrics.width,
+    height: metrics.height,
+    minWidth: metrics.minWidth,
+    minHeight: metrics.minHeight,
     transparent: true,
     frame: false,
+    thickFrame: false,
     hasShadow: false,
-    resizable: true,
+    roundedCorners: false,
+    skipTaskbar: data.settings.windowMode === 'floating',
+    resizable: metrics.resizable,
     maximizable: false,
+    fullscreenable: false,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: false,
     backgroundColor: '#00000000',
     title: '暗黑 2 桌宠助手',
     alwaysOnTop: data.settings.alwaysOnTop,
@@ -887,6 +961,7 @@ async function createMainWindow(): Promise<void> {
   });
 
   applyAlwaysOnTopState(data.settings.alwaysOnTop);
+  await applyWindowModeState(data.settings.windowMode);
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on('close', (event) => {
@@ -1061,6 +1136,9 @@ ipcMain.handle('settings:update', async (_event, payload: UpdateSettingsInput) =
   data.settings = nextSettings;
   const nextData = await writeDataStore(data);
   applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
+  if (payload.patch.windowMode) {
+    await applyWindowModeState(nextData.settings.windowMode);
+  }
 
   if (typeof payload.patch.notificationsEnabled === 'boolean' && nextData.settings.notificationsEnabled) {
     void sendDesktopNotification('系统通知已开启', '后续刷图、掉落和自动化结果会在这里提醒你。');

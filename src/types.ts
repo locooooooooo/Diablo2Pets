@@ -1,6 +1,7 @@
 export type IntegrationId = 'rune-cube' | 'gem-cube' | 'drop-shared-gold';
 export type AutomationRunMode = 'dry-run' | 'execute';
 export type GemInputMode = 'matrix' | 'scan-image';
+export type WindowMode = 'panel' | 'floating';
 export type AutomationAdminAction =
   | 'record-profile'
   | 'print-profile'
@@ -51,6 +52,7 @@ export interface AppSettings {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
+  windowMode: WindowMode;
 }
 
 export interface AutomationDrafts {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
+import { FloatingPet } from './components/FloatingPet';
 import { PetShell } from './components/PetShell';
 import { formatDuration, getDayKey } from './lib/date';
 import { buildTodayStats } from './lib/stats';
@@ -13,7 +14,8 @@ import type {
   DropOcrResult,
   IntegrationRunResponse,
   RunAutomationAdminInput,
-  RunAutomationTaskInput
+  RunAutomationTaskInput,
+  WindowMode
 } from './types';
 
 type TabKey = 'companion' | 'drops' | 'workshop';
@@ -123,6 +125,7 @@ export default function App() {
   const activeDurationText = data.activeRun
     ? formatDuration((now - new Date(data.activeRun.startedAt).getTime()) / 1000)
     : '00:00';
+  const isFloatingMode = data.settings.windowMode === 'floating';
 
   async function handleStartRun(mapName: string) {
     setBusyKey('start-run');
@@ -187,9 +190,7 @@ export default function App() {
     }
   }
 
-  async function handlePreviewDropOcr(
-    payload: DropOcrPreviewInput
-  ): Promise<DropOcrResult> {
+  async function handlePreviewDropOcr(payload: DropOcrPreviewInput): Promise<DropOcrResult> {
     return window.d2Pet.previewDropOcr(payload);
   }
 
@@ -294,7 +295,7 @@ export default function App() {
       if (typeof patch.alwaysOnTop === 'boolean') {
         setMessage({
           kind: 'success',
-          text: patch.alwaysOnTop ? '桌宠已置顶。' : '桌宠已取消置顶。'
+          text: patch.alwaysOnTop ? '桌宠已经置顶。' : '桌宠已经取消置顶。'
         });
       } else if (typeof patch.launchOnStartup === 'boolean') {
         setMessage({
@@ -324,16 +325,58 @@ export default function App() {
     }
   }
 
+  function handleSwitchWindowMode(mode: WindowMode) {
+    if (data.settings.windowMode === mode) {
+      return;
+    }
+
+    void handleUpdateSettings({ windowMode: mode });
+  }
+
+  function handleOpenPanel(tab: TabKey) {
+    setActiveTab(tab);
+
+    if (data.settings.windowMode !== 'panel') {
+      void handleUpdateSettings({ windowMode: 'panel' });
+    }
+  }
+
+  if (isFloatingMode) {
+    return (
+      <div className="scene scene-floating">
+        <FloatingPet
+          activeRun={data.activeRun}
+          alwaysOnTop={data.settings.alwaysOnTop}
+          highlightDropName={highlightedDropName}
+          liveDurationText={activeDurationText}
+          onMinimize={() => void window.d2Pet.minimize()}
+          onOpenDrops={() => handleOpenPanel('drops')}
+          onOpenPanel={() => handleOpenPanel('companion')}
+          onOpenWorkshop={() => handleOpenPanel('workshop')}
+          onToggleAlwaysOnTop={() =>
+            void handleUpdateSettings({ alwaysOnTop: !data.settings.alwaysOnTop })
+          }
+          todayCount={todayStats.totalCount}
+          todayDropCount={todayDrops.length}
+        />
+
+        {message ? (
+          <div className={`toast ${message.kind === 'error' ? 'error' : 'success'}`}>
+            {message.text}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="scene">
+    <div className="scene scene-panel">
       <div className="app-shell">
         <PetShell
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
-          highlightDropName={highlightedDropName}
-          latestDropName={todayDrops[0]?.itemName ?? ''}
-          liveDurationText={activeDurationText}
           launchOnStartup={data.settings.launchOnStartup}
+          liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
           onMinimize={() => void window.d2Pet.minimize()}
           onToggleAlwaysOnTop={() =>
@@ -349,6 +392,7 @@ export default function App() {
               notificationsEnabled: !data.settings.notificationsEnabled
             })
           }
+          onToggleWindowMode={handleSwitchWindowMode}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
         />

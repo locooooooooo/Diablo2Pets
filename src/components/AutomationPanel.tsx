@@ -70,38 +70,32 @@ function getInputModeLabel(mode: GemInputMode): string {
 function getAdminLabel(action: AutomationAdminAction): string {
   switch (action) {
     case 'record-profile':
-      return '录制 Profile';
+      return '录 Profile';
     case 'print-profile':
-      return '查看 Profile';
+      return '看 Profile';
     case 'import-legacy-config':
-      return '导入旧配置';
+      return '导旧配置';
   }
 }
 
 function getRecordSteps(id: IntegrationId): string[] {
   switch (id) {
     case 'rune-cube':
-      return [
-        '方块输出格',
-        'Transmute 按钮',
-        '第一排第一列符文格',
-        '第一排第九列符文格',
-        '第四排第一列符文格'
-      ];
+      return ['输出格', 'Transmute', '第 1 格符文', '第 9 格符文', '第 28 格符文'];
     case 'gem-cube':
       return [
-        '方块输入格 1',
-        '方块输入格 2',
-        '方块输入格 3',
-        '方块输出格',
-        'Transmute 按钮',
-        '手动结果落点',
-        '第一排第一列宝石堆',
-        '第一排第七列宝石堆',
-        '第五排第一列宝石堆'
+        '输入格 1',
+        '输入格 2',
+        '输入格 3',
+        '输出格',
+        'Transmute',
+        '结果落点',
+        '第 1 堆宝石',
+        '第 7 堆宝石',
+        '第 29 堆宝石'
       ];
     case 'drop-shared-gold':
-      return ['仓库物体', '共享仓库页签', '仓库金币按钮', '背包金币按钮'];
+      return ['仓库物体', '共享标签', '仓库金币按钮', '背包金币按钮'];
   }
 }
 
@@ -110,7 +104,7 @@ function getProfileNote(item: IntegrationConfig): string {
     return `默认旧配置路径：${item.legacyConfigPath}`;
   }
 
-  return '这条任务线没有单独的旧配置文件，建议直接录制新的 profile。';
+  return '这条任务线没有独立旧配置，建议直接录新的 profile。';
 }
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
@@ -288,17 +282,16 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }
   }
 
-  function renderTaskActions(id: IntegrationId) {
+  function renderRunButtons(id: IntegrationId) {
     return (
-      <div className="task-actions">
+      <>
         {(['dry-run', 'execute'] as AutomationRunMode[]).map((mode) => {
           const busy = props.busyKey === getBusyKey(id, mode);
-          const disabled = props.busyKey !== null;
 
           return (
             <button
               className={mode === 'execute' ? 'primary-button' : 'ghost-button'}
-              disabled={disabled}
+              disabled={props.busyKey !== null}
               key={mode}
               onClick={() => void runTask(id, mode)}
               type="button"
@@ -307,88 +300,92 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </button>
           );
         })}
-      </div>
+      </>
     );
   }
 
-  function renderTools(item: IntegrationConfig) {
+  function renderAdminButtons(item: IntegrationConfig) {
     return (
-      <div className="tool-stack">
-        <div className="tool-row">
+      <>
+        <button
+          className="ghost-button"
+          disabled={props.busyKey !== null}
+          onClick={() => void runAdmin(item, 'print-profile')}
+          type="button"
+        >
+          {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
+            ? '读取中...'
+            : '看 Profile'}
+        </button>
+        <button
+          className="ghost-button"
+          disabled={props.busyKey !== null}
+          onClick={() => void runAdmin(item, 'record-profile')}
+          type="button"
+        >
+          {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
+            ? '录制中...'
+            : '录 Profile'}
+        </button>
+        {item.supportsLegacyImport ? (
           <button
             className="ghost-button"
             disabled={props.busyKey !== null}
-            onClick={() => void runAdmin(item, 'print-profile')}
+            onClick={() => void runAdmin(item, 'import-legacy-config')}
             type="button"
           >
-            {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
-              ? '读取中...'
-              : '查看 Profile'}
+            {props.busyKey === getAdminBusyKey(item.id, 'import-legacy-config')
+              ? '导入中...'
+              : '导旧配置'}
           </button>
-          <button
-            className="ghost-button"
-            disabled={props.busyKey !== null}
-            onClick={() => void runAdmin(item, 'record-profile')}
-            type="button"
-          >
-            {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
-              ? '录制中...'
-              : '录制 Profile'}
-          </button>
-          {item.supportsLegacyImport ? (
-            <button
-              className="ghost-button"
-              disabled={props.busyKey !== null}
-              onClick={() => void runAdmin(item, 'import-legacy-config')}
-              type="button"
-            >
-              {props.busyKey === getAdminBusyKey(item.id, 'import-legacy-config')
-                ? '导入中...'
-                : '导入旧配置'}
-            </button>
-          ) : null}
-          <button
-            className="ghost-button"
-            disabled={props.busyKey !== null || logBusyId === item.id}
-            onClick={() => void openLogViewer(item.id, `${item.title} / 执行日志`)}
-            type="button"
-          >
-            {logBusyId === item.id ? '读取日志中...' : '查看执行日志'}
-          </button>
-        </div>
+        ) : null}
+        <button
+          className="ghost-button"
+          disabled={props.busyKey !== null || logBusyId === item.id}
+          onClick={() => void openLogViewer(item.id, `${item.title} / 执行日志`)}
+          type="button"
+        >
+          {logBusyId === item.id ? '读取日志中...' : '看日志'}
+        </button>
+      </>
+    );
+  }
 
-        <div className="tool-row">
-          <button
-            className="text-button"
-            onClick={() => void props.onOpenPath(item.profilePath)}
-            type="button"
-          >
-            打开 Profile 文件
-          </button>
-          {item.lastLogPath ? (
+  function renderAdvancedDetails(item: IntegrationConfig) {
+    return (
+      <details className="tool-details">
+        <summary>高级信息</summary>
+        <div className="tool-details-content">
+          <p className="helper-text">{getProfileNote(item)}</p>
+          <p className="helper-text">当前 Profile：{item.profilePath}</p>
+          <div className="tool-row">
             <button
               className="text-button"
-              onClick={() => void props.onOpenPath(item.lastLogPath as string)}
+              onClick={() => void props.onOpenPath(item.profilePath)}
               type="button"
             >
-              打开日志文件
+              打开 Profile 文件
             </button>
-          ) : null}
-        </div>
-
-        <p className="helper-text">{getProfileNote(item)}</p>
-        <p className="helper-text">当前 Profile：{item.profilePath}</p>
-
-        <div className="sequence-block">
-          <div className="sequence-title">录制顺序</div>
-          <ol className="sequence-list">
+            {item.lastLogPath ? (
+              <button
+                className="text-button"
+                onClick={() => void props.onOpenPath(item.lastLogPath as string)}
+                type="button"
+              >
+                打开日志文件
+              </button>
+            ) : null}
+          </div>
+          <div className="sequence-chips">
             {getRecordSteps(item.id).map((step) => (
-              <li key={step}>{step}</li>
+              <span className="mini-pill" key={step}>
+                {step}
+              </span>
             ))}
-          </ol>
-          <p className="helper-text">录制时按 `F10` 捕获当前鼠标位置，按 `F12` 可中止。</p>
+          </div>
+          <p className="helper-text">录制时按 `F10` 捕获当前位置，按 `F12` 终止。</p>
         </div>
-      </div>
+      </details>
     );
   }
 
@@ -410,32 +407,34 @@ export function AutomationPanel(props: AutomationPanelProps) {
     <section className="panel">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">Automation</p>
-          <h3>自动化任务</h3>
+          <p className="eyebrow">Workshop</p>
+          <h3>赫拉迪姆工坊</h3>
         </div>
-        <span className="status-pill">运行、配置、日志一页闭环</span>
+        <span className="status-pill">按钮直出，运行 / 配置 / 日志同屏闭环</span>
       </div>
 
-      <article className="card task-card">
-        <div className="card-title">执行策略</div>
-        <div className="stack compact">
-          <label className="checkbox-row">
-            <input
-              checked={drafts.allowInactiveWindow}
-              onChange={(event) => updateDraft('allowInactiveWindow', event.target.checked)}
-              type="checkbox"
-            />
-            <span>允许在游戏窗口未置顶时继续点击</span>
-          </label>
-          <p className="helper-text">
-            默认会先检查暗黑 2 是否在前台，避免误点。联调阶段建议先试运行，再做真实执行。
-          </p>
+      <article className="card safety-card">
+        <div className="integration-head">
+          <div>
+            <div className="card-title">统一执行策略</div>
+            <p className="secondary-text">先试运行看计划，再切回游戏执行，会更稳。</p>
+          </div>
+          <span className="status-chip">联调优先</span>
         </div>
+
+        <label className="checkbox-row">
+          <input
+            checked={drafts.allowInactiveWindow}
+            onChange={(event) => updateDraft('allowInactiveWindow', event.target.checked)}
+            type="checkbox"
+          />
+          <span>允许在游戏窗口未置顶时继续点击</span>
+        </label>
       </article>
 
-      <div className="stack">
-        <article className="card task-card">
-          <div className="integration-head">
+      <div className="workshop-grid">
+        <article className="card workshop-card">
+          <div className="workshop-topbar">
             <div>
               <div className="card-title">{runeTask.title}</div>
               <p className="secondary-text">{runeTask.description}</p>
@@ -443,12 +442,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <span className="status-pill warm">builtin:rune_cubing</span>
           </div>
 
+          <div className="task-toolbar">{renderRunButtons('rune-cube')}</div>
+          <div className="task-toolbar secondary">{renderAdminButtons(runeTask)}</div>
+
           <label className="field">
             <span>符文数量</span>
             <textarea
               onChange={(event) => updateDraft('runeCounts', event.target.value)}
               placeholder="例如：12 6 0 0 0 0 0 0 0"
-              rows={3}
+              rows={2}
               value={drafts.runeCounts}
             />
           </label>
@@ -465,23 +467,22 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </label>
           </div>
 
-          <p className="helper-text">
-            支持空格分隔的一维数量列表。真实执行前会先等待几秒，方便你切回游戏窗口。
-          </p>
-
-          {renderTaskActions('rune-cube')}
-          {renderTools(runeTask)}
+          <p className="helper-text">空格分隔即可，执行前会先等几秒让你切回游戏。</p>
+          {renderAdvancedDetails(runeTask)}
           {renderTaskFooter(runeTask)}
         </article>
 
-        <article className="card task-card">
-          <div className="integration-head">
+        <article className="card workshop-card">
+          <div className="workshop-topbar">
             <div>
               <div className="card-title">{gemTask.title}</div>
               <p className="secondary-text">{gemTask.description}</p>
             </div>
             <span className="status-pill warm">builtin:gem_cubing</span>
           </div>
+
+          <div className="task-toolbar">{renderRunButtons('gem-cube')}</div>
+          <div className="task-toolbar secondary">{renderAdminButtons(gemTask)}</div>
 
           <div className="mode-switch">
             {(['matrix', 'scan-image'] as GemInputMode[]).map((mode) => (
@@ -504,19 +505,19 @@ export function AutomationPanel(props: AutomationPanelProps) {
               <textarea
                 onChange={(event) => updateDraft('gemMatrix', event.target.value)}
                 placeholder="例如：10 5 2 0 0; 8 4 1 0 0"
-                rows={4}
+                rows={3}
                 value={drafts.gemMatrix}
               />
             </label>
           ) : (
             <div className="stack compact">
               <div
-                className={`paste-zone ${gemImageDataUrl ? 'ready' : ''}`}
+                className={`paste-zone compact-zone ${gemImageDataUrl ? 'ready' : ''}`}
                 onPaste={handleGemPasteZone}
                 tabIndex={0}
               >
                 <div>
-                  <strong>截图粘贴区</strong>
+                  <strong>宝石截图粘贴区</strong>
                   <p>{gemPasteHint}</p>
                 </div>
                 {gemImageDataUrl ? (
@@ -527,7 +528,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               </div>
 
               <label className="field">
-                <span>或使用已有本地截图路径</span>
+                <span>或使用现有截图路径</span>
                 <input
                   onChange={(event) => updateDraft('gemImagePath', event.target.value)}
                   placeholder="例如：E:\\screenshots\\gems.png"
@@ -537,7 +538,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
               <div className="tool-row">
                 <button className="ghost-button" onClick={clearGemImage} type="button">
-                  清空粘贴截图
+                  清空截图
                 </button>
                 <button
                   className="ghost-button"
@@ -548,10 +549,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
                   打开当前截图
                 </button>
               </div>
-
-              {drafts.gemImagePath ? (
-                <p className="helper-text">当前将使用的本地截图：{drafts.gemImagePath}</p>
-              ) : null}
             </div>
           )}
 
@@ -567,17 +564,13 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </label>
           </div>
 
-          <p className="helper-text">
-            矩阵模式适合手工录入库存；截图识别模式支持 Ctrl+V 粘贴截图，也保留手填路径作为兜底。
-          </p>
-
-          {renderTaskActions('gem-cube')}
-          {renderTools(gemTask)}
+          <p className="helper-text">矩阵适合手填库存，截图识别适合直接粘贴共享仓库截图。</p>
+          {renderAdvancedDetails(gemTask)}
           {renderTaskFooter(gemTask)}
         </article>
 
-        <article className="card task-card">
-          <div className="integration-head">
+        <article className="card workshop-card">
+          <div className="workshop-topbar">
             <div>
               <div className="card-title">{goldTask.title}</div>
               <p className="secondary-text">{goldTask.description}</p>
@@ -585,9 +578,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <span className="status-pill warm">builtin:gold_drop</span>
           </div>
 
+          <div className="task-toolbar">{renderRunButtons('drop-shared-gold')}</div>
+          <div className="task-toolbar secondary">{renderAdminButtons(goldTask)}</div>
+
           <div className="task-grid">
             <label className="field">
-              <span>总金币</span>
+              <span>总金额</span>
               <input
                 inputMode="numeric"
                 onChange={(event) => updateDraft('goldAmount', event.target.value)}
@@ -617,12 +613,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </label>
           </div>
 
-          <p className="helper-text">
-            输入总额和角色等级后，runtime 会先计算分批方案；试运行会直接把计划打印到日志里。
-          </p>
-
-          {renderTaskActions('drop-shared-gold')}
-          {renderTools(goldTask)}
+          <p className="helper-text">先输入总额和等级，试运行会先给你分批方案。</p>
+          {renderAdvancedDetails(goldTask)}
           {renderTaskFooter(goldTask)}
         </article>
       </div>
