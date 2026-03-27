@@ -4818,6 +4818,38 @@ body {
   flex-wrap: wrap;
 }
 
+.pet-codex-drilldown-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 204, 120, 0.14);
+  background:
+    linear-gradient(135deg, rgba(255, 203, 116, 0.08), rgba(255, 255, 255, 0.018)),
+    rgba(49, 22, 14, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 195, 0.05),
+    0 12px 24px rgba(18, 8, 5, 0.12);
+}
+
+.pet-codex-drilldown-copy {
+  min-width: 0;
+}
+
+.pet-codex-drilldown-copy strong {
+  display: block;
+  color: #fff1cf;
+  font-size: 14px;
+}
+
+.pet-codex-drilldown-copy p:last-child {
+  margin: 6px 0 0;
+  color: #d7b789;
+  line-height: 1.6;
+}
+
 .pet-codex-entry-grid {
   display: flex;
   flex-direction: column;
@@ -4927,6 +4959,17 @@ body {
   gap: 10px;
 }
 
+.pet-codex-group.is-drilldown {
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 205, 120, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(255, 183, 92, 0.08), transparent 45%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012)),
+    rgba(46, 21, 13, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 233, 195, 0.04);
+}
+
 .pet-codex-group-head {
   display: flex;
   align-items: center;
@@ -4934,15 +4977,52 @@ body {
   gap: 10px;
 }
 
+.pet-codex-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .pet-codex-group-head strong {
   color: #fff0cd;
   font-size: 14px;
+}
+
+.pet-codex-group-context {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 143, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    rgba(58, 24, 14, 0.58);
+  color: #f0cf98;
+  font-size: 11px;
+  letter-spacing: 0.02em;
 }
 
 .pet-codex-group-grid {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.pet-codex-entry.is-drilldown-match {
+  border-color: rgba(255, 205, 120, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 214, 138, 0.07), rgba(255, 255, 255, 0.014)),
+    rgba(58, 25, 15, 0.52);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 205, 120, 0.06),
+    0 12px 24px rgba(45, 19, 11, 0.16);
+}
+
+.pet-codex-entry.is-drilldown-match:not(.active) {
+  transform: translateY(-1px);
 }
 
 .pet-codex-entry.state-glory,

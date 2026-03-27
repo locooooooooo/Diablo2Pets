@@ -409,6 +409,77 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     () => (selected ? buildOverviewCards(selected.chapter, filteredEntries) : []),
     [filteredEntries, selected]
   );
+  const hasActiveDrilldownFilters =
+    Boolean(jumpContext) &&
+    (mapFilter !== MAP_FILTER_ALL ||
+      typeFilter !== TYPE_FILTER_ALL ||
+      rarityFilter !== 'all' ||
+      highlightOnly);
+  const drilldownEntries = useMemo(() => {
+    if (!jumpContext || !selected || selected.chapter.id === 'atlas') {
+      return [] as PetCodexEntry[];
+    }
+
+    return filteredEntries.filter((entry) => {
+      const matchesMap = mapFilter === MAP_FILTER_ALL ? true : entry.mapName === mapFilter;
+      const matchesType =
+        typeFilter === TYPE_FILTER_ALL ? true : entry.categoryLabel === typeFilter;
+      const matchesRarity = rarityFilter === 'all' ? true : entry.rarity === rarityFilter;
+      const matchesHighlight = highlightOnly
+        ? entry.state === 'glory' || entry.state === 'ready'
+        : true;
+
+      if (hasActiveDrilldownFilters) {
+        return matchesMap && matchesType && matchesRarity && matchesHighlight;
+      }
+
+      return entry.id === visibleSelectedEntry?.id;
+    });
+  }, [
+    filteredEntries,
+    hasActiveDrilldownFilters,
+    highlightOnly,
+    jumpContext,
+    mapFilter,
+    rarityFilter,
+    selected,
+    typeFilter,
+    visibleSelectedEntry?.id
+  ]);
+  const drilldownEntryIds = useMemo(
+    () => new Set(drilldownEntries.map((entry) => entry.id)),
+    [drilldownEntries]
+  );
+  const drilldownFocusSummary = useMemo(() => {
+    if (!jumpContext || !selected || selected.chapter.id === 'atlas') {
+      return null;
+    }
+
+    const focusTags = [
+      mapFilter !== MAP_FILTER_ALL ? `地图 · ${mapFilter}` : null,
+      typeFilter !== TYPE_FILTER_ALL ? `类型 · ${typeFilter}` : null,
+      rarityFilter !== 'all' ? `稀有 · ${getRarityFilterLabel(rarityFilter)}` : null,
+      highlightOnly ? '只看点亮项' : null
+    ].filter(Boolean) as string[];
+
+    return {
+      label: focusTags[0] ?? jumpContext.sourceLabel ?? jumpContext.sourceTitle,
+      detail:
+        focusTags.length > 1
+          ? focusTags.slice(1).join(' · ')
+          : hasActiveDrilldownFilters
+            ? 'Atlas 图板条件正在持续约束当前列表'
+            : '当前焦点跟随这次 Atlas 钻取停留在相关条目上'
+    };
+  }, [
+    hasActiveDrilldownFilters,
+    highlightOnly,
+    jumpContext,
+    mapFilter,
+    rarityFilter,
+    selected,
+    typeFilter
+  ]);
 
   function resetFilters(clearContext = true) {
     setSearchText('');
@@ -781,12 +852,45 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               ) : null}
             </div>
 
+            {jumpContext && selected.chapter.id !== 'atlas' && drilldownFocusSummary ? (
+              <article className="pet-codex-drilldown-strip">
+                <div className="pet-codex-drilldown-copy">
+                  <p className="eyebrow">List Focus</p>
+                  <strong>当前列表高亮 · {drilldownFocusSummary.label}</strong>
+                  <p>
+                    {drilldownFocusSummary.detail}
+                    {` · 共 ${drilldownEntries.length} 条焦点条目`}
+                  </p>
+                </div>
+                <span className="mini-pill">
+                  {drilldownEntries.length}/{filteredEntries.length} 高亮
+                </span>
+              </article>
+            ) : null}
+
             <div className="pet-codex-entry-grid">
               {groupedEntries.length > 0 ? (
-                groupedEntries.map((group) => (
-                  <section className="pet-codex-group" key={group.label}>
+                groupedEntries.map((group) => {
+                  const drilldownCount = group.items.filter((entry) =>
+                    drilldownEntryIds.has(entry.id)
+                  ).length;
+
+                  return (
+                    <section
+                      className={
+                        drilldownCount > 0 ? 'pet-codex-group is-drilldown' : 'pet-codex-group'
+                      }
+                      key={group.label}
+                    >
                     <div className="pet-codex-group-head">
-                      <strong>{group.label}</strong>
+                      <div className="pet-codex-group-title">
+                        <strong>{group.label}</strong>
+                        {drilldownCount > 0 ? (
+                          <span className="pet-codex-group-context">
+                            Atlas 焦点 · {drilldownCount} 条
+                          </span>
+                        ) : null}
+                      </div>
                       <span className="mini-pill">{group.items.length} 条</span>
                     </div>
 
@@ -795,8 +899,12 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                         <button
                           className={
                             entry.id === visibleSelectedEntry.id
-                              ? `pet-codex-entry active state-${entry.state} rarity-${entry.rarity}`
-                              : `pet-codex-entry state-${entry.state} rarity-${entry.rarity}`
+                              ? `pet-codex-entry active state-${entry.state} rarity-${entry.rarity}${
+                                  drilldownEntryIds.has(entry.id) ? ' is-drilldown-match' : ''
+                                }`
+                              : `pet-codex-entry state-${entry.state} rarity-${entry.rarity}${
+                                  drilldownEntryIds.has(entry.id) ? ' is-drilldown-match' : ''
+                                }`
                           }
                           key={entry.id}
                           onClick={() => props.onSelectEntry(entry.id)}
@@ -808,8 +916,9 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                         </button>
                       ))}
                     </div>
-                  </section>
-                ))
+                    </section>
+                  );
+                })
               ) : (
                 <article className="pet-codex-empty">
                   <strong>这一页暂时没有符合条件的藏品</strong>
