@@ -316,6 +316,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
   const [mapFilter, setMapFilter] = useState(MAP_FILTER_ALL);
   const [imageFailed, setImageFailed] = useState(false);
   const [jumpContext, setJumpContext] = useState<JumpContext | null>(null);
+  const [evidencePulse, setEvidencePulse] = useState(false);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -554,6 +555,17 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     window.addEventListener('keydown', handleDrilldownKeydown);
     return () => window.removeEventListener('keydown', handleDrilldownKeydown);
   }, [drilldownPathState, props.onSelectEntry]);
+
+  useEffect(() => {
+    if (!jumpContext || !selected || selected.chapter.id === 'atlas') {
+      setEvidencePulse(false);
+      return;
+    }
+
+    setEvidencePulse(true);
+    const timer = window.setTimeout(() => setEvidencePulse(false), 900);
+    return () => window.clearTimeout(timer);
+  }, [jumpContext, selected, visibleSelectedEntry.id]);
 
   function resetFilters(clearContext = true) {
     setSearchText('');
@@ -1259,15 +1271,30 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               </section>
             ) : null}
 
-            <section className="pet-codex-evidence">
+            <section
+              className={
+                evidencePulse ? 'pet-codex-evidence is-drilldown-pulse' : 'pet-codex-evidence'
+              }
+            >
               <div className="pet-codex-evidence-head">
                 <strong>证据页</strong>
-                <span className="mini-pill">{visibleSelectedEntry.categoryLabel}</span>
+                <div className="pet-codex-evidence-head-meta">
+                  {detailDrilldownMeta ? (
+                    <span className="pet-codex-evidence-signal">
+                      钻取证据已同步 · {detailDrilldownMeta.statusLabel}
+                    </span>
+                  ) : null}
+                  <span className="mini-pill">{visibleSelectedEntry.categoryLabel}</span>
+                </div>
               </div>
 
               {visibleSelectedEntry.screenshotPath && !imageFailed ? (
                 <button
-                  className="pet-codex-screenshot-frame"
+                  className={
+                    evidencePulse
+                      ? 'pet-codex-screenshot-frame is-drilldown-pulse'
+                      : 'pet-codex-screenshot-frame'
+                  }
                   onClick={() => props.onOpenPath(visibleSelectedEntry.screenshotPath!)}
                   type="button"
                 >
@@ -1286,25 +1313,49 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
               <div className="pet-codex-evidence-grid">
                 {visibleSelectedEntry.note ? (
-                  <article className="pet-codex-evidence-card">
+                  <article
+                    className={
+                      evidencePulse
+                        ? 'pet-codex-evidence-card is-drilldown-pulse'
+                        : 'pet-codex-evidence-card'
+                    }
+                  >
                     <span>备注</span>
                     <p>{visibleSelectedEntry.note}</p>
                   </article>
                 ) : null}
                 {visibleSelectedEntry.ocrText ? (
-                  <article className="pet-codex-evidence-card">
+                  <article
+                    className={
+                      evidencePulse
+                        ? 'pet-codex-evidence-card is-drilldown-pulse'
+                        : 'pet-codex-evidence-card'
+                    }
+                  >
                     <span>{visibleSelectedEntry.ocrEngine ? `${visibleSelectedEntry.ocrEngine} OCR` : 'OCR 原文'}</span>
                     <p>{visibleSelectedEntry.ocrText}</p>
                   </article>
                 ) : null}
                 {visibleSelectedEntry.mapName ? (
-                  <article className="pet-codex-evidence-card">
+                  <article
+                    className={
+                      evidencePulse
+                        ? 'pet-codex-evidence-card is-drilldown-pulse'
+                        : 'pet-codex-evidence-card'
+                    }
+                  >
                     <span>地图</span>
                     <p>{visibleSelectedEntry.mapName}</p>
                   </article>
                 ) : null}
                 {visibleSelectedEntry.capturedAt ? (
-                  <article className="pet-codex-evidence-card">
+                  <article
+                    className={
+                      evidencePulse
+                        ? 'pet-codex-evidence-card is-drilldown-pulse'
+                        : 'pet-codex-evidence-card'
+                    }
+                  >
                     <span>记录时间</span>
                     <p>{visibleSelectedEntry.capturedAt}</p>
                   </article>

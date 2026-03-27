@@ -5779,9 +5779,30 @@ body {
   flex-wrap: wrap;
 }
 
+.pet-codex-evidence-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .pet-codex-evidence-head strong {
   color: #fff1cf;
   font-size: 14px;
+}
+
+.pet-codex-evidence-signal {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 143, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    rgba(57, 24, 14, 0.58);
+  color: #f0cf98;
+  font-size: 11px;
 }
 
 .pet-codex-screenshot-frame {
@@ -5853,6 +5874,27 @@ body {
   color: #fff0cd;
   line-height: 1.6;
   word-break: break-word;
+}
+
+.pet-codex-evidence.is-drilldown-pulse {
+  border-color: rgba(255, 204, 120, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 195, 0.05),
+    0 0 0 1px rgba(255, 204, 120, 0.05);
+  animation: codex-evidence-pulse 820ms ease;
+}
+
+.pet-codex-screenshot-frame.is-drilldown-pulse,
+.pet-codex-evidence-card.is-drilldown-pulse {
+  animation: codex-evidence-card-pulse 880ms ease;
+}
+
+.pet-codex-screenshot-frame.is-drilldown-pulse {
+  border-color: rgba(255, 204, 120, 0.24);
+}
+
+.pet-codex-evidence-card.is-drilldown-pulse {
+  border-color: rgba(255, 204, 120, 0.16);
 }
 
 .pet-codex-chip {
@@ -6004,6 +6046,47 @@ body {
   50% {
     transform: scale(1.02);
     opacity: 0.72;
+  }
+}
+
+@keyframes codex-evidence-pulse {
+  0% {
+    transform: translateY(4px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 233, 195, 0.05),
+      0 0 0 0 rgba(255, 204, 120, 0);
+  }
+
+  40% {
+    transform: translateY(0);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 233, 195, 0.06),
+      0 0 0 1px rgba(255, 204, 120, 0.08),
+      0 18px 34px rgba(35, 14, 8, 0.18);
+  }
+
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 233, 195, 0.05),
+      0 0 0 1px rgba(255, 204, 120, 0.05);
+  }
+}
+
+@keyframes codex-evidence-card-pulse {
+  0% {
+    transform: translateY(6px) scale(0.985);
+    filter: brightness(0.98);
+  }
+
+  45% {
+    transform: translateY(-2px) scale(1.01);
+    filter: brightness(1.06);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
   }
 }
 
