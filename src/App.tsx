@@ -536,15 +536,24 @@ export default function App() {
         <FloatingPet
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
+          busy={busyKey === 'start-run' || busyKey === 'stop-run'}
           highlightDropName={highlightedDropName}
           liveDurationText={activeDurationText}
           onMinimize={() => void window.d2Pet.minimize()}
           onOpenDrops={() => handleOpenPanel('drops')}
           onOpenPanel={() => handleOpenPanel('companion')}
+          onOpenSetupGuide={handleOpenSetupGuide}
           onOpenWorkshop={() => handleOpenPanel('workshop')}
+          onStartRun={(mapName) => void handleStartRun(mapName)}
+          onStopRun={() => void handleStopRun()}
           onToggleAlwaysOnTop={() =>
             void handleUpdateSettings({ alwaysOnTop: !data.settings.alwaysOnTop })
           }
+          preflight={setupPreflight}
+          preflightBusy={setupPreflightBusy}
+          recentDrops={todayDrops}
+          recentRuns={recentRuns}
+          setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
         />
