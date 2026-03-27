@@ -49,12 +49,25 @@ export interface IntegrationConfig {
   lastLogPath?: string;
 }
 
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface WindowPlacementSettings {
+  panel?: WindowBounds;
+  floating?: WindowBounds;
+}
+
 export interface AppSettings {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
   windowMode: WindowMode;
   setupGuideCompleted: boolean;
+  windowPlacement: WindowPlacementSettings;
 }
 
 export interface AutomationDrafts {

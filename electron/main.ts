@@ -14,6 +14,7 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  screen,
   shell,
   type MenuItemConstructorOptions
 } from 'electron';
@@ -46,6 +47,7 @@ import type {
   UpdateIntegrationInput,
   UpdateSettingsInput,
   VisualReportPayload,
+  WindowBounds,
   WindowMode
 } from '../src/types.js';
 
@@ -85,6 +87,9 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
 let resolvedPythonCommand: string | null = null;
+let activeWindowMode: WindowMode = 'panel';
+let suppressWindowStateCaptureUntil = 0;
+let persistWindowStateTimer: NodeJS.Timeout | null = null;
 let pythonEnvironmentProbeCache:
   | {
       expiresAt: number;
@@ -130,6 +135,129 @@ function getWindowMetrics(mode: WindowMode): {
     minHeight: 640,
     resizable: true
   };
+}
+
+const floatingSnapDistance = 22;
+const windowStatePersistDelayMs = 220;
+
+function sanitizeWindowBounds(input: Partial<WindowBounds> | undefined): WindowBounds | null {
+  if (
+    !input ||
+    !Number.isFinite(input.x) ||
+    !Number.isFinite(input.y) ||
+    !Number.isFinite(input.width) ||
+    !Number.isFinite(input.height)
+  ) {
+    return null;
+  }
+
+  const x = Number(input.x);
+  const y = Number(input.y);
+  const width = Number(input.width);
+  const height = Number(input.height);
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height))
+  };
+}
+
+function getDisplayForBounds(bounds: WindowBounds) {
+  const centerPoint = {
+    x: Math.round(bounds.x + bounds.width / 2),
+    y: Math.round(bounds.y + bounds.height / 2)
+  };
+
+  return screen.getDisplayNearestPoint(centerPoint);
+}
+
+function getCenteredBounds(mode: WindowMode, workArea = screen.getPrimaryDisplay().workArea): WindowBounds {
+  const metrics = getWindowMetrics(mode);
+  const width = mode === 'floating' ? metrics.width : Math.min(metrics.width, workArea.width);
+  const height = mode === 'floating' ? metrics.height : Math.min(metrics.height, workArea.height);
+
+  return {
+    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    y: Math.round(workArea.y + (workArea.height - height) / 2),
+    width,
+    height
+  };
+}
+
+function clampBoundsToWorkArea(bounds: WindowBounds, mode: WindowMode): WindowBounds {
+  const metrics = getWindowMetrics(mode);
+  const workArea = getDisplayForBounds(bounds).workArea;
+  const width =
+    mode === 'floating'
+      ? metrics.width
+      : Math.min(Math.max(bounds.width, metrics.minWidth), workArea.width);
+  const height =
+    mode === 'floating'
+      ? metrics.height
+      : Math.min(Math.max(bounds.height, metrics.minHeight), workArea.height);
+  const maxX = workArea.x + Math.max(0, workArea.width - width);
+  const maxY = workArea.y + Math.max(0, workArea.height - height);
+
+  return {
+    x: Math.min(Math.max(bounds.x, workArea.x), maxX),
+    y: Math.min(Math.max(bounds.y, workArea.y), maxY),
+    width,
+    height
+  };
+}
+
+function snapFloatingBounds(bounds: WindowBounds): WindowBounds {
+  const clamped = clampBoundsToWorkArea(bounds, 'floating');
+  const workArea = getDisplayForBounds(clamped).workArea;
+  const snapped = { ...clamped };
+  const rightEdge = workArea.x + workArea.width - clamped.width;
+  const bottomEdge = workArea.y + workArea.height - clamped.height;
+
+  if (Math.abs(clamped.x - workArea.x) <= floatingSnapDistance) {
+    snapped.x = workArea.x;
+  } else if (Math.abs(clamped.x - rightEdge) <= floatingSnapDistance) {
+    snapped.x = rightEdge;
+  }
+
+  if (Math.abs(clamped.y - workArea.y) <= floatingSnapDistance) {
+    snapped.y = workArea.y;
+  } else if (Math.abs(clamped.y - bottomEdge) <= floatingSnapDistance) {
+    snapped.y = bottomEdge;
+  }
+
+  return snapped;
+}
+
+function getResolvedWindowBounds(data: AppData, mode: WindowMode): WindowBounds {
+  const storedBounds = sanitizeWindowBounds(data.settings.windowPlacement?.[mode]);
+
+  if (!storedBounds) {
+    return getCenteredBounds(mode);
+  }
+
+  return clampBoundsToWorkArea(storedBounds, mode);
+}
+
+function areWindowBoundsEqual(
+  left: Partial<WindowBounds> | undefined,
+  right: Partial<WindowBounds> | undefined
+): boolean {
+  return (
+    left?.x === right?.x &&
+    left?.y === right?.y &&
+    left?.width === right?.width &&
+    left?.height === right?.height
+  );
+}
+
+function suppressWindowStateCapture(durationMs = 260): void {
+  suppressWindowStateCaptureUntil = Date.now() + durationMs;
+}
+
+function isWindowStateCaptureSuppressed(): boolean {
+  return Date.now() < suppressWindowStateCaptureUntil;
 }
 
 function getPythonCandidates(): string[] {
@@ -746,7 +874,8 @@ function createDefaultData(): AppData {
       launchOnStartup: false,
       notificationsEnabled: true,
       windowMode: 'panel',
-      setupGuideCompleted: false
+      setupGuideCompleted: false,
+      windowPlacement: {}
     }
   };
 }
@@ -778,7 +907,11 @@ function normalizeData(input: Partial<AppData> | undefined): AppData {
         input?.settings?.notificationsEnabled ?? fallback.settings.notificationsEnabled,
       windowMode: input?.settings?.windowMode ?? fallback.settings.windowMode,
       setupGuideCompleted:
-        input?.settings?.setupGuideCompleted ?? fallback.settings.setupGuideCompleted
+        input?.settings?.setupGuideCompleted ?? fallback.settings.setupGuideCompleted,
+      windowPlacement: {
+        panel: sanitizeWindowBounds(input?.settings?.windowPlacement?.panel) ?? undefined,
+        floating: sanitizeWindowBounds(input?.settings?.windowPlacement?.floating) ?? undefined
+      }
     }
   };
 }
@@ -837,14 +970,19 @@ async function readDataStore(): Promise<AppData> {
   return normalized;
 }
 
-async function writeDataStore(data: AppData): Promise<AppData> {
+async function writeDataStore(
+  data: AppData,
+  options?: { broadcast?: boolean; refreshTray?: boolean }
+): Promise<AppData> {
   await ensureFile();
   const normalized = normalizeData(data);
   await writeFile(dataFilePath(), JSON.stringify(normalized, null, 2), 'utf8');
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (options?.broadcast !== false && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('data:changed', normalized);
   }
-  void refreshTrayMenu(normalized);
+  if (options?.refreshTray !== false) {
+    void refreshTrayMenu(normalized);
+  }
   return normalized;
 }
 
@@ -854,12 +992,72 @@ function applyAlwaysOnTopState(value: boolean): void {
   }
 }
 
-async function applyWindowModeState(mode: WindowMode): Promise<void> {
+async function persistWindowPlacement(mode = activeWindowMode): Promise<void> {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
+  const currentBounds = sanitizeWindowBounds(mainWindow.getBounds());
+  if (!currentBounds) {
+    return;
+  }
+
+  const nextBounds =
+    mode === 'floating'
+      ? snapFloatingBounds(currentBounds)
+      : clampBoundsToWorkArea(currentBounds, mode);
+
+  if (!areWindowBoundsEqual(currentBounds, nextBounds)) {
+    suppressWindowStateCapture();
+    mainWindow.setBounds(nextBounds, false);
+  }
+
+  const data = await readDataStore();
+  const currentPlacement = data.settings.windowPlacement ?? {};
+  if (areWindowBoundsEqual(currentPlacement[mode], nextBounds)) {
+    return;
+  }
+
+  data.settings.windowPlacement = {
+    ...currentPlacement,
+    [mode]: nextBounds
+  };
+  await writeDataStore(data, { broadcast: false, refreshTray: false });
+}
+
+function scheduleWindowPlacementPersist(mode = activeWindowMode): void {
+  if (!mainWindow || mainWindow.isDestroyed() || isWindowStateCaptureSuppressed()) {
+    return;
+  }
+
+  if (persistWindowStateTimer) {
+    clearTimeout(persistWindowStateTimer);
+  }
+
+  persistWindowStateTimer = setTimeout(() => {
+    persistWindowStateTimer = null;
+    void persistWindowPlacement(mode);
+  }, windowStatePersistDelayMs);
+}
+
+async function flushWindowPlacementPersist(mode = activeWindowMode): Promise<void> {
+  if (persistWindowStateTimer) {
+    clearTimeout(persistWindowStateTimer);
+    persistWindowStateTimer = null;
+  }
+
+  await persistWindowPlacement(mode);
+}
+
+async function applyWindowModeState(mode: WindowMode, data?: AppData): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  const currentData = data ?? (await readDataStore());
   const metrics = getWindowMetrics(mode);
+  const bounds = getResolvedWindowBounds(currentData, mode);
+  activeWindowMode = mode;
   mainWindow.setSkipTaskbar(mode === 'floating');
   mainWindow.setResizable(metrics.resizable);
   mainWindow.setMinimumSize(metrics.minWidth, metrics.minHeight);
@@ -870,8 +1068,8 @@ async function applyWindowModeState(mode: WindowMode): Promise<void> {
     mainWindow.setMaximumSize(metrics.width, metrics.height);
   }
 
-  mainWindow.setSize(metrics.width, metrics.height, true);
-  mainWindow.center();
+  suppressWindowStateCapture();
+  mainWindow.setBounds(bounds, true);
 }
 
 async function ensureFolderAndOpen(targetPath: string): Promise<string> {
@@ -995,10 +1193,11 @@ async function toggleNotificationsFromTray(): Promise<void> {
 
 async function toggleWindowModeFromTray(): Promise<void> {
   const data = await readDataStore();
+  await flushWindowPlacementPersist(data.settings.windowMode);
   data.settings.windowMode =
     data.settings.windowMode === 'floating' ? 'panel' : 'floating';
   const nextData = await writeDataStore(data);
-  await applyWindowModeState(nextData.settings.windowMode);
+  await applyWindowModeState(nextData.settings.windowMode, nextData);
   applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
 }
 
@@ -1879,10 +2078,14 @@ async function runDropOcr(imagePath: string): Promise<DropOcrResult> {
 async function createMainWindow(): Promise<void> {
   const data = await readDataStore();
   const metrics = getWindowMetrics(data.settings.windowMode);
+  const initialBounds = getResolvedWindowBounds(data, data.settings.windowMode);
+  activeWindowMode = data.settings.windowMode;
 
   mainWindow = new BrowserWindow({
-    width: metrics.width,
-    height: metrics.height,
+    x: initialBounds.x,
+    y: initialBounds.y,
+    width: initialBounds.width,
+    height: initialBounds.height,
     minWidth: metrics.minWidth,
     minHeight: metrics.minHeight,
     transparent: true,
@@ -1908,7 +2111,7 @@ async function createMainWindow(): Promise<void> {
   });
 
   applyAlwaysOnTopState(data.settings.alwaysOnTop);
-  await applyWindowModeState(data.settings.windowMode);
+  await applyWindowModeState(data.settings.windowMode, data);
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on('close', (event) => {
@@ -1917,6 +2120,7 @@ async function createMainWindow(): Promise<void> {
     }
 
     event.preventDefault();
+    void flushWindowPlacementPersist();
     hideMainWindow();
   });
 
@@ -1925,7 +2129,18 @@ async function createMainWindow(): Promise<void> {
   });
 
   mainWindow.on('hide', () => {
+    void flushWindowPlacementPersist();
     void refreshTrayMenu();
+  });
+
+  mainWindow.on('move', () => {
+    scheduleWindowPlacementPersist();
+  });
+
+  mainWindow.on('resize', () => {
+    if (activeWindowMode === 'panel') {
+      scheduleWindowPlacementPersist();
+    }
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -2069,6 +2284,9 @@ ipcMain.handle('drop:ocr-preview', async (_event, payload: DropOcrPreviewInput) 
 
 ipcMain.handle('settings:update', async (_event, payload: UpdateSettingsInput) => {
   const data = await readDataStore();
+  if (payload.patch.windowMode && payload.patch.windowMode !== data.settings.windowMode) {
+    await flushWindowPlacementPersist(data.settings.windowMode);
+  }
   const nextSettings = {
     ...data.settings,
     ...payload.patch
@@ -2084,7 +2302,7 @@ ipcMain.handle('settings:update', async (_event, payload: UpdateSettingsInput) =
   const nextData = await writeDataStore(data);
   applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
   if (payload.patch.windowMode) {
-    await applyWindowModeState(nextData.settings.windowMode);
+    await applyWindowModeState(nextData.settings.windowMode, nextData);
   }
 
   if (typeof payload.patch.notificationsEnabled === 'boolean' && nextData.settings.notificationsEnabled) {
