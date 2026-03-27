@@ -35,9 +35,36 @@ interface AutomationPanelProps {
 }
 
 interface ViewerState {
+  id?: IntegrationId;
   title: string;
   path?: string;
   content: string;
+}
+
+type DiagnosisTone = 'success' | 'attention' | 'error';
+
+interface QuickFixAction {
+  key: string;
+  label: string;
+  kind:
+    | 'admin'
+    | 'open-path'
+    | 'set-gem-mode'
+    | 'set-allow-inactive'
+    | 'set-wait'
+    | 'clear-gem-path'
+    | 'refresh';
+  adminAction?: AutomationAdminAction;
+  path?: string;
+  mode?: GemInputMode;
+  value?: boolean | number;
+}
+
+interface TaskDiagnosis {
+  tone: DiagnosisTone;
+  title: string;
+  description: string;
+  actions: QuickFixAction[];
 }
 
 function getIntegration(
@@ -208,6 +235,234 @@ function getTaskHint(message?: string): string {
   return '如果这条结果不符合预期，优先看预检和日志。';
 }
 
+function findCheck(task: AutomationPreflightTask | null, key: string): AutomationCheckItem | null {
+  return task?.checks.find((check) => check.key === key) ?? null;
+}
+
+function getParentPath(targetPath: string): string {
+  const normalized = targetPath.trim().replace(/[\\/]+$/, '');
+  const match = normalized.match(/^(.*)[\\/][^\\/]+$/);
+  return match?.[1] ?? normalized;
+}
+
+function pushAction(actions: QuickFixAction[], action: QuickFixAction) {
+  if (!actions.some((item) => item.key === action.key)) {
+    actions.push(action);
+  }
+}
+
+function getWaitRepair(
+  id: IntegrationId
+): { draftKey: 'runeWaitSeconds' | 'gemWaitSeconds' | 'goldWaitSeconds'; value: number } {
+  switch (id) {
+    case 'rune-cube':
+      return { draftKey: 'runeWaitSeconds', value: 3 };
+    case 'gem-cube':
+      return { draftKey: 'gemWaitSeconds', value: 3 };
+    case 'drop-shared-gold':
+      return { draftKey: 'goldWaitSeconds', value: 5 };
+  }
+}
+
+function buildTaskDiagnosis(
+  item: IntegrationConfig,
+  task: AutomationPreflightTask | null,
+  drafts: AutomationDrafts,
+  hasGemClipboardImage: boolean
+): TaskDiagnosis {
+  const actions: QuickFixAction[] = [];
+
+  if (!task) {
+    return {
+      tone: 'attention',
+      title: '诊断准备中',
+      description: '我还在重新扫描这条任务的环境、Profile 和输入条件。',
+      actions: [{ key: 'refresh', label: '立即刷新', kind: 'refresh' }]
+    };
+  }
+
+  const profileCheck = findCheck(task, 'profile-path');
+  const legacyCheck = findCheck(task, 'legacy-config');
+  const scriptCheck = findCheck(task, 'script-path');
+  const pythonCheck = findCheck(task, 'python-global');
+  const screenshotCheck = findCheck(task, 'gem-screenshot');
+  const matrixCheck = findCheck(task, 'gem-matrix');
+  const inactiveCheck = findCheck(task, 'inactive-window');
+  const waitCheck =
+    findCheck(task, 'rune-wait') ?? findCheck(task, 'gem-wait') ?? findCheck(task, 'gold-wait');
+
+  if (pythonCheck?.level === 'error' || scriptCheck?.level === 'error') {
+    pushAction(actions, {
+      key: 'open-runtime',
+      label: '打开运行时目录',
+      kind: 'open-path',
+      path: item.workingDirectory
+    });
+
+    return {
+      tone: 'error',
+      title: '运行环境还没就绪',
+      description: pythonCheck?.detail ?? scriptCheck?.detail ?? task.summary,
+      actions
+    };
+  }
+
+  if (profileCheck?.level === 'error') {
+    pushAction(actions, {
+      key: 'record-profile',
+      label: '重录 Profile',
+      kind: 'admin',
+      adminAction: 'record-profile'
+    });
+    pushAction(actions, {
+      key: 'open-profile-dir',
+      label: '打开 Profile 目录',
+      kind: 'open-path',
+      path: getParentPath(item.profilePath)
+    });
+
+    if (item.supportsLegacyImport && legacyCheck?.level === 'ok') {
+      pushAction(actions, {
+        key: 'import-legacy',
+        label: '导入旧配置',
+        kind: 'admin',
+        adminAction: 'import-legacy-config'
+      });
+    }
+
+    return {
+      tone: 'error',
+      title: 'Profile 还没就位',
+      description: profileCheck.detail,
+      actions
+    };
+  }
+
+  if (screenshotCheck?.level === 'error') {
+    if (drafts.gemMatrix.trim()) {
+      pushAction(actions, {
+        key: 'switch-gem-matrix',
+        label: '改用矩阵模式',
+        kind: 'set-gem-mode',
+        mode: 'matrix'
+      });
+    }
+
+    if (drafts.gemImagePath.trim()) {
+      pushAction(actions, {
+        key: 'open-image-dir',
+        label: '打开截图目录',
+        kind: 'open-path',
+        path: getParentPath(drafts.gemImagePath)
+      });
+      pushAction(actions, {
+        key: 'clear-image-path',
+        label: '清空截图路径',
+        kind: 'clear-gem-path'
+      });
+    }
+
+    if (!hasGemClipboardImage && !drafts.gemImagePath.trim()) {
+      pushAction(actions, { key: 'refresh', label: '刷新诊断', kind: 'refresh' });
+    }
+
+    return {
+      tone: 'error',
+      title: '宝石截图来源未就绪',
+      description: screenshotCheck.detail,
+      actions
+    };
+  }
+
+  if (matrixCheck?.level === 'error') {
+    if (hasGemClipboardImage || drafts.gemImagePath.trim()) {
+      pushAction(actions, {
+        key: 'switch-gem-scan',
+        label: '改用截图识别',
+        kind: 'set-gem-mode',
+        mode: 'scan-image'
+      });
+    }
+
+    return {
+      tone: 'error',
+      title: '宝石矩阵还没填好',
+      description: matrixCheck.detail,
+      actions
+    };
+  }
+
+  if (inactiveCheck?.level === 'warning') {
+    pushAction(actions, {
+      key: 'focus-window',
+      label: '改回前台执行',
+      kind: 'set-allow-inactive',
+      value: false
+    });
+
+    return {
+      tone: 'attention',
+      title: '当前允许后台点击',
+      description: inactiveCheck.detail,
+      actions
+    };
+  }
+
+  if (waitCheck?.level === 'warning') {
+    const waitRepair = getWaitRepair(item.id);
+    pushAction(actions, {
+      key: `repair-${waitRepair.draftKey}`,
+      label: `恢复 ${waitRepair.value} 秒等待`,
+      kind: 'set-wait',
+      value: waitRepair.value
+    });
+
+    return {
+      tone: 'attention',
+      title: '等待时间偏长',
+      description: waitCheck.detail,
+      actions
+    };
+  }
+
+  if (task.status === 'ready') {
+    pushAction(actions, {
+      key: 'print-profile',
+      label: '查看当前 Profile',
+      kind: 'admin',
+      adminAction: 'print-profile'
+    });
+
+    if (item.lastLogPath) {
+      pushAction(actions, {
+        key: 'open-last-log',
+        label: '打开最新日志',
+        kind: 'open-path',
+        path: item.lastLogPath
+      });
+    }
+
+    return {
+      tone: 'success',
+      title: '这条任务已经可以开跑',
+      description: '环境和输入已经通过诊断，建议先试运行，再决定是否正式执行。',
+      actions
+    };
+  }
+
+  const focusCheck =
+    task.checks.find((check) => check.level === 'error') ??
+    task.checks.find((check) => check.level === 'warning') ??
+    null;
+
+  return {
+    tone: task.status === 'error' ? 'error' : 'attention',
+    title: task.status === 'error' ? '还有阻塞项待处理' : '还有提醒项建议处理',
+    description: focusCheck?.detail ?? task.summary,
+    actions
+  };
+}
+
 function getParsedTaskLabel(task: string): string {
   if (task === 'rune-cube' || task === 'gem-cube' || task === 'drop-shared-gold') {
     return getTaskMeta(task).title;
@@ -268,6 +523,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const [preflight, setPreflight] = useState<AutomationPreflightResponse | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [preflightError, setPreflightError] = useState('');
+  const [preflightTick, setPreflightTick] = useState(0);
 
   useEffect(() => {
     setDrafts(props.initialDrafts);
@@ -325,7 +581,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }, 180);
 
     return () => window.clearTimeout(timer);
-  }, [drafts, gemImageDataUrl]);
+  }, [drafts, gemImageDataUrl, props.integrations, preflightTick]);
 
   const runeTask = getIntegration(props.integrations, 'rune-cube');
   const gemTask = getIntegration(props.integrations, 'gem-cube');
@@ -336,6 +592,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const parsedViewerLog = useMemo(() => {
     return viewer ? parseAutomationLog(viewer.content) : null;
   }, [viewer]);
+  const viewerIntegration = useMemo(() => {
+    return viewer?.id ? props.integrations.find((item) => item.id === viewer.id) ?? null : null;
+  }, [props.integrations, viewer]);
 
   function updateDraft<Key extends keyof AutomationDrafts>(
     key: Key,
@@ -353,6 +612,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
   ) {
     const nextValue = Number(value);
     updateDraft(key, Number.isFinite(nextValue) && nextValue >= 0 ? nextValue : 0);
+  }
+
+  function requestPreflightRefresh() {
+    setPreflightTick((current) => current + 1);
   }
 
   function clearGemImage() {
@@ -380,12 +643,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
     try {
       const log = await props.onGetLog(id);
       setViewer({
+        id,
         title,
         path: log.path,
         content: log.content
       });
     } catch (error) {
       setViewer({
+        id,
         title,
         content: getErrorMessage(error)
       });
@@ -412,6 +677,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         }
         await openLogViewer(id, `${getTaskMeta(id).title} / ${getModeLabel(mode)}日志`);
       }
+      requestPreflightRefresh();
     } catch {
       return;
     }
@@ -427,8 +693,44 @@ export function AutomationPanel(props: AutomationPanelProps) {
       if (response.result.success) {
         await openLogViewer(item.id, `${getTaskMeta(item.id).title} / ${getAdminLabel(action)}日志`);
       }
+      requestPreflightRefresh();
     } catch {
       return;
+    }
+  }
+
+  async function handleQuickFix(item: IntegrationConfig, action: QuickFixAction) {
+    switch (action.kind) {
+      case 'admin':
+        if (action.adminAction) {
+          await runAdmin(item, action.adminAction);
+        }
+        return;
+      case 'open-path':
+        if (action.path) {
+          await props.onOpenPath(action.path);
+        }
+        return;
+      case 'set-gem-mode':
+        if (action.mode) {
+          updateDraft('gemInputMode', action.mode);
+        }
+        return;
+      case 'set-allow-inactive':
+        updateDraft('allowInactiveWindow', Boolean(action.value));
+        return;
+      case 'set-wait': {
+        const waitRepair = getWaitRepair(item.id);
+        updateDraft(waitRepair.draftKey, Number(action.value ?? waitRepair.value));
+        return;
+      }
+      case 'clear-gem-path':
+        updateDraft('gemImagePath', '');
+        clearGemImage();
+        return;
+      case 'refresh':
+        requestPreflightRefresh();
+        return;
     }
   }
 
@@ -511,7 +813,17 @@ export function AutomationPanel(props: AutomationPanelProps) {
               这里会实时检查 Python、runtime、profile 和当前输入条件，先扫雷再执行。
             </p>
           </div>
-          <span className="status-pill">{preflightBusy ? '预检更新中' : '实时联调'}</span>
+          <div className="tool-row">
+            <span className="status-pill">{preflightBusy ? '预检更新中' : '实时联调'}</span>
+            <button
+              className="ghost-button"
+              disabled={preflightBusy || props.busyKey !== null}
+              onClick={requestPreflightRefresh}
+              type="button"
+            >
+              {preflightBusy ? '刷新中...' : '立即刷新'}
+            </button>
+          </div>
         </div>
 
         {preflightError ? (
@@ -633,6 +945,54 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderTaskDiagnosis(item: IntegrationConfig, compact = false) {
+    const diagnosis = buildTaskDiagnosis(
+      item,
+      preflightMap.get(item.id) ?? null,
+      drafts,
+      Boolean(gemImageDataUrl)
+    );
+
+    return (
+      <article className={`diagnosis-card ${diagnosis.tone} ${compact ? 'compact' : ''}`}>
+        <div className="integration-head">
+          <div>
+            <div className="card-title small">{diagnosis.title}</div>
+            <p className="secondary-text">{diagnosis.description}</p>
+          </div>
+          <span className={`status-pill ${diagnosis.tone}`}>
+            {diagnosis.tone === 'success'
+              ? '已诊断'
+              : diagnosis.tone === 'error'
+                ? '需修复'
+                : '建议处理'}
+          </span>
+        </div>
+
+        <div className="diagnosis-actions">
+          {diagnosis.actions.length > 0 ? (
+            diagnosis.actions.map((action, index) => (
+              <button
+                className={index === 0 ? 'primary-button' : 'ghost-button'}
+                disabled={
+                  props.busyKey !== null ||
+                  (action.kind === 'refresh' && preflightBusy)
+                }
+                key={action.key}
+                onClick={() => void handleQuickFix(item, action)}
+                type="button"
+              >
+                {action.kind === 'refresh' && preflightBusy ? '刷新中...' : action.label}
+              </button>
+            ))
+          ) : (
+            <span className="helper-text">当前没有可自动处理的动作，先按诊断提示手工调整输入。</span>
+          )}
+        </div>
+      </article>
+    );
+  }
+
   function renderTaskFooter(item: IntegrationConfig) {
     return (
       <>
@@ -732,6 +1092,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">空格分隔即可，执行前会先等几秒让你切回游戏。</p>
+          {renderTaskDiagnosis(runeTask)}
           {renderTaskChecks('rune-cube')}
           {renderAdvancedDetails(runeTask)}
           {renderTaskFooter(runeTask)}
@@ -845,6 +1206,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">矩阵适合手填库存，截图识别适合直接粘贴共享仓库截图。</p>
+          {renderTaskDiagnosis(gemTask)}
           {renderTaskChecks('gem-cube')}
           {renderAdvancedDetails(gemTask)}
           {renderTaskFooter(gemTask)}
@@ -910,6 +1272,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">先输入总额和等级，试运行会先给你分批方案。</p>
+          {renderTaskDiagnosis(goldTask)}
           {renderTaskChecks('drop-shared-gold')}
           {renderAdvancedDetails(goldTask)}
           {renderTaskFooter(goldTask)}
@@ -941,6 +1304,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
           {parsedViewerLog ? (
             <>
+              {viewerIntegration ? renderTaskDiagnosis(viewerIntegration, true) : null}
+
               <div className="log-summary-grid">
                 <article className={`log-stat-card ${getLogToneClass(parsedViewerLog.success)}`}>
                   <span>结果</span>

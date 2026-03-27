@@ -852,6 +852,58 @@ select,
   gap: 10px;
 }
 
+.diagnosis-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(217, 164, 88, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(255, 208, 132, 0.06), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(14, 8, 6, 0.48);
+}
+
+.diagnosis-card.success {
+  border-color: rgba(117, 194, 127, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(117, 194, 127, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(61, 118, 67, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(14, 8, 6, 0.48);
+}
+
+.diagnosis-card.attention {
+  border-color: rgba(244, 174, 85, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(244, 174, 85, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(214, 118, 47, 0.14), rgba(255, 255, 255, 0.02)),
+    rgba(14, 8, 6, 0.48);
+}
+
+.diagnosis-card.error {
+  border-color: rgba(230, 116, 97, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(230, 116, 97, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(173, 52, 38, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(14, 8, 6, 0.48);
+}
+
+.diagnosis-card.compact {
+  padding: 12px;
+}
+
+.diagnosis-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.diagnosis-actions .primary-button,
+.diagnosis-actions .ghost-button {
+  flex: 1 1 140px;
+}
+
 .check-ok {
   border-color: rgba(117, 194, 127, 0.24);
   background:
