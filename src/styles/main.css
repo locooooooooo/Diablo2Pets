@@ -189,6 +189,47 @@ select,
   margin-top: 10px;
 }
 
+.pet-scene-orbs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pet-scene-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(0);
+  opacity: 0.42;
+  animation: scene-orb-float 11s ease-in-out infinite;
+}
+
+.pet-scene-orb.orb-a {
+  top: 22px;
+  left: 28px;
+  width: 92px;
+  height: 92px;
+  background: radial-gradient(circle, rgba(244, 174, 85, 0.18), transparent 68%);
+}
+
+.pet-scene-orb.orb-b {
+  right: 26px;
+  top: 12px;
+  width: 126px;
+  height: 126px;
+  background: radial-gradient(circle, rgba(92, 159, 182, 0.14), transparent 72%);
+  animation-delay: -4s;
+}
+
+.pet-scene-orb.orb-c {
+  right: 120px;
+  bottom: -28px;
+  width: 144px;
+  height: 144px;
+  background: radial-gradient(circle, rgba(197, 98, 54, 0.14), transparent 74%);
+  animation-delay: -7s;
+}
+
 .pet-gesture-hint {
   color: #e8c794;
   border-color: rgba(255, 207, 123, 0.18);
@@ -319,6 +360,112 @@ select,
   box-shadow:
     inset 0 1px 0 rgba(255, 227, 177, 0.08),
     0 0 22px rgba(126, 187, 208, 0.08);
+}
+
+.pet-prop-badge {
+  position: absolute;
+  right: -8px;
+  bottom: 2px;
+  max-width: 92px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 218, 161, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 247, 226, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(42, 18, 12, 0.74);
+  color: #fff2d1;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 10px 20px rgba(17, 7, 4, 0.24);
+}
+
+.pet-stage-band,
+.floating-scene-strip {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.pet-stage-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 213, 147, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    rgba(20, 10, 8, 0.4);
+  color: #f0d8ae;
+  font-size: 12px;
+}
+
+.pet-stage-chip.strong {
+  color: #fff1cd;
+  border-color: rgba(255, 201, 109, 0.28);
+}
+
+.pet-stage-ambient {
+  color: #ccb088;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pet-event-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 219, 164, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.018)),
+    rgba(15, 8, 7, 0.48);
+}
+
+.pet-event-card.event-warm {
+  box-shadow: 0 16px 28px rgba(44, 18, 10, 0.18);
+}
+
+.pet-event-card.event-alert {
+  border-color: rgba(219, 114, 74, 0.22);
+  box-shadow: 0 16px 32px rgba(62, 20, 12, 0.22);
+}
+
+.pet-event-card.event-bright {
+  border-color: rgba(255, 196, 107, 0.22);
+  box-shadow: 0 16px 32px rgba(74, 35, 14, 0.2);
+}
+
+.pet-event-copy {
+  min-width: 0;
+}
+
+.pet-event-copy strong {
+  display: block;
+  color: #fff0cd;
+  font-size: 14px;
+}
+
+.pet-event-copy p:last-child {
+  margin: 6px 0 0;
+  color: #d8bf97;
+  line-height: 1.55;
+}
+
+.pet-event-button {
+  flex: 0 0 auto;
 }
 
 .drag-strip,
@@ -2404,6 +2551,11 @@ select,
   flex-wrap: wrap;
 }
 
+.floating-prop-badge {
+  right: -14px;
+  bottom: 6px;
+}
+
 .floating-toggle-chip {
   display: inline-flex;
   align-items: center;
@@ -2434,6 +2586,10 @@ select,
   font-size: 11px;
   line-height: 1.55;
   opacity: 0.88;
+}
+
+.floating-event-card {
+  padding: 12px;
 }
 
 .floating-bubble:focus-visible {
@@ -2878,6 +3034,46 @@ body {
   background:
     radial-gradient(circle at top right, rgba(255, 182, 98, 0.18), transparent 32%),
     linear-gradient(180deg, rgba(62, 24, 11, 0.72), rgba(23, 11, 8, 0.72));
+}
+
+.compact-pet-shell.scene-camp,
+.floating-card.scene-camp {
+  background:
+    radial-gradient(circle at 14% 16%, rgba(110, 165, 202, 0.14), transparent 24%),
+    radial-gradient(circle at 88% 0%, rgba(247, 173, 91, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(57, 27, 17, 0.76), rgba(24, 13, 10, 0.74));
+}
+
+.compact-pet-shell.scene-sanctuary,
+.floating-card.scene-sanctuary {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(103, 163, 189, 0.14), transparent 24%),
+    radial-gradient(circle at 82% 0%, rgba(235, 112, 64, 0.22), transparent 30%),
+    linear-gradient(180deg, rgba(63, 23, 12, 0.78), rgba(21, 10, 8, 0.74));
+}
+
+.compact-pet-shell.scene-forge,
+.floating-card.scene-forge {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(255, 210, 122, 0.12), transparent 24%),
+    radial-gradient(circle at 88% 4%, rgba(211, 103, 53, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(67, 31, 13, 0.78), rgba(24, 11, 8, 0.74));
+}
+
+.compact-pet-shell.scene-ledger,
+.floating-card.scene-ledger {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(95, 158, 122, 0.14), transparent 24%),
+    radial-gradient(circle at 90% 0%, rgba(244, 182, 96, 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(54, 28, 17, 0.78), rgba(23, 11, 8, 0.74));
+}
+
+.compact-pet-shell.scene-altar,
+.floating-card.scene-altar {
+  background:
+    radial-gradient(circle at 16% 14%, rgba(255, 204, 120, 0.18), transparent 26%),
+    radial-gradient(circle at 84% 0%, rgba(255, 128, 74, 0.22), transparent 30%),
+    linear-gradient(180deg, rgba(66, 25, 14, 0.8), rgba(24, 11, 8, 0.74));
 }
 
 .eyebrow {
@@ -3371,6 +3567,18 @@ body {
   }
 }
 
+@keyframes scene-orb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate3d(0, -10px, 0) scale(1.06);
+    opacity: 0.48;
+  }
+}
+
 @keyframes pet-blink {
   0%,
   45%,
@@ -3441,6 +3649,20 @@ body {
 
   .readiness-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pet-event-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pet-stage-band,
+  .floating-scene-strip {
+    align-items: flex-start;
+  }
+
+  .pet-prop-badge {
+    max-width: 74px;
   }
 
   .pulse-mini-list {

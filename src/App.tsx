@@ -10,6 +10,11 @@ import {
   createPetInteractionCue,
   type PetInteractionCue
 } from './lib/petPersona';
+import {
+  buildPetScene,
+  createPetEvent,
+  type PetEvent
+} from './lib/petWorld';
 import { buildTodayStats } from './lib/stats';
 import type {
   AppData,
@@ -67,6 +72,7 @@ export default function App() {
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
   const [petInteractionCue, setPetInteractionCue] = useState<PetInteractionCue | null>(null);
+  const [petEvent, setPetEvent] = useState<PetEvent | null>(null);
   const [floatingSnapPreview, setFloatingSnapPreview] = useState<FloatingSnapPreview>({
     visible: false,
     snapped: false
@@ -171,6 +177,18 @@ export default function App() {
   }, [petInteractionCue]);
 
   useEffect(() => {
+    if (!petEvent) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetEvent((current) => (current?.id === petEvent.id ? null : current));
+    }, 12_500);
+
+    return () => window.clearTimeout(timer);
+  }, [petEvent]);
+
+  useEffect(() => {
     if (!workshopFocusId) {
       return undefined;
     }
@@ -250,6 +268,14 @@ export default function App() {
       todayStats.totalCount
     ]
   );
+  const petWorldInput = useMemo(
+    () => (petPersonaInput ? { ...petPersonaInput, now } : null),
+    [now, petPersonaInput]
+  );
+  const petScene = useMemo(
+    () => (petWorldInput ? buildPetScene(petWorldInput) : null),
+    [petWorldInput]
+  );
 
   useEffect(() => {
     if (
@@ -276,6 +302,25 @@ export default function App() {
     petInteractionCue,
     petPersonaInput
   ]);
+
+  useEffect(() => {
+    if (
+      !data ||
+      !petWorldInput ||
+      Boolean(busyKey) ||
+      Boolean(petInteractionCue) ||
+      Boolean(petEvent) ||
+      showSetupGuide
+    ) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetEvent(createPetEvent(petWorldInput));
+    }, 26_000 + Math.floor(Math.random() * 12_000));
+
+    return () => window.clearTimeout(timer);
+  }, [busyKey, data, petEvent, petInteractionCue, petWorldInput, showSetupGuide]);
 
   if (!data) {
     return (
@@ -307,6 +352,36 @@ export default function App() {
     }
 
     setPetInteractionCue(createPetInteractionCue('cheer', petPersonaInput));
+  }
+
+  function handlePetEventAction() {
+    if (!petEvent) {
+      return;
+    }
+
+    const action = petEvent.action;
+    setPetEvent(null);
+
+    switch (action) {
+      case 'open-companion':
+        handleOpenPanel('companion');
+        return;
+      case 'open-drops':
+        handleOpenPanel('drops');
+        return;
+      case 'open-workshop':
+        handleOpenPanel('workshop');
+        return;
+      case 'open-setup':
+        handleOpenSetupGuide();
+        return;
+      case 'start-latest':
+        void handleStartRun(recentRuns[0]?.mapName ?? '混沌避难所');
+        return;
+      case 'start-default':
+        void handleStartRun('混沌避难所');
+        return;
+    }
   }
 
   async function handleStartRun(mapName: string) {
@@ -648,10 +723,13 @@ export default function App() {
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
           busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+          event={petEvent}
+          eventBusy={Boolean(busyKey)}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           liveDurationText={activeDurationText}
           onMinimize={() => void window.d2Pet.minimize()}
+          onEventAction={handlePetEventAction}
           onOpenDrops={() => handleOpenPanel('drops')}
           onOpenPanel={() => handleOpenPanel('companion')}
           onOpenSetupGuide={handleOpenSetupGuide}
@@ -668,6 +746,7 @@ export default function App() {
           preflightBusy={setupPreflightBusy}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
+          scene={petScene!}
           snapPreview={floatingSnapPreview}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
@@ -689,11 +768,14 @@ export default function App() {
         <PetShell
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
+          event={petEvent}
+          eventBusy={Boolean(busyKey)}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           launchOnStartup={data.settings.launchOnStartup}
           liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
+          onEventAction={handlePetEventAction}
           onOpenSetupGuide={handleOpenSetupGuide}
           onPetCheer={handlePetCheer}
           onPetHeadpat={handlePetHeadpat}
@@ -715,6 +797,7 @@ export default function App() {
           preflight={setupPreflight}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
+          scene={petScene!}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}

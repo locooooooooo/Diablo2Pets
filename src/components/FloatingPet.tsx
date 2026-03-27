@@ -3,6 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { PetEvent, PetScene } from '../lib/petWorld';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -21,6 +22,9 @@ interface FloatingPetProps {
   liveDurationText: string;
   highlightDropName: string;
   interactionCue: PetInteractionCue | null;
+  scene: PetScene;
+  event: PetEvent | null;
+  eventBusy: boolean;
   alwaysOnTop: boolean;
   busy: boolean;
   setupGuideCompleted: boolean;
@@ -29,6 +33,7 @@ interface FloatingPetProps {
   snapPreview: FloatingSnapPreview;
   onPetHeadpat: () => void;
   onPetCheer: () => void;
+  onEventAction: () => void;
   onStartRun: (mapName: string) => void;
   onStopRun: () => void;
   onOpenPanel: () => void;
@@ -311,7 +316,7 @@ export function FloatingPet(props: FloatingPetProps) {
   return (
     <section className="floating-shell">
       <div
-        className={`floating-card floating-card-${persona.emotion} ${
+        className={`floating-card floating-card-${persona.emotion} scene-${props.scene.id} ${
           props.interactionCue ? 'floating-card-interaction' : ''
         } ${interactionClass} ${
           props.snapPreview.visible && props.snapPreview.edge
@@ -319,6 +324,12 @@ export function FloatingPet(props: FloatingPetProps) {
             : ''
         } ${props.snapPreview.snapped ? 'snap-locked' : ''} drag-strip`}
       >
+        <div className="pet-scene-orbs" aria-hidden="true">
+          <span className="pet-scene-orb orb-a" />
+          <span className="pet-scene-orb orb-b" />
+          <span className="pet-scene-orb orb-c" />
+        </div>
+
         {props.snapPreview.visible && props.snapPreview.edge ? (
           <div
             aria-hidden="true"
@@ -347,6 +358,7 @@ export function FloatingPet(props: FloatingPetProps) {
               <span />
               <span />
             </div>
+            <span className="pet-prop-badge floating-prop-badge">{props.scene.propLabel}</span>
             {props.highlightDropName ? <div className="pet-spark" /> : null}
           </button>
 
@@ -376,6 +388,30 @@ export function FloatingPet(props: FloatingPetProps) {
             <span className="floating-script-line">{activeScript}</span>
           </div>
         </div>
+
+        <div className="floating-scene-strip no-drag">
+          <span className="pet-stage-chip strong">{props.scene.label}</span>
+          <span className="pet-stage-chip">{props.scene.auraLabel}</span>
+          <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
+        </div>
+
+        {props.event ? (
+          <article className={`pet-event-card floating-event-card event-${props.event.tone} no-drag`}>
+            <div className="pet-event-copy">
+              <p className="eyebrow">Random Event</p>
+              <strong>{props.event.title}</strong>
+              <p>{props.event.detail}</p>
+            </div>
+            <button
+              className="floating-action primary pet-event-button"
+              disabled={props.eventBusy}
+              onClick={props.onEventAction}
+              type="button"
+            >
+              {props.event.ctaLabel}
+            </button>
+          </article>
+        ) : null}
 
         <article className="floating-brief no-drag">
           <span className="eyebrow">Resume</span>

@@ -3,6 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { PetEvent, PetScene } from '../lib/petWorld';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -21,12 +22,16 @@ interface PetShellProps {
   highlightDropName: string;
   preflight: AutomationPreflightResponse | null;
   interactionCue: PetInteractionCue | null;
+  scene: PetScene;
+  event: PetEvent | null;
+  eventBusy: boolean;
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
   setupGuideCompleted: boolean;
   onPetHeadpat: () => void;
   onPetCheer: () => void;
+  onEventAction: () => void;
   onToggleAlwaysOnTop: () => void;
   onToggleLaunchOnStartup: () => void;
   onToggleNotifications: () => void;
@@ -92,10 +97,16 @@ export function PetShell(props: PetShellProps) {
 
   return (
     <section
-      className={`pet-shell compact-pet-shell pet-shell-${persona.emotion} ${
+      className={`pet-shell compact-pet-shell pet-shell-${persona.emotion} scene-${props.scene.id} ${
         props.interactionCue ? 'pet-shell-interaction' : ''
       } ${interactionClass}`}
     >
+      <div className="pet-scene-orbs" aria-hidden="true">
+        <span className="pet-scene-orb orb-a" />
+        <span className="pet-scene-orb orb-b" />
+        <span className="pet-scene-orb orb-c" />
+      </div>
+
       <div className="compact-header drag-strip">
         <div className="compact-brand">
           <button
@@ -116,6 +127,7 @@ export function PetShell(props: PetShellProps) {
               <span />
               <span />
             </div>
+            <span className="pet-prop-badge">{props.scene.propLabel}</span>
             {props.highlightDropName ? <div className="pet-spark" /> : null}
           </button>
 
@@ -172,6 +184,12 @@ export function PetShell(props: PetShellProps) {
         </button>
       </div>
 
+      <div className="pet-stage-band no-drag">
+        <span className="pet-stage-chip strong">{props.scene.label}</span>
+        <span className="pet-stage-chip">{props.scene.auraLabel}</span>
+        <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
+      </div>
+
       <div className="compact-script-strip no-drag">
         <div className="compact-thought">
           <strong>{persona.headline}</strong>
@@ -188,6 +206,24 @@ export function PetShell(props: PetShellProps) {
           ))}
         </div>
       </div>
+
+      {props.event ? (
+        <article className={`pet-event-card event-${props.event.tone} no-drag`}>
+          <div className="pet-event-copy">
+            <p className="eyebrow">Random Event</p>
+            <strong>{props.event.title}</strong>
+            <p>{props.event.detail}</p>
+          </div>
+          <button
+            className="floating-action primary pet-event-button"
+            disabled={props.eventBusy}
+            onClick={props.onEventAction}
+            type="button"
+          >
+            {props.event.ctaLabel}
+          </button>
+        </article>
+      ) : null}
     </section>
   );
 }
