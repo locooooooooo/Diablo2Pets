@@ -2156,11 +2156,11 @@ async function createMainWindow(): Promise<void> {
     resizable: metrics.resizable,
     maximizable: false,
     fullscreenable: false,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: false,
     backgroundColor: '#00000000',
     icon: existsSync(getWindowIconPath()) ? getWindowIconPath() : undefined,
-    title: '暗黑 2 桌宠助手',
+    // On Windows, `frame: false` is enough to create a truly frameless window.
+    // Mixing it with title bar APIs can still leave a visible caption strip.
+    title: process.platform === 'win32' ? '' : '暗黑 2 桌宠助手',
     alwaysOnTop: data.settings.alwaysOnTop,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
