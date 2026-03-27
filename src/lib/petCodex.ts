@@ -38,6 +38,8 @@ export interface PetCodexEntry {
   detail: string;
   meta: string;
   accent: string;
+  categoryLabel: string;
+  groupLabel: string;
   state: PetCodexEntryState;
   rarity: PetCodexRarity;
   sigil: string;
@@ -48,6 +50,11 @@ export interface PetCodexEntry {
   facts: PetCodexFact[];
   searchableText: string;
   illustration: PetCodexIllustration;
+  mapName?: string;
+  capturedAt?: string;
+  note?: string;
+  ocrText?: string;
+  ocrEngine?: string;
   screenshotPath?: string;
 }
 
@@ -100,6 +107,11 @@ interface RareDropPattern {
   storyTitle: (itemName: string) => string;
   storyLead: (drop: DropRecord) => string;
 }
+
+const DAY_LABEL = new Intl.DateTimeFormat('zh-CN', {
+  month: 'long',
+  day: 'numeric'
+});
 
 const RARE_DROP_PATTERNS: RareDropPattern[] = [
   {
@@ -230,6 +242,10 @@ function buildIllustration(
   };
 }
 
+function toDayLabel(input: string): string {
+  return DAY_LABEL.format(new Date(input));
+}
+
 function detectRareDrop(drop: DropRecord): RareDropStory | null {
   const text = `${drop.itemName} ${drop.note} ${drop.ocrItemName ?? ''}`.toLowerCase();
   const pattern = RARE_DROP_PATTERNS.find((candidate) =>
@@ -279,6 +295,8 @@ function buildRelicEntries(habitat: PetHabitat): PetCodexEntry[] {
               ? '离正式陈列只差最后一点成长或联调进度。'
               : '还没有满足点亮条件，先继续陪刷和补工坊进度。',
       accent: exhibit.accent,
+      categoryLabel: stateText,
+      groupLabel: stateText,
       state: mapHabitatState(exhibit.state),
       rarity:
         exhibit.state === 'glory' ? 'legend' : exhibit.state === 'ready' ? 'artifact' : 'ember',
@@ -301,7 +319,8 @@ function buildRelicEntries(habitat: PetHabitat): PetCodexEntry[] {
         exhibit.accent,
         habitat.title,
         habitat.collectionTitle,
-        habitat.crest
+        habitat.crest,
+        stateText
       ]),
       illustration: buildIllustration(
         exhibit.state === 'glory' ? 'RL' : 'WL',
@@ -333,6 +352,8 @@ function buildRewardEntries(
             ? '这是距离最近的一条奖励轨道，继续刷图和记账就会点亮。'
             : '还在后续成长线中，先让前面的奖励稳定亮起来。',
       accent: reward.shortLabel,
+      categoryLabel: stateText,
+      groupLabel: stateText,
       state: mapRewardState(reward, rewards),
       rarity:
         rewards.activeReward?.id === reward.id
@@ -401,6 +422,8 @@ function buildChamberEntries(room: PetRoom): PetCodexEntry[] {
               ? '已经开始显影，但还没进入最终的完整形态。'
               : '目前仍在预留位置，等后续成长再真正入驻。',
       accent: item.shortLabel,
+      categoryLabel: stateText,
+      groupLabel: stateText,
       state: mapRoomState(item.state),
       rarity:
         item.state === 'glory'
@@ -469,6 +492,8 @@ function buildChronicleEntries(drops: DropRecord[]): PetCodexEntry[] {
             ? '这是当前最新的一条战果记录。'
             : '这条记录来自历史掉落档案。',
       accent: rare?.accent ?? (index === 0 ? '最新战果' : '战利品'),
+      categoryLabel: rare?.accent ?? '战利品',
+      groupLabel: toDayLabel(drop.createdAt),
       state,
       rarity: rare?.rarity ?? (index === 0 ? 'trophy' : 'ember'),
       sigil: rare?.sigil ?? (drop.screenshotPath ? 'Drop' : 'Log'),
@@ -492,14 +517,24 @@ function buildChronicleEntries(drops: DropRecord[]): PetCodexEntry[] {
         drop.note,
         drop.mapName,
         drop.ocrItemName,
+        drop.ocrText,
         rare?.accent,
         ...(rare?.badges ?? [])
       ]),
       illustration: buildIllustration(
         rare?.sigil ?? 'Drop',
         drop.itemName,
-        [drop.mapName || '未知场景', rare?.accent ?? '战利品', formatCompactDateTime(drop.createdAt)]
+        [
+          drop.mapName || '未知场景',
+          rare?.accent ?? '战利品',
+          formatCompactDateTime(drop.createdAt)
+        ]
       ),
+      mapName: drop.mapName,
+      capturedAt: drop.createdAt,
+      note: drop.note,
+      ocrText: drop.ocrText,
+      ocrEngine: drop.ocrEngine,
       screenshotPath: drop.screenshotPath
     };
   });

@@ -24,6 +24,12 @@ const RARITY_FILTERS: Array<{ id: RarityFilter; label: string }> = [
   { id: 'ember', label: '基础' }
 ];
 
+function toFileUrl(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
+  const prefixed = /^[A-Za-z]:\//.test(normalized) ? `file:///${normalized}` : `file://${normalized}`;
+  return encodeURI(prefixed);
+}
+
 function findEntry(
   codex: PetCodex,
   entryId: string | null
@@ -70,10 +76,24 @@ function getRarityLabel(rarity: PetCodexRarity): string {
   }
 }
 
+function groupEntries(entries: PetCodexEntry[]) {
+  const groups = new Map<string, PetCodexEntry[]>();
+
+  entries.forEach((entry) => {
+    const current = groups.get(entry.groupLabel) ?? [];
+    current.push(entry);
+    groups.set(entry.groupLabel, current);
+  });
+
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+}
+
 export function PetCodexOverlay(props: PetCodexOverlayProps) {
   const [searchText, setSearchText] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all');
   const [highlightOnly, setHighlightOnly] = useState(false);
+  const [mapFilter, setMapFilter] = useState('全部地图');
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -90,6 +110,43 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     findEntry(props.codex, props.selectedEntryId) ??
     findEntry(props.codex, props.codex.featuredEntryId);
 
+  const availableMaps = useMemo(() => {
+    if (!selected) {
+      return ['全部地图'];
+    }
+
+    return [
+      '全部地图',
+      ...Array.from(
+        new Set(selected.chapter.entries.map((entry) => entry.mapName).filter(Boolean))
+      )
+    ] as string[];
+  }, [selected]);
+
+  useEffect(() => {
+    if (!availableMaps.includes(mapFilter)) {
+      setMapFilter('全部地图');
+    }
+  }, [availableMaps, mapFilter]);
+
+  const availableTypes = useMemo(() => {
+    if (!selected) {
+      return ['全部类型'];
+    }
+
+    return [
+      '全部类型',
+      ...Array.from(new Set(selected.chapter.entries.map((entry) => entry.categoryLabel)))
+    ];
+  }, [selected]);
+  const [typeFilter, setTypeFilter] = useState('全部类型');
+
+  useEffect(() => {
+    if (!availableTypes.includes(typeFilter)) {
+      setTypeFilter('全部类型');
+    }
+  }, [availableTypes, typeFilter]);
+
   const filteredEntries = useMemo(() => {
     if (!selected) {
       return [];
@@ -103,10 +160,12 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
         : true;
       const matchesRarity = rarityFilter === 'all' ? true : entry.rarity === rarityFilter;
       const matchesHighlight = highlightOnly ? entry.state === 'glory' || entry.state === 'ready' : true;
+      const matchesType = typeFilter === '全部类型' ? true : entry.categoryLabel === typeFilter;
+      const matchesMap = mapFilter === '全部地图' ? true : entry.mapName === mapFilter;
 
-      return matchesSearch && matchesRarity && matchesHighlight;
+      return matchesSearch && matchesRarity && matchesHighlight && matchesType && matchesMap;
     });
-  }, [highlightOnly, rarityFilter, searchText, selected]);
+  }, [highlightOnly, mapFilter, rarityFilter, searchText, selected, typeFilter]);
 
   const visibleSelectedEntry =
     filteredEntries.find((entry) => entry.id === selected?.entry.id) ?? filteredEntries[0] ?? selected?.entry ?? null;
@@ -118,6 +177,12 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
     props.onSelectEntry(visibleSelectedEntry.id);
   }, [props, visibleSelectedEntry]);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [visibleSelectedEntry?.screenshotPath]);
+
+  const groupedEntries = useMemo(() => groupEntries(filteredEntries), [filteredEntries]);
 
   const action = useMemo(
     () =>
@@ -199,10 +264,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               <span className="pet-codex-portrait-ring ring-b" />
               <span className="pet-codex-portrait-core">{visibleSelectedEntry.illustration.monogram}</span>
               {visibleSelectedEntry.illustration.orbitLabels.map((label, index) => (
-                <span
-                  className={`pet-codex-orbit orbit-${index + 1}`}
-                  key={`${visibleSelectedEntry.id}-${label}`}
-                >
+                <span className={`pet-codex-orbit orbit-${index + 1}`} key={`${visibleSelectedEntry.id}-${label}`}>
                   {label}
                 </span>
               ))}
@@ -263,6 +325,8 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                     setSearchText('');
                     setRarityFilter('all');
                     setHighlightOnly(false);
+                    setMapFilter('全部地图');
+                    setTypeFilter('全部类型');
                   }}
                   type="button"
                 >
@@ -320,36 +384,85 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                   只看点亮项
                 </button>
               </div>
+
+              <div className="pet-codex-filter-row">
+                {availableTypes.map((typeLabel) => (
+                  <button
+                    className={
+                      typeFilter === typeLabel
+                        ? 'pet-codex-filter-chip active'
+                        : 'pet-codex-filter-chip'
+                    }
+                    key={typeLabel}
+                    onClick={() => setTypeFilter(typeLabel)}
+                    type="button"
+                  >
+                    {typeLabel}
+                  </button>
+                ))}
+              </div>
+
+              {availableMaps.length > 1 ? (
+                <div className="pet-codex-filter-row">
+                  {availableMaps.map((mapLabel) => (
+                    <button
+                      className={
+                        mapFilter === mapLabel
+                          ? 'pet-codex-filter-chip active'
+                          : 'pet-codex-filter-chip'
+                      }
+                      key={mapLabel}
+                      onClick={() => setMapFilter(mapLabel)}
+                      type="button"
+                    >
+                      {mapLabel}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="pet-codex-entry-grid">
-              {filteredEntries.length > 0 ? (
-                filteredEntries.map((entry) => (
-                  <button
-                    className={
-                      entry.id === visibleSelectedEntry.id
-                        ? `pet-codex-entry active state-${entry.state} rarity-${entry.rarity}`
-                        : `pet-codex-entry state-${entry.state} rarity-${entry.rarity}`
-                    }
-                    key={entry.id}
-                    onClick={() => props.onSelectEntry(entry.id)}
-                    type="button"
-                  >
-                    <span className="pet-room-kicker">{entry.accent}</span>
-                    <strong>{entry.title}</strong>
-                    <p>{entry.subtitle}</p>
-                  </button>
+              {groupedEntries.length > 0 ? (
+                groupedEntries.map((group) => (
+                  <section className="pet-codex-group" key={group.label}>
+                    <div className="pet-codex-group-head">
+                      <strong>{group.label}</strong>
+                      <span className="mini-pill">{group.items.length} 条</span>
+                    </div>
+
+                    <div className="pet-codex-group-grid">
+                      {group.items.map((entry) => (
+                        <button
+                          className={
+                            entry.id === visibleSelectedEntry.id
+                              ? `pet-codex-entry active state-${entry.state} rarity-${entry.rarity}`
+                              : `pet-codex-entry state-${entry.state} rarity-${entry.rarity}`
+                          }
+                          key={entry.id}
+                          onClick={() => props.onSelectEntry(entry.id)}
+                          type="button"
+                        >
+                          <span className="pet-room-kicker">{entry.accent}</span>
+                          <strong>{entry.title}</strong>
+                          <p>{entry.subtitle}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 ))
               ) : (
                 <article className="pet-codex-empty">
                   <strong>这一页暂时没有符合条件的藏品</strong>
-                  <p>你可以清空搜索词或切回“全部”筛选，看看还有哪些条目已经被桌宠收进收藏册。</p>
+                  <p>你可以清空搜索词，或者切回“全部”筛选，看看还有哪些条目已经被桌宠收进收藏册。</p>
                   <button
                     className="ghost-button"
                     onClick={() => {
                       setSearchText('');
                       setRarityFilter('all');
                       setHighlightOnly(false);
+                      setMapFilter('全部地图');
+                      setTypeFilter('全部类型');
                     }}
                     type="button"
                   >
@@ -378,6 +491,59 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               <p>{visibleSelectedEntry.detail}</p>
               <p>{visibleSelectedEntry.meta}</p>
             </div>
+
+            <section className="pet-codex-evidence">
+              <div className="pet-codex-evidence-head">
+                <strong>证据页</strong>
+                <span className="mini-pill">{visibleSelectedEntry.categoryLabel}</span>
+              </div>
+
+              {visibleSelectedEntry.screenshotPath && !imageFailed ? (
+                <button
+                  className="pet-codex-screenshot-frame"
+                  onClick={() => props.onOpenPath(visibleSelectedEntry.screenshotPath!)}
+                  type="button"
+                >
+                  <img
+                    alt={`${visibleSelectedEntry.title} 截图`}
+                    onError={() => setImageFailed(true)}
+                    src={toFileUrl(visibleSelectedEntry.screenshotPath)}
+                  />
+                </button>
+              ) : (
+                <div className="pet-codex-evidence-empty">
+                  <strong>暂时没有可展示的截图</strong>
+                  <p>这条藏品目前只有文字记录，后续贴图后这里会自动长出证据页。</p>
+                </div>
+              )}
+
+              <div className="pet-codex-evidence-grid">
+                {visibleSelectedEntry.note ? (
+                  <article className="pet-codex-evidence-card">
+                    <span>备注</span>
+                    <p>{visibleSelectedEntry.note}</p>
+                  </article>
+                ) : null}
+                {visibleSelectedEntry.ocrText ? (
+                  <article className="pet-codex-evidence-card">
+                    <span>{visibleSelectedEntry.ocrEngine ? `${visibleSelectedEntry.ocrEngine} OCR` : 'OCR 原文'}</span>
+                    <p>{visibleSelectedEntry.ocrText}</p>
+                  </article>
+                ) : null}
+                {visibleSelectedEntry.mapName ? (
+                  <article className="pet-codex-evidence-card">
+                    <span>地图</span>
+                    <p>{visibleSelectedEntry.mapName}</p>
+                  </article>
+                ) : null}
+                {visibleSelectedEntry.capturedAt ? (
+                  <article className="pet-codex-evidence-card">
+                    <span>记录时间</span>
+                    <p>{visibleSelectedEntry.capturedAt}</p>
+                  </article>
+                ) : null}
+              </div>
+            </section>
 
             <div className="pet-codex-detail-actions">
               {visibleSelectedEntry.screenshotPath ? (

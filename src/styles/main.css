@@ -4792,6 +4792,30 @@ body {
   line-height: 1.6;
 }
 
+.pet-codex-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pet-codex-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pet-codex-group-head strong {
+  color: #fff0cd;
+  font-size: 14px;
+}
+
+.pet-codex-group-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .pet-codex-entry.state-glory,
 .pet-codex-detail.state-glory {
   border-color: rgba(255, 204, 120, 0.3);
@@ -5112,6 +5136,102 @@ body {
   box-shadow: 0 10px 22px rgba(28, 12, 8, 0.18);
 }
 
+.pet-codex-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 221, 168, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+    rgba(39, 18, 11, 0.58);
+}
+
+.pet-codex-evidence-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pet-codex-evidence-head strong {
+  color: #fff1cf;
+  font-size: 14px;
+}
+
+.pet-codex-screenshot-frame {
+  overflow: hidden;
+  padding: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 214, 143, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(31, 14, 10, 0.82);
+  cursor: pointer;
+}
+
+.pet-codex-screenshot-frame img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.pet-codex-evidence-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 214, 143, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(33, 15, 10, 0.54);
+}
+
+.pet-codex-evidence-empty strong {
+  color: #fff1cf;
+  font-size: 14px;
+}
+
+.pet-codex-evidence-empty p {
+  margin: 0;
+  color: #d0b084;
+  line-height: 1.6;
+}
+
+.pet-codex-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pet-codex-evidence-card {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 222, 171, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+    rgba(44, 18, 11, 0.52);
+}
+
+.pet-codex-evidence-card span {
+  display: block;
+  color: #c99f69;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pet-codex-evidence-card p {
+  margin: 8px 0 0;
+  color: #fff0cd;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
 .pet-codex-chip {
   display: inline-flex;
   align-items: center;
@@ -5270,6 +5390,10 @@ body {
   }
 
   .pet-codex-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .pet-codex-evidence-grid {
     grid-template-columns: 1fr;
   }
 
