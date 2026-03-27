@@ -2058,7 +2058,7 @@ select,
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 14px;
   border-radius: 26px;
@@ -2115,6 +2115,63 @@ select,
   gap: 12px;
 }
 
+.floating-snap-glow {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.floating-card.snap-preview .floating-snap-glow {
+  opacity: 1;
+}
+
+.floating-snap-glow.left,
+.floating-snap-glow.right {
+  top: 24px;
+  bottom: 24px;
+  width: 18px;
+}
+
+.floating-snap-glow.left {
+  left: 4px;
+  border-radius: 18px 0 0 18px;
+  background: linear-gradient(90deg, rgba(255, 189, 96, 0.46), rgba(255, 189, 96, 0));
+}
+
+.floating-snap-glow.right {
+  right: 4px;
+  border-radius: 0 18px 18px 0;
+  background: linear-gradient(270deg, rgba(255, 189, 96, 0.46), rgba(255, 189, 96, 0));
+}
+
+.floating-snap-glow.top,
+.floating-snap-glow.bottom {
+  left: 24px;
+  right: 24px;
+  height: 18px;
+}
+
+.floating-snap-glow.top {
+  top: 4px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, rgba(255, 189, 96, 0.46), rgba(255, 189, 96, 0));
+}
+
+.floating-snap-glow.bottom {
+  bottom: 4px;
+  border-radius: 0 0 18px 18px;
+  background: linear-gradient(0deg, rgba(255, 189, 96, 0.46), rgba(255, 189, 96, 0));
+}
+
+.floating-snap-glow.locked {
+  opacity: 1;
+  filter: saturate(1.2);
+}
+
 .floating-bubble {
   display: flex;
   flex-direction: column;
@@ -2125,6 +2182,7 @@ select,
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
     rgba(16, 9, 6, 0.52);
+  cursor: pointer;
 }
 
 .floating-bubble-head,
@@ -2134,6 +2192,18 @@ select,
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.floating-toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #f7d08b;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(255, 214, 141, 0.14);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .floating-bubble strong {
@@ -2147,6 +2217,11 @@ select,
   color: #ceb28b;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.floating-bubble:focus-visible {
+  outline: 2px solid rgba(255, 207, 123, 0.7);
+  outline-offset: 2px;
 }
 
 .floating-brief,
@@ -2188,6 +2263,20 @@ select,
 
 .floating-primary-action {
   width: 100%;
+}
+
+.floating-snap-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.floating-snap-note p {
+  margin: 0;
+  color: #ceb28b;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .floating-pulse-dots {
@@ -2270,6 +2359,17 @@ select,
     0 22px 54px rgba(0, 0, 0, 0.46),
     inset 0 1px 0 rgba(255, 214, 141, 0.14),
     0 0 34px rgba(255, 176, 70, 0.14);
+}
+
+.floating-card.snap-preview {
+  border-color: rgba(255, 197, 109, 0.44);
+}
+
+.floating-card.snap-locked {
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 214, 141, 0.16),
+    0 0 26px rgba(255, 183, 74, 0.16);
 }
 
 .overview-grid {

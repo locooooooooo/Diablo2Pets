@@ -61,6 +61,14 @@ export interface WindowPlacementSettings {
   floating?: WindowBounds;
 }
 
+export type SnapEdge = 'left' | 'right' | 'top' | 'bottom';
+
+export interface FloatingSnapPreview {
+  visible: boolean;
+  edge?: SnapEdge;
+  snapped: boolean;
+}
+
 export interface AppSettings {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;

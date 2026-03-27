@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { formatDuration } from '../lib/date';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
   DropRecord,
-  RunRecord
+  FloatingSnapPreview,
+  RunRecord,
+  WindowMode
 } from '../types';
 
 interface FloatingPetProps {
@@ -20,12 +21,14 @@ interface FloatingPetProps {
   setupGuideCompleted: boolean;
   preflight: AutomationPreflightResponse | null;
   preflightBusy: boolean;
+  snapPreview: FloatingSnapPreview;
   onStartRun: (mapName: string) => void;
   onStopRun: () => void;
   onOpenPanel: () => void;
   onOpenDrops: () => void;
   onOpenWorkshop: () => void;
   onOpenSetupGuide: () => void;
+  onToggleWindowMode: (mode: WindowMode) => void;
   onToggleAlwaysOnTop: () => void;
   onMinimize: () => void;
 }
@@ -60,6 +63,25 @@ function getLatestRunNeedingWrapUp(
   );
 
   return hasFollowupDrop ? null : latestRun;
+}
+
+function getSnapHint(preview: FloatingSnapPreview): string {
+  if (!preview.visible || !preview.edge) {
+    return '拖到屏幕边缘时会自动吸附。';
+  }
+
+  const edgeLabel =
+    preview.edge === 'left'
+      ? '左侧'
+      : preview.edge === 'right'
+        ? '右侧'
+        : preview.edge === 'top'
+          ? '顶部'
+          : '底部';
+
+  return preview.snapped
+    ? `已经吸附到${edgeLabel}。`
+    : `松手后会吸附到${edgeLabel}。`;
 }
 
 export function FloatingPet(props: FloatingPetProps) {
@@ -136,7 +158,7 @@ export function FloatingPet(props: FloatingPetProps) {
         badge: warningTask ? '工坊提醒' : '一键继续',
         title: `沿用 ${latestRoute} 再开一轮`,
         detail: warningTask
-          ? `${warningTask.summary}。如果先不处理，也可以直接继续今天的主刷路线。`
+          ? `${warningTask.summary}。如果先不处理，也可以继续今天的主刷路线。`
           : '最顺手的继续方式，就是沿用最近一轮路线直接开刷。',
         label: props.busy ? '启动中...' : `继续 ${latestRoute}`,
         action: () => props.onStartRun(latestRoute)
@@ -242,10 +264,26 @@ export function FloatingPet(props: FloatingPetProps) {
     : props.activeRun
       ? '悬浮态会持续盯着这一轮的计时和状态。'
       : primaryAction.detail;
+  const snapHint = getSnapHint(props.snapPreview);
 
   return (
     <section className="floating-shell">
-      <div className={`floating-card floating-card-${mood} drag-strip`}>
+      <div
+        className={`floating-card floating-card-${mood} ${
+          props.snapPreview.visible && props.snapPreview.edge
+            ? `snap-preview snap-${props.snapPreview.edge}`
+            : ''
+        } ${props.snapPreview.snapped ? 'snap-locked' : ''} drag-strip`}
+      >
+        {props.snapPreview.visible && props.snapPreview.edge ? (
+          <div
+            className={`floating-snap-glow ${props.snapPreview.edge} ${
+              props.snapPreview.snapped ? 'locked' : ''
+            }`}
+            aria-hidden="true"
+          />
+        ) : null}
+
         <div className="floating-top">
           <div className={`pet-avatar pet-avatar-${mood} floating-avatar`} aria-hidden="true">
             <div className="pet-ring pet-ring-outer" />
@@ -258,12 +296,21 @@ export function FloatingPet(props: FloatingPetProps) {
             {props.highlightDropName ? <div className="pet-spark" /> : null}
           </div>
 
-          <div className="floating-bubble">
+          <div
+            className="floating-bubble no-drag"
+            onDoubleClick={() => props.onToggleWindowMode('panel')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                props.onToggleWindowMode('panel');
+              }
+            }}
+          >
             <div className="floating-bubble-head">
-              <span className="status-chip">
-                {props.activeRun ? '陪刷中' : '悬浮待命'}
-              </span>
-              <span className="mini-pill">{primaryAction.badge}</span>
+              <span className="status-chip">{props.activeRun ? '陪刷中' : '悬浮待命'}</span>
+              <span className="floating-toggle-chip">双击展开</span>
             </div>
             <strong>{bubbleTitle}</strong>
             <p>{bubbleDetail}</p>
@@ -283,6 +330,11 @@ export function FloatingPet(props: FloatingPetProps) {
             {primaryAction.label}
           </button>
         </article>
+
+        <div className="floating-snap-note no-drag">
+          <span className="mini-pill">{props.snapPreview.snapped ? '已吸附' : '可吸附'}</span>
+          <p>{snapHint}</p>
+        </div>
 
         <article className="floating-pulse-card no-drag">
           <div className="floating-pulse-head">

@@ -13,6 +13,7 @@ import type {
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
+  FloatingSnapPreview,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -63,6 +64,15 @@ const api = {
     ipcRenderer.on('data:changed', wrapped);
     return () => {
       ipcRenderer.removeListener('data:changed', wrapped);
+    };
+  },
+  onFloatingSnapPreview: (listener: (preview: FloatingSnapPreview) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, preview: FloatingSnapPreview) => {
+      listener(preview);
+    };
+    ipcRenderer.on('window:floating-snap-preview', wrapped);
+    return () => {
+      ipcRenderer.removeListener('window:floating-snap-preview', wrapped);
     };
   },
   saveImage: (payload: SaveImageInput) =>

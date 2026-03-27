@@ -20,6 +20,7 @@ import type {
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
+  FloatingSnapPreview,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -61,6 +62,10 @@ export default function App() {
   const [setupPreflight, setSetupPreflight] = useState<AutomationPreflightResponse | null>(null);
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
+  const [floatingSnapPreview, setFloatingSnapPreview] = useState<FloatingSnapPreview>({
+    visible: false,
+    snapped: false
+  });
   const [setupGuideTick, setSetupGuideTick] = useState(0);
   const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
@@ -81,6 +86,12 @@ export default function App() {
   useEffect(() => {
     return window.d2Pet.onDataChanged((value) => {
       setData(value);
+    });
+  }, []);
+
+  useEffect(() => {
+    return window.d2Pet.onFloatingSnapPreview((preview) => {
+      setFloatingSnapPreview(preview);
     });
   }, []);
 
@@ -546,6 +557,7 @@ export default function App() {
           onOpenWorkshop={() => handleOpenPanel('workshop')}
           onStartRun={(mapName) => void handleStartRun(mapName)}
           onStopRun={() => void handleStopRun()}
+          onToggleWindowMode={handleSwitchWindowMode}
           onToggleAlwaysOnTop={() =>
             void handleUpdateSettings({ alwaysOnTop: !data.settings.alwaysOnTop })
           }
@@ -553,6 +565,7 @@ export default function App() {
           preflightBusy={setupPreflightBusy}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
+          snapPreview={floatingSnapPreview}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}

@@ -36,6 +36,7 @@ import type {
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
+  FloatingSnapPreview,
   IntegrationConfig,
   IntegrationId,
   IntegrationRunResult,
@@ -120,10 +121,10 @@ function getWindowMetrics(mode: WindowMode): {
 } {
   if (mode === 'floating') {
     return {
-      width: 230,
-      height: 280,
-      minWidth: 230,
-      minHeight: 280,
+      width: 248,
+      height: 396,
+      minWidth: 248,
+      minHeight: 396,
       resizable: false
     };
   }
@@ -230,6 +231,35 @@ function snapFloatingBounds(bounds: WindowBounds): WindowBounds {
   return snapped;
 }
 
+function getFloatingSnapPreview(bounds: WindowBounds): FloatingSnapPreview {
+  const clamped = clampBoundsToWorkArea(bounds, 'floating');
+  const workArea = getDisplayForBounds(clamped).workArea;
+  const rightEdge = workArea.x + workArea.width - clamped.width;
+  const bottomEdge = workArea.y + workArea.height - clamped.height;
+  const candidates: Array<{ edge: NonNullable<FloatingSnapPreview['edge']>; distance: number }> = [
+    { edge: 'left', distance: Math.abs(clamped.x - workArea.x) },
+    { edge: 'right', distance: Math.abs(clamped.x - rightEdge) },
+    { edge: 'top', distance: Math.abs(clamped.y - workArea.y) },
+    { edge: 'bottom', distance: Math.abs(clamped.y - bottomEdge) }
+  ];
+  const nearest = candidates
+    .filter((item) => item.distance <= floatingSnapDistance)
+    .sort((left, right) => left.distance - right.distance)[0];
+
+  if (!nearest) {
+    return {
+      visible: false,
+      snapped: false
+    };
+  }
+
+  return {
+    visible: true,
+    edge: nearest.edge,
+    snapped: nearest.distance === 0
+  };
+}
+
 function getResolvedWindowBounds(data: AppData, mode: WindowMode): WindowBounds {
   const storedBounds = sanitizeWindowBounds(data.settings.windowPlacement?.[mode]);
 
@@ -258,6 +288,34 @@ function suppressWindowStateCapture(durationMs = 260): void {
 
 function isWindowStateCaptureSuppressed(): boolean {
   return Date.now() < suppressWindowStateCaptureUntil;
+}
+
+function emitFloatingSnapPreview(bounds?: WindowBounds): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  if (activeWindowMode !== 'floating' || !mainWindow.webContents) {
+    mainWindow.webContents.send('window:floating-snap-preview', {
+      visible: false,
+      snapped: false
+    } satisfies FloatingSnapPreview);
+    return;
+  }
+
+  const targetBounds = bounds ?? sanitizeWindowBounds(mainWindow.getBounds());
+  if (!targetBounds) {
+    mainWindow.webContents.send('window:floating-snap-preview', {
+      visible: false,
+      snapped: false
+    } satisfies FloatingSnapPreview);
+    return;
+  }
+
+  mainWindow.webContents.send(
+    'window:floating-snap-preview',
+    getFloatingSnapPreview(targetBounds)
+  );
 }
 
 function getPythonCandidates(): string[] {
@@ -1011,6 +1069,7 @@ async function persistWindowPlacement(mode = activeWindowMode): Promise<void> {
     suppressWindowStateCapture();
     mainWindow.setBounds(nextBounds, false);
   }
+  emitFloatingSnapPreview(nextBounds);
 
   const data = await readDataStore();
   const currentPlacement = data.settings.windowPlacement ?? {};
@@ -1070,6 +1129,7 @@ async function applyWindowModeState(mode: WindowMode, data?: AppData): Promise<v
 
   suppressWindowStateCapture();
   mainWindow.setBounds(bounds, true);
+  emitFloatingSnapPreview(bounds);
 }
 
 async function ensureFolderAndOpen(targetPath: string): Promise<string> {
@@ -2125,15 +2185,18 @@ async function createMainWindow(): Promise<void> {
   });
 
   mainWindow.on('show', () => {
+    emitFloatingSnapPreview();
     void refreshTrayMenu();
   });
 
   mainWindow.on('hide', () => {
     void flushWindowPlacementPersist();
+    emitFloatingSnapPreview();
     void refreshTrayMenu();
   });
 
   mainWindow.on('move', () => {
+    emitFloatingSnapPreview();
     scheduleWindowPlacementPersist();
   });
 

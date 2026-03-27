@@ -14,6 +14,7 @@ import type {
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
+  FloatingSnapPreview,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -52,6 +53,9 @@ declare global {
         payload: ExportVisualReportInput
       ) => Promise<ExportVisualReportResult>;
       onDataChanged: (listener: (data: AppData) => void) => () => void;
+      onFloatingSnapPreview: (
+        listener: (preview: FloatingSnapPreview) => void
+      ) => () => void;
       saveImage: (payload: SaveImageInput) => Promise<SaveImageResult>;
       openPath: (targetPath: string) => Promise<string>;
       minimize: () => Promise<void>;
