@@ -8,16 +8,18 @@ interface PetShellProps {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
+  setupGuideCompleted: boolean;
   onToggleAlwaysOnTop: () => void;
   onToggleLaunchOnStartup: () => void;
   onToggleNotifications: () => void;
   onToggleWindowMode: (mode: WindowMode) => void;
+  onOpenSetupGuide: () => void;
   onMinimize: () => void;
 }
 
 export function PetShell(props: PetShellProps) {
   const headline = props.activeRun
-    ? `${props.activeRun.mapName} 路 ${props.liveDurationText}`
+    ? `${props.activeRun.mapName} · ${props.liveDurationText}`
     : `今天 ${props.todayCount} 次刷图 / ${props.todayDropCount} 条掉落`;
 
   return (
@@ -64,6 +66,11 @@ export function PetShell(props: PetShellProps) {
 
       <div className="compact-meta no-drag">
         <span className="mini-pill">{props.activeRun ? '陪刷中' : '面板模式'}</span>
+        {!props.setupGuideCompleted ? (
+          <button className="quick-toggle active" onClick={props.onOpenSetupGuide} type="button">
+            继续引导
+          </button>
+        ) : null}
         <button
           className={props.launchOnStartup ? 'quick-toggle active' : 'quick-toggle'}
           onClick={props.onToggleLaunchOnStartup}

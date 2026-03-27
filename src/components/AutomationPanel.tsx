@@ -34,6 +34,7 @@ interface AutomationPanelProps {
   integrations: IntegrationConfig[];
   initialDrafts: AutomationDrafts;
   busyKey: string | null;
+  highlightedTaskId?: IntegrationId | null;
   onCopyText: (text: string) => Promise<void>;
   onExportText: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
   onRunTask: (payload: RunAutomationTaskInput) => Promise<IntegrationRunResponse>;
@@ -716,6 +717,17 @@ function getTaskStatusLabel(status: AutomationPreflightStatus | undefined): stri
   }
 }
 
+function getTaskSpotlightLabel(id: IntegrationId): string {
+  switch (id) {
+    case 'rune-cube':
+      return '符文任务';
+    case 'gem-cube':
+      return '宝石任务';
+    case 'drop-shared-gold':
+      return '金币任务';
+  }
+}
+
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -731,6 +743,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const [preflightError, setPreflightError] = useState('');
   const [preflightTick, setPreflightTick] = useState(0);
   const environmentSnapshotRef = useRef('');
+  const runeCardRef = useRef<HTMLElement | null>(null);
+  const gemCardRef = useRef<HTMLElement | null>(null);
+  const goldCardRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setDrafts(props.initialDrafts);
@@ -811,6 +826,27 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const parsedEnvironmentLog = useMemo(() => {
     return environmentLog ? parseAutomationLog(environmentLog.content) : null;
   }, [environmentLog]);
+
+  useEffect(() => {
+    if (!props.highlightedTaskId) {
+      return;
+    }
+
+    const target =
+      props.highlightedTaskId === 'rune-cube'
+        ? runeCardRef.current
+        : props.highlightedTaskId === 'gem-cube'
+          ? gemCardRef.current
+          : goldCardRef.current;
+
+    if (!target) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }, [props.highlightedTaskId]);
 
   useEffect(() => {
     if (!preflight || globalChecks.length === 0) {
@@ -1644,6 +1680,17 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <span className="status-pill">预检、执行、维护和日志同屏闭环</span>
       </div>
 
+      {props.highlightedTaskId ? (
+        <article className="card workshop-spotlight-banner">
+          <div>
+            <p className="eyebrow">Guide Focus</p>
+            <strong>{getTaskSpotlightLabel(props.highlightedTaskId)} 已为你定位</strong>
+            <p className="secondary-text">我已经把本轮引导最相关的任务卡高亮出来了，直接沿着这张卡继续即可。</p>
+          </div>
+          <span className="status-pill warm">继续当前引导</span>
+        </article>
+      ) : null}
+
       <article className="card safety-card">
         <div className="integration-head">
           <div>
@@ -1671,7 +1718,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
       </div>
 
       <div className="workshop-grid">
-        <article className="card workshop-card">
+        <article
+          className={`card workshop-card ${props.highlightedTaskId === 'rune-cube' ? 'spotlight' : ''}`}
+          ref={runeCardRef}
+        >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">builtin:rune_cubing</p>
@@ -1727,7 +1777,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {renderTaskFooter(runeTask)}
         </article>
 
-        <article className="card workshop-card">
+        <article
+          className={`card workshop-card ${props.highlightedTaskId === 'gem-cube' ? 'spotlight' : ''}`}
+          ref={gemCardRef}
+        >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">builtin:gem_cubing</p>
@@ -1841,7 +1894,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {renderTaskFooter(gemTask)}
         </article>
 
-        <article className="card workshop-card">
+        <article
+          className={`card workshop-card ${props.highlightedTaskId === 'drop-shared-gold' ? 'spotlight' : ''}`}
+          ref={goldCardRef}
+        >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">builtin:gold_drop</p>

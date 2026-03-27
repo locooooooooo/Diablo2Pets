@@ -20,6 +20,7 @@ import type {
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
+  IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
   RunEnvironmentActionInput,
@@ -61,6 +62,7 @@ export default function App() {
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
   const [setupGuideTick, setSetupGuideTick] = useState(0);
+  const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
   const setupGuideInitializedRef = useRef(false);
 
@@ -137,6 +139,18 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [highlightedDropName]);
+
+  useEffect(() => {
+    if (!workshopFocusId) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setWorkshopFocusId(null);
+    }, 3200);
+
+    return () => window.clearTimeout(timer);
+  }, [workshopFocusId]);
 
   useEffect(() => {
     if (!data || data.settings.setupGuideCompleted) {
@@ -497,6 +511,11 @@ export default function App() {
     setActiveTab('workshop');
   }
 
+  function handleOpenWorkshopTaskFromGuide(id: IntegrationId) {
+    setActiveTab('workshop');
+    setWorkshopFocusId(id);
+  }
+
   function handleEnableFloatingFromGuide() {
     void handleUpdateSettings({ windowMode: 'floating' });
   }
@@ -548,6 +567,7 @@ export default function App() {
           launchOnStartup={data.settings.launchOnStartup}
           liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
+          onOpenSetupGuide={handleOpenSetupGuide}
           onMinimize={() => void window.d2Pet.minimize()}
           onToggleAlwaysOnTop={() =>
             void handleUpdateSettings({ alwaysOnTop: !data.settings.alwaysOnTop })
@@ -563,6 +583,7 @@ export default function App() {
             })
           }
           onToggleWindowMode={handleSwitchWindowMode}
+          setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
         />
@@ -607,6 +628,7 @@ export default function App() {
                     handleRunEnvironmentAction({ action: 'install-python-deps' }).then(() => undefined)
                   }
                   onOpenWorkshop={handleOpenWorkshopFromGuide}
+                  onOpenWorkshopTask={handleOpenWorkshopTaskFromGuide}
                   onRefresh={refreshSetupGuide}
                   preflight={setupPreflight}
                   settings={data.settings}
@@ -664,6 +686,7 @@ export default function App() {
           {activeTab === 'workshop' ? (
             <AutomationPanel
               busyKey={busyKey}
+              highlightedTaskId={workshopFocusId}
               initialDrafts={data.automationDrafts}
               onCopyText={handleCopyText}
               onExportText={handleExportTextFile}

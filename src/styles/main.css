@@ -1036,6 +1036,27 @@ select,
     linear-gradient(180deg, rgba(56, 28, 18, 0.9), rgba(20, 11, 8, 0.94));
 }
 
+.workshop-spotlight-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-color: rgba(255, 184, 96, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(58, 29, 19, 0.88), rgba(19, 10, 8, 0.92));
+}
+
+.workshop-spotlight-banner strong {
+  display: block;
+  color: #fff2d1;
+  font-size: 20px;
+}
+
+.workshop-spotlight-banner p {
+  margin: 8px 0 0;
+}
+
 .setup-guide-head,
 .setup-guide-reminder {
   border-radius: 22px;
@@ -1165,6 +1186,15 @@ select,
 .setup-guide-reminder strong {
   color: #fff2d1;
   font-size: 18px;
+}
+
+.setup-guide-footer {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.setup-guide-footer .text-button {
+  padding-left: 0;
 }
 
 .preflight-grid {
@@ -1921,6 +1951,24 @@ select,
   gap: 12px;
 }
 
+.workshop-card.spotlight {
+  position: relative;
+  border-color: rgba(255, 192, 102, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(255, 192, 102, 0.14),
+    0 20px 42px rgba(88, 38, 17, 0.2);
+  animation: spotlight-card 2.1s ease-in-out 2;
+}
+
+.workshop-card.spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 216, 150, 0.18);
+  pointer-events: none;
+}
+
 .workshop-topbar {
   display: flex;
   align-items: flex-start;
@@ -2495,6 +2543,22 @@ body {
   }
 }
 
+@keyframes spotlight-card {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(255, 192, 102, 0.08),
+      0 18px 36px rgba(88, 38, 17, 0.18);
+  }
+  50% {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px rgba(255, 205, 132, 0.24),
+      0 26px 48px rgba(112, 46, 20, 0.28);
+  }
+}
+
 @media (max-width: 560px) {
   .scene {
     padding: 12px;
@@ -2524,6 +2588,7 @@ body {
   .compact-header,
   .setup-guide-head,
   .setup-guide-reminder,
+  .workshop-spotlight-banner,
   .workshop-topbar,
   .panel-header {
     flex-direction: column;
