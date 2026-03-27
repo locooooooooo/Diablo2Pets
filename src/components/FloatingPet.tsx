@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildPetPersona } from '../lib/petPersona';
+import {
+  buildPetPersona,
+  type PetInteractionCue
+} from '../lib/petPersona';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -17,12 +20,15 @@ interface FloatingPetProps {
   todayDropCount: number;
   liveDurationText: string;
   highlightDropName: string;
+  interactionCue: PetInteractionCue | null;
   alwaysOnTop: boolean;
   busy: boolean;
   setupGuideCompleted: boolean;
   preflight: AutomationPreflightResponse | null;
   preflightBusy: boolean;
   snapPreview: FloatingSnapPreview;
+  onPetHeadpat: () => void;
+  onPetCheer: () => void;
   onStartRun: (mapName: string) => void;
   onStopRun: () => void;
   onOpenPanel: () => void;
@@ -94,6 +100,7 @@ export function FloatingPet(props: FloatingPetProps) {
       buildPetPersona({
         activeRun: props.activeRun,
         highlightDropName: props.highlightDropName,
+        interactionCue: props.interactionCue,
         liveDurationText: props.liveDurationText,
         preflight: props.preflight,
         recentDrops: props.recentDrops,
@@ -105,6 +112,7 @@ export function FloatingPet(props: FloatingPetProps) {
     [
       props.activeRun,
       props.highlightDropName,
+      props.interactionCue,
       props.liveDurationText,
       props.preflight,
       props.recentDrops,
@@ -129,7 +137,7 @@ export function FloatingPet(props: FloatingPetProps) {
         badge: '本轮进行中',
         title: `本轮停在 ${props.activeRun.mapName}`,
         detail: '刷完以后点这里就能直接结算，悬浮态不会丢掉今天的节奏。',
-        label: props.busy ? '结算中...' : '完成本轮',
+        label: props.busy ? '结算中…' : '完成本轮',
         action: props.onStopRun
       };
     }
@@ -172,7 +180,7 @@ export function FloatingPet(props: FloatingPetProps) {
         detail: warningTask
           ? `${warningTask.summary}。如果你先不处理，也可以继续今天主刷路线。`
           : '继续最近一轮的路线，是每天上线后最顺手的开始方式。',
-        label: props.busy ? '启动中...' : `继续 ${latestRoute}`,
+        label: props.busy ? '启动中…' : `继续 ${latestRoute}`,
         action: () => props.onStartRun(latestRoute)
       };
     }
@@ -181,7 +189,7 @@ export function FloatingPet(props: FloatingPetProps) {
       badge: '今日开局',
       title: '从熟图开始热身',
       detail: '先开第一轮，桌宠就会开始认真陪你盯节奏。',
-      label: props.busy ? '启动中...' : '开始今天',
+      label: props.busy ? '启动中…' : '开始今天',
       action: () => props.onStartRun('混沌避难所')
     };
   }, [
@@ -215,7 +223,7 @@ export function FloatingPet(props: FloatingPetProps) {
         label: '今日战果',
         value: props.highlightDropName || `${props.todayDropCount} 条`,
         detail: props.highlightDropName
-          ? '刚刚有高亮掉落，桌宠已经把它挂到最前排。'
+          ? '刚刚有高亮掉落，最适合顺手去战报页收口。'
           : props.todayDropCount > 0
             ? '今天已经有战利品入账。'
             : '还在等第一条掉落出现。'
@@ -283,20 +291,29 @@ export function FloatingPet(props: FloatingPetProps) {
 
   const activePulse = pulseItems[pulseIndex] ?? pulseItems[0];
   const activeScript = persona.scripts[scriptIndex] ?? persona.scripts[0] ?? '';
-  const bubbleTitle = props.highlightDropName
-    ? `高亮战果 · ${props.highlightDropName}`
-    : props.activeRun
-      ? `${props.activeRun.mapName} · ${props.liveDurationText}`
-      : persona.headline;
-  const bubbleDetail = props.highlightDropName
-    ? '这条掉落刚刚触发了桌宠高亮，适合顺手去战报页收口。'
-    : activeScript;
+  const bubbleTitle = props.interactionCue
+    ? persona.headline
+    : props.highlightDropName
+      ? `高亮战果 · ${props.highlightDropName}`
+      : props.activeRun
+        ? `${props.activeRun.mapName} · ${props.liveDurationText}`
+        : persona.headline;
+  const bubbleDetail = props.interactionCue
+    ? persona.statusLine
+    : props.highlightDropName
+      ? '这条掉落刚刚触发了桌宠高亮，适合顺手去战报页收口。'
+      : activeScript;
   const snapHint = getSnapHint(props.snapPreview);
+  const interactionClass = props.interactionCue
+    ? `interaction-${props.interactionCue.kind}`
+    : '';
 
   return (
     <section className="floating-shell">
       <div
         className={`floating-card floating-card-${persona.emotion} ${
+          props.interactionCue ? 'floating-card-interaction' : ''
+        } ${interactionClass} ${
           props.snapPreview.visible && props.snapPreview.edge
             ? `snap-preview snap-${props.snapPreview.edge}`
             : ''
@@ -304,17 +321,24 @@ export function FloatingPet(props: FloatingPetProps) {
       >
         {props.snapPreview.visible && props.snapPreview.edge ? (
           <div
+            aria-hidden="true"
             className={`floating-snap-glow ${props.snapPreview.edge} ${
               props.snapPreview.snapped ? 'locked' : ''
             }`}
-            aria-hidden="true"
           />
         ) : null}
 
         <div className="floating-top">
-          <div
-            className={`pet-avatar pet-avatar-${persona.emotion} floating-avatar`}
-            aria-hidden="true"
+          <button
+            aria-label="摸头互动，双击庆祝"
+            className={`pet-avatar pet-avatar-${persona.emotion} floating-avatar pet-avatar-trigger no-drag ${interactionClass}`}
+            onClick={props.onPetHeadpat}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              props.onPetCheer();
+            }}
+            title="摸头互动，双击庆祝"
+            type="button"
           >
             <div className="pet-ring pet-ring-outer" />
             <div className="pet-ring pet-ring-inner" />
@@ -324,7 +348,7 @@ export function FloatingPet(props: FloatingPetProps) {
               <span />
             </div>
             {props.highlightDropName ? <div className="pet-spark" /> : null}
-          </div>
+          </button>
 
           <div
             className="floating-bubble no-drag"
@@ -342,10 +366,14 @@ export function FloatingPet(props: FloatingPetProps) {
               <span className={`emotion-pill emotion-${persona.emotion}`}>
                 {persona.emotionLabel}
               </span>
-              <span className="floating-toggle-chip">双击展开</span>
+              <div className="floating-bubble-chips">
+                <span className="mini-pill pet-gesture-hint">摸头像互动</span>
+                <span className="floating-toggle-chip">双击展开</span>
+              </div>
             </div>
             <strong>{bubbleTitle}</strong>
             <p>{bubbleDetail}</p>
+            <span className="floating-script-line">{activeScript}</span>
           </div>
         </div>
 

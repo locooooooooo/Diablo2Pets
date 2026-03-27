@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buildPetPersona } from '../lib/petPersona';
+import {
+  buildPetPersona,
+  type PetInteractionCue
+} from '../lib/petPersona';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -17,10 +20,13 @@ interface PetShellProps {
   liveDurationText: string;
   highlightDropName: string;
   preflight: AutomationPreflightResponse | null;
+  interactionCue: PetInteractionCue | null;
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
   setupGuideCompleted: boolean;
+  onPetHeadpat: () => void;
+  onPetCheer: () => void;
   onToggleAlwaysOnTop: () => void;
   onToggleLaunchOnStartup: () => void;
   onToggleNotifications: () => void;
@@ -37,6 +43,7 @@ export function PetShell(props: PetShellProps) {
       buildPetPersona({
         activeRun: props.activeRun,
         highlightDropName: props.highlightDropName,
+        interactionCue: props.interactionCue,
         liveDurationText: props.liveDurationText,
         preflight: props.preflight,
         recentDrops: props.recentDrops,
@@ -48,6 +55,7 @@ export function PetShell(props: PetShellProps) {
     [
       props.activeRun,
       props.highlightDropName,
+      props.interactionCue,
       props.liveDurationText,
       props.preflight,
       props.recentDrops,
@@ -76,16 +84,30 @@ export function PetShell(props: PetShellProps) {
 
   const activeScript = persona.scripts[scriptIndex] ?? persona.scripts[0] ?? '';
   const headline = props.activeRun
-    ? `${props.activeRun.mapName} · ${props.liveDurationText}`
+    ? `${props.activeRun.mapName} 路 ${props.liveDurationText}`
     : `今天 ${props.todayCount} 次刷图 / ${props.todayDropCount} 条掉落`;
+  const interactionClass = props.interactionCue
+    ? `interaction-${props.interactionCue.kind}`
+    : '';
 
   return (
-    <section className={`pet-shell compact-pet-shell pet-shell-${persona.emotion}`}>
+    <section
+      className={`pet-shell compact-pet-shell pet-shell-${persona.emotion} ${
+        props.interactionCue ? 'pet-shell-interaction' : ''
+      } ${interactionClass}`}
+    >
       <div className="compact-header drag-strip">
         <div className="compact-brand">
-          <div
-            className={`compact-avatar pet-avatar-mini pet-avatar-${persona.emotion}`}
-            aria-hidden="true"
+          <button
+            aria-label="摸头互动，双击庆祝"
+            className={`compact-avatar compact-avatar-trigger no-drag pet-avatar-mini pet-avatar-${persona.emotion} ${interactionClass}`}
+            onClick={props.onPetHeadpat}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              props.onPetCheer();
+            }}
+            title="摸头互动，双击庆祝"
+            type="button"
           >
             <div className="pet-ring pet-ring-outer" />
             <div className="pet-ring pet-ring-inner" />
@@ -95,7 +117,7 @@ export function PetShell(props: PetShellProps) {
               <span />
             </div>
             {props.highlightDropName ? <div className="pet-spark" /> : null}
-          </div>
+          </button>
 
           <div>
             <p className="eyebrow">Horadric Desktop Pet</p>
@@ -128,6 +150,7 @@ export function PetShell(props: PetShellProps) {
       <div className="compact-meta no-drag">
         <span className={`emotion-pill emotion-${persona.emotion}`}>{persona.emotionLabel}</span>
         <span className="mini-pill">{props.activeRun ? '陪刷中' : '面板模式'}</span>
+        <span className="mini-pill pet-gesture-hint">摸头像回应 / 双击庆祝</span>
         {!props.setupGuideCompleted ? (
           <button className="quick-toggle active" onClick={props.onOpenSetupGuide} type="button">
             继续引导

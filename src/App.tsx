@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
@@ -6,6 +6,10 @@ import { FloatingPet } from './components/FloatingPet';
 import { PetShell } from './components/PetShell';
 import { SetupGuide } from './components/SetupGuide';
 import { formatDuration, getDayKey } from './lib/date';
+import {
+  createPetInteractionCue,
+  type PetInteractionCue
+} from './lib/petPersona';
 import { buildTodayStats } from './lib/stats';
 import type {
   AppData,
@@ -62,6 +66,7 @@ export default function App() {
   const [setupPreflight, setSetupPreflight] = useState<AutomationPreflightResponse | null>(null);
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
+  const [petInteractionCue, setPetInteractionCue] = useState<PetInteractionCue | null>(null);
   const [floatingSnapPreview, setFloatingSnapPreview] = useState<FloatingSnapPreview>({
     visible: false,
     snapped: false
@@ -152,6 +157,20 @@ export default function App() {
   }, [highlightedDropName]);
 
   useEffect(() => {
+    if (!petInteractionCue) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetInteractionCue((current) =>
+        current?.id === petInteractionCue.id ? null : current
+      );
+    }, petInteractionCue.durationMs);
+
+    return () => window.clearTimeout(timer);
+  }, [petInteractionCue]);
+
+  useEffect(() => {
     if (!workshopFocusId) {
       return undefined;
     }
@@ -184,6 +203,80 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [data, setupGuideTick]);
 
+  const todayKey = getDayKey(new Date(now));
+  const todayStats = useMemo(
+    () =>
+      data
+        ? buildTodayStats(data.runHistory, todayKey)
+        : {
+            totalCount: 0,
+            totalDurationSeconds: 0,
+            averageDurationSeconds: 0,
+            mapBreakdown: []
+          },
+    [data, todayKey]
+  );
+  const recentRuns = useMemo(() => data?.runHistory.slice(0, 6) ?? [], [data]);
+  const todayDrops = useMemo(
+    () => data?.drops.filter((drop) => drop.dayKey === todayKey).slice(0, 12) ?? [],
+    [data, todayKey]
+  );
+  const activeDurationText = data?.activeRun
+    ? formatDuration((now - new Date(data.activeRun.startedAt).getTime()) / 1000)
+    : '00:00';
+  const isFloatingMode = data?.settings.windowMode === 'floating';
+  const petPersonaInput = useMemo(
+    () =>
+      data
+        ? {
+            activeRun: data.activeRun,
+            highlightDropName: highlightedDropName,
+            liveDurationText: activeDurationText,
+            preflight: setupPreflight,
+            recentDrops: todayDrops,
+            recentRuns,
+            setupGuideCompleted: data.settings.setupGuideCompleted,
+            todayCount: todayStats.totalCount,
+            todayDropCount: todayDrops.length
+          }
+        : null,
+    [
+      activeDurationText,
+      data,
+      highlightedDropName,
+      recentRuns,
+      setupPreflight,
+      todayDrops,
+      todayStats.totalCount
+    ]
+  );
+
+  useEffect(() => {
+    if (
+      !data ||
+      !petPersonaInput ||
+      !data.settings.setupGuideCompleted ||
+      data.activeRun ||
+      Boolean(highlightedDropName) ||
+      Boolean(busyKey) ||
+      Boolean(petInteractionCue)
+    ) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetInteractionCue(createPetInteractionCue('idle-play', petPersonaInput));
+    }, 16_000 + Math.floor(Math.random() * 10_000));
+
+    return () => window.clearTimeout(timer);
+  }, [
+    busyKey,
+    data,
+    highlightedDropName,
+    petInteractionCue,
+    petPersonaInput
+  ]);
+
   if (!data) {
     return (
       <div className="boot-screen">
@@ -196,17 +289,24 @@ export default function App() {
     );
   }
 
-  const todayKey = getDayKey(new Date());
-  const todayStats = buildTodayStats(data.runHistory, todayKey);
-  const recentRuns = data.runHistory.slice(0, 6);
-  const todayDrops = data.drops.filter((drop) => drop.dayKey === todayKey).slice(0, 12);
-  const activeDurationText = data.activeRun
-    ? formatDuration((now - new Date(data.activeRun.startedAt).getTime()) / 1000)
-    : '00:00';
-  const isFloatingMode = data.settings.windowMode === 'floating';
-
   function refreshSetupGuide() {
     setSetupGuideTick((current) => current + 1);
+  }
+
+  function handlePetHeadpat() {
+    if (!petPersonaInput) {
+      return;
+    }
+
+    setPetInteractionCue(createPetInteractionCue('headpat', petPersonaInput));
+  }
+
+  function handlePetCheer() {
+    if (!petPersonaInput) {
+      return;
+    }
+
+    setPetInteractionCue(createPetInteractionCue('cheer', petPersonaInput));
   }
 
   async function handleStartRun(mapName: string) {
@@ -549,12 +649,15 @@ export default function App() {
           alwaysOnTop={data.settings.alwaysOnTop}
           busy={busyKey === 'start-run' || busyKey === 'stop-run'}
           highlightDropName={highlightedDropName}
+          interactionCue={petInteractionCue}
           liveDurationText={activeDurationText}
           onMinimize={() => void window.d2Pet.minimize()}
           onOpenDrops={() => handleOpenPanel('drops')}
           onOpenPanel={() => handleOpenPanel('companion')}
           onOpenSetupGuide={handleOpenSetupGuide}
           onOpenWorkshop={() => handleOpenPanel('workshop')}
+          onPetCheer={handlePetCheer}
+          onPetHeadpat={handlePetHeadpat}
           onStartRun={(mapName) => void handleStartRun(mapName)}
           onStopRun={() => void handleStopRun()}
           onToggleWindowMode={handleSwitchWindowMode}
@@ -587,10 +690,13 @@ export default function App() {
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
           highlightDropName={highlightedDropName}
+          interactionCue={petInteractionCue}
           launchOnStartup={data.settings.launchOnStartup}
           liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
           onOpenSetupGuide={handleOpenSetupGuide}
+          onPetCheer={handlePetCheer}
+          onPetHeadpat={handlePetHeadpat}
           onMinimize={() => void window.d2Pet.minimize()}
           onToggleAlwaysOnTop={() =>
             void handleUpdateSettings({ alwaysOnTop: !data.settings.alwaysOnTop })
