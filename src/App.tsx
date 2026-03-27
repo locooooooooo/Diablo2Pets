@@ -586,6 +586,7 @@ export default function App() {
         <PetShell
           activeRun={data.activeRun}
           alwaysOnTop={data.settings.alwaysOnTop}
+          highlightDropName={highlightedDropName}
           launchOnStartup={data.settings.launchOnStartup}
           liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
@@ -605,6 +606,9 @@ export default function App() {
             })
           }
           onToggleWindowMode={handleSwitchWindowMode}
+          preflight={setupPreflight}
+          recentDrops={todayDrops}
+          recentRuns={recentRuns}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
