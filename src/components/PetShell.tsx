@@ -3,7 +3,13 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
-import type { PetEvent, PetProgression, PetRoom, PetScene } from '../lib/petWorld';
+import type {
+  PetEvent,
+  PetProgression,
+  PetRewardTrack,
+  PetRoom,
+  PetScene
+} from '../lib/petWorld';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -23,6 +29,7 @@ interface PetShellProps {
   preflight: AutomationPreflightResponse | null;
   interactionCue: PetInteractionCue | null;
   progression: PetProgression;
+  rewards: PetRewardTrack;
   room: PetRoom;
   scene: PetScene;
   event: PetEvent | null;
@@ -213,6 +220,42 @@ export function PetShell(props: PetShellProps) {
         <div className="pet-progress-meta">
           <span>{props.progression.sceneLine}</span>
           <span>{props.progression.progressLabel}</span>
+        </div>
+      </article>
+
+      <article className="pet-reward-card no-drag">
+        <div className="pet-reward-head">
+          <div className="pet-reward-copy">
+            <p className="eyebrow">Unlocks</p>
+            <strong>{props.rewards.headline}</strong>
+            <p>{props.rewards.summary}</p>
+          </div>
+          <div className="pet-reward-stat">
+            <span className="mini-pill">
+              {props.rewards.unlockedCount}/{props.rewards.totalCount} 已解锁
+            </span>
+            {props.rewards.activeReward ? (
+              <span className="status-chip">{props.rewards.activeReward.label}</span>
+            ) : null}
+          </div>
+        </div>
+
+        {props.rewards.activeReward ? (
+          <div className="pet-reward-spotlight">
+            <strong>{props.rewards.activeReward.label}</strong>
+            <p>{props.rewards.activeReward.detail}</p>
+            <span>{props.rewards.activeReward.bonus}</span>
+          </div>
+        ) : null}
+
+        <div className="pet-reward-grid">
+          {props.rewards.rewards.map((reward) => (
+            <article className={`pet-reward-item state-${reward.state}`} key={reward.id}>
+              <span className="pet-room-kicker">Lv.{reward.level}</span>
+              <strong>{reward.label}</strong>
+              <p>{reward.detail}</p>
+            </article>
+          ))}
         </div>
       </article>
 

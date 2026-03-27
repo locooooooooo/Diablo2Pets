@@ -12,6 +12,7 @@ import {
 } from './lib/petPersona';
 import {
   buildPetProgression,
+  buildPetRewards,
   buildPetRoom,
   buildPetScene,
   createPetEvent,
@@ -284,6 +285,10 @@ export default function App() {
   );
   const petProgression = useMemo(
     () => (petWorldInput ? buildPetProgression(petWorldInput) : null),
+    [petWorldInput]
+  );
+  const petRewards = useMemo(
+    () => (petWorldInput ? buildPetRewards(petWorldInput) : null),
     [petWorldInput]
   );
 
@@ -755,6 +760,7 @@ export default function App() {
           preflight={setupPreflight}
           preflightBusy={setupPreflightBusy}
           progression={petProgression!}
+          rewards={petRewards!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}
@@ -808,6 +814,7 @@ export default function App() {
           onToggleWindowMode={handleSwitchWindowMode}
           preflight={setupPreflight}
           progression={petProgression!}
+          rewards={petRewards!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}

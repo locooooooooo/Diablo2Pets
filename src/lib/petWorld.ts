@@ -55,6 +55,28 @@ export interface PetProgression {
   sceneLine: string;
 }
 
+export type PetRewardState = 'unlocked' | 'next' | 'locked';
+
+export interface PetReward {
+  id: string;
+  level: number;
+  label: string;
+  shortLabel: string;
+  detail: string;
+  bonus: string;
+  state: PetRewardState;
+}
+
+export interface PetRewardTrack {
+  headline: string;
+  summary: string;
+  unlockedCount: number;
+  totalCount: number;
+  activeReward: PetReward | null;
+  nextReward: PetReward | null;
+  rewards: PetReward[];
+}
+
 export interface PetWorldInput extends PetPersonaInput {
   now: number;
 }
@@ -73,6 +95,15 @@ interface RareStoryTemplate {
   keywords: string[];
   title: (dropName: string) => string;
   detail: (dropName: string) => string;
+}
+
+interface PetRewardDefinition {
+  id: string;
+  level: number;
+  label: string;
+  shortLabel: string;
+  lockedDetail: string;
+  bonus: string;
 }
 
 const RARE_STORY_TEMPLATES: RareStoryTemplate[] = [
@@ -128,6 +159,57 @@ const PET_TITLES = [
   { level: 4, title: '方块看守人', threshold: 135 },
   { level: 5, title: '凯旋收藏家', threshold: 205 },
   { level: 6, title: '桌边大贤者', threshold: 290 }
+];
+
+const PET_REWARD_DEFINITIONS: PetRewardDefinition[] = [
+  {
+    id: 'camp-hearth',
+    level: 1,
+    label: '营地炉火',
+    shortLabel: '炉火',
+    lockedDetail: '桌宠安家后，营地炉火会成为整条成长线的起点。',
+    bonus: '桌宠会开始记住你的引导、陪刷和每日恢复状态。'
+  },
+  {
+    id: 'route-banner',
+    level: 2,
+    label: '路线旗架',
+    shortLabel: '旗架',
+    lockedDetail: '解锁后会把你最常用的刷图路线挂进桌宠房间。',
+    bonus: '首页和悬浮态会更明确提示上一条常用路线。'
+  },
+  {
+    id: 'ledger-lamp',
+    level: 3,
+    label: '战果灯箱',
+    shortLabel: '灯箱',
+    lockedDetail: '解锁后会把今日掉落和高亮战果点亮成更正式的陈列。',
+    bonus: '掉落高亮和战报脉冲会变得更醒目。'
+  },
+  {
+    id: 'cube-bench',
+    level: 4,
+    label: '方块工坊桌',
+    shortLabel: '工坊桌',
+    lockedDetail: '解锁后工坊状态会成为房间里的常驻家具，不再只出现在工具区。',
+    bonus: '工坊预检和桌宠房间会共享同一组运行状态。'
+  },
+  {
+    id: 'triumph-alcove',
+    level: 5,
+    label: '凯旋壁龛',
+    shortLabel: '壁龛',
+    lockedDetail: '解锁后亮眼掉落会获得更正式的凯旋陈列位。',
+    bonus: '高亮掉落会触发更完整的庆祝陈列与剧情提示。'
+  },
+  {
+    id: 'astral-vault',
+    level: 6,
+    label: '星盘藏品柜',
+    shortLabel: '藏品柜',
+    lockedDetail: '解锁后稀有剧情会沉淀成终局收藏，不再只是一次性提示。',
+    bonus: '稀有掉落、故事收藏和终局场景会合并成完整陈列。'
+  }
 ];
 
 function getLatestRunNeedingWrapUp(
@@ -229,6 +311,62 @@ function getProgressScore(input: PetWorldInput) {
     (!blockingTask && input.setupGuideCompleted ? 16 : 0) +
     (rareStory ? 48 : 0)
   );
+}
+
+function getProgressTiers(score: number) {
+  const currentTier =
+    [...PET_TITLES].reverse().find((tier) => score >= tier.threshold) ?? PET_TITLES[0];
+  const nextTier = PET_TITLES.find((tier) => tier.level === currentTier.level + 1) ?? currentTier;
+
+  return { currentTier, nextTier };
+}
+
+function getRewardDetail(
+  reward: PetRewardDefinition,
+  input: PetWorldInput,
+  scene: PetScene,
+  rareStory: RareStory | null
+) {
+  if (reward.id === 'camp-hearth') {
+    return input.setupGuideCompleted
+      ? '炉火已经稳定点亮，桌宠会替你保留今日状态、恢复点和首启进度。'
+      : '炉火已经被点燃，继续补完引导后它会变成真正的常亮中枢。';
+  }
+
+  if (reward.id === 'route-banner') {
+    return input.recentRuns[0]
+      ? `最近一条主刷路线是 ${input.recentRuns[0].mapName}，旗架会替你把它继续挂在房间入口。`
+      : '旗架已经准备好了，等你今天刷出第一条路线后就会挂上去。';
+  }
+
+  if (reward.id === 'ledger-lamp') {
+    return input.todayDropCount > 0
+      ? `今天已经入账 ${input.todayDropCount} 条战果，灯箱会把最新亮点留在账本入口。`
+      : '账本还在等今天的第一条掉落，解锁后它会把高亮战果照得更醒目。';
+  }
+
+  if (reward.id === 'cube-bench') {
+    const blockingTask = getBlockingTask(input.preflight);
+    return blockingTask
+      ? `工坊桌已经摆好，但 ${blockingTask.summary} 还需要你补完。`
+      : '工坊桌已经接通，符文、宝石和金币三条线会共享这张工作台。';
+  }
+
+  if (reward.id === 'triumph-alcove') {
+    return rareStory
+      ? `${rareStory.dropName} 正挂在凯旋壁龛里，桌宠会把它当成今天的压轴战果。`
+      : input.highlightDropName
+        ? `${input.highlightDropName} 正挂在凯旋壁龛里，庆祝反馈会比普通陈列更正式。`
+        : '壁龛已经解锁，等下一条亮眼掉落出现时就会被立刻点亮。';
+  }
+
+  if (reward.id === 'astral-vault') {
+    return rareStory
+      ? `${rareStory.dropName} 的剧情已经沉入星盘藏品柜，${scene.label} 也会因此带上更终局的氛围。`
+      : `星盘藏品柜已经待命，接下来出现的稀有故事会直接沉淀成常驻收藏。`;
+  }
+
+  return reward.lockedDetail;
 }
 
 export function buildPetScene(input: PetWorldInput): PetScene {
@@ -440,6 +578,54 @@ export function buildPetProgression(input: PetWorldInput): PetProgression {
         ? '已点亮当前全部称号'
         : `下一称号：${nextTier.title}`,
     sceneLine
+  };
+}
+
+export function buildPetRewards(input: PetWorldInput): PetRewardTrack {
+  const score = getProgressScore(input);
+  const scene = buildPetScene(input);
+  const rareStory = getBestRareStory(input);
+  const { currentTier } = getProgressTiers(score);
+  let nextAssigned = false;
+
+  const rewards = PET_REWARD_DEFINITIONS.map((reward): PetReward => {
+    let state: PetRewardState = 'unlocked';
+    if (currentTier.level < reward.level) {
+      state = nextAssigned ? 'locked' : 'next';
+      nextAssigned = true;
+    }
+
+    return {
+      id: reward.id,
+      level: reward.level,
+      label: reward.label,
+      shortLabel: reward.shortLabel,
+      detail:
+        state === 'unlocked'
+          ? getRewardDetail(reward, input, scene, rareStory)
+          : `Lv.${reward.level} 解锁 · ${reward.lockedDetail}`,
+      bonus: reward.bonus,
+      state
+    };
+  });
+
+  const unlockedCount = rewards.filter((reward) => reward.state === 'unlocked').length;
+  const activeReward =
+    [...rewards].reverse().find((reward) => reward.state === 'unlocked') ?? null;
+  const nextReward = rewards.find((reward) => reward.state === 'next') ?? null;
+
+  return {
+    headline: nextReward
+      ? `已点亮 ${unlockedCount}/${rewards.length} 组桌宠陈列`
+      : '全套桌宠陈列已点亮',
+    summary: nextReward
+      ? `${nextReward.label} 会在 Lv.${nextReward.level} 解锁，继续刷图和记战报就能把它请进房间。`
+      : `${activeReward?.label ?? '终局陈列'} 已经成为这只桌宠的最终收藏。`,
+    unlockedCount,
+    totalCount: rewards.length,
+    activeReward,
+    nextReward,
+    rewards
   };
 }
 

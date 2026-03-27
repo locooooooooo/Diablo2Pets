@@ -6,6 +6,7 @@ import {
 import type {
   PetEvent,
   PetProgression,
+  PetRewardTrack,
   PetRoom,
   PetScene
 } from '../lib/petWorld';
@@ -28,6 +29,7 @@ interface FloatingPetProps {
   highlightDropName: string;
   interactionCue: PetInteractionCue | null;
   progression: PetProgression;
+  rewards: PetRewardTrack;
   room: PetRoom;
   scene: PetScene;
   event: PetEvent | null;
@@ -423,6 +425,38 @@ export function FloatingPet(props: FloatingPetProps) {
           <div className="pet-progress-meta">
             <span>{props.progression.sceneLine}</span>
             <span>{props.progression.progressLabel}</span>
+          </div>
+        </article>
+
+        <article className="pet-reward-card floating-reward-card no-drag">
+          <div className="pet-reward-head">
+            <div className="pet-reward-copy">
+              <p className="eyebrow">Unlocks</p>
+              <strong>{props.rewards.activeReward?.label ?? props.rewards.headline}</strong>
+              <p>
+                {props.rewards.nextReward
+                  ? `下一件：Lv.${props.rewards.nextReward.level} ${props.rewards.nextReward.label}`
+                  : '终局陈列已经全部点亮'}
+              </p>
+            </div>
+            <span className="mini-pill">
+              {props.rewards.unlockedCount}/{props.rewards.totalCount}
+            </span>
+          </div>
+
+          {props.rewards.activeReward ? (
+            <div className="pet-reward-spotlight compact">
+              <strong>{props.rewards.activeReward.detail}</strong>
+              <span>{props.rewards.activeReward.bonus}</span>
+            </div>
+          ) : null}
+
+          <div className="pet-reward-mini-grid">
+            {props.rewards.rewards.map((reward) => (
+              <span className={`pet-reward-pill state-${reward.state}`} key={reward.id}>
+                Lv.{reward.level} {reward.shortLabel}
+              </span>
+            ))}
           </div>
         </article>
 
