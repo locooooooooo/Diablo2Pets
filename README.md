@@ -15,6 +15,7 @@
 - 符文、宝石、金币三类自动化任务卡
 - 宝石 `Ctrl+V` 粘贴截图识别
 - Profile 录制、旧配置导入、执行日志查看
+- 工坊环境修复站：检查 Python、requirements、依赖包和 OCR 引擎，并支持一键安装依赖
 - 本地 `data.json` 持久化
 - Python runtime 与旧仓库能力拆分迁移
 
@@ -53,6 +54,12 @@ npm.cmd run build
 - `查看 Profile`
 - `录制 Profile`
 - `查看执行日志`
+
+工坊还提供：
+
+- 全局环境预检
+- 一键安装 Python runtime 依赖
+- requirements / Runtime README 快速打开
 
 其中：
 

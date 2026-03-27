@@ -43,6 +43,8 @@ python_runtime/
 python -m pip install -r automation/python_runtime/requirements.txt
 ```
 
+现在也可以直接在桌宠“赫拉迪姆工坊”的“环境修复站”里点“一键安装 Python 依赖”。
+
 查看当前 profile：
 
 ```bash

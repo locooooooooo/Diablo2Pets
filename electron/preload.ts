@@ -7,6 +7,7 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  EnvironmentActionResponse,
   ExportTextFileInput,
   ExportTextFileResult,
   ExportVisualReportInput,
@@ -14,6 +15,7 @@ import type {
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
+  RunEnvironmentActionInput,
   RunAutomationTaskInput,
   SaveImageInput,
   SaveImageResult,
@@ -45,6 +47,8 @@ const api = {
     ipcRenderer.invoke('automation:get-preflight', payload) as Promise<AutomationPreflightResponse>,
   getAutomationLog: (id: IntegrationId) =>
     ipcRenderer.invoke('automation:get-log', id) as Promise<AutomationLogDocument>,
+  runEnvironmentAction: (payload: RunEnvironmentActionInput) =>
+    ipcRenderer.invoke('environment:run-action', payload) as Promise<EnvironmentActionResponse>,
   exportTextFile: (payload: ExportTextFileInput) =>
     ipcRenderer.invoke('file:export-text', payload) as Promise<ExportTextFileResult>,
   exportVisualReport: (payload: ExportVisualReportInput) =>

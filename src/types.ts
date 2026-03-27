@@ -6,6 +6,7 @@ export type AutomationAdminAction =
   | 'record-profile'
   | 'print-profile'
   | 'import-legacy-config';
+export type EnvironmentAction = 'install-python-deps';
 
 export interface ActiveRun {
   id: string;
@@ -189,6 +190,15 @@ export interface ExportVisualReportInput {
 export interface ExportVisualReportResult {
   canceled: boolean;
   path?: string;
+}
+
+export interface RunEnvironmentActionInput {
+  action: EnvironmentAction;
+}
+
+export interface EnvironmentActionResponse {
+  result: IntegrationRunResult;
+  log: AutomationLogDocument;
 }
 
 export interface IntegrationRunResult {

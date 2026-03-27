@@ -28,6 +28,7 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  EnvironmentActionResponse,
   ExportTextFileInput,
   ExportTextFileResult,
   ExportVisualReportInput,
@@ -36,6 +37,7 @@ import type {
   IntegrationId,
   IntegrationRunResult,
   RunAutomationAdminInput,
+  RunEnvironmentActionInput,
   RunAutomationTaskInput,
   SaveImageInput,
   StartRunInput,
@@ -73,12 +75,33 @@ const dataFilePath = () => join(app.getPath('userData'), 'd2-pet', 'data.json');
 const screenshotRoot = () => join(app.getPath('userData'), 'd2-pet', 'screenshots');
 const automationLogRoot = () => join(app.getPath('userData'), 'd2-pet', 'automation-logs');
 const reportPreviewRoot = () => join(app.getPath('userData'), 'd2-pet', 'report-previews');
+const runtimeRequirementsPath = () => join(pythonRuntimeRoot, 'requirements.txt');
+const runtimeReadmePath = () => join(pythonRuntimeRoot, 'README.md');
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
 let resolvedPythonCommand: string | null = null;
+let pythonEnvironmentProbeCache:
+  | {
+      expiresAt: number;
+      value: PythonEnvironmentProbe;
+    }
+  | null = null;
+
+interface PythonDependencyProbeItem {
+  module: string;
+  package: string;
+  installed: boolean;
+}
+
+interface PythonEnvironmentProbe {
+  pipAvailable: boolean;
+  pipVersion: string;
+  dependencies: PythonDependencyProbeItem[];
+  ocrEngine: string;
+}
 
 function getWindowMetrics(mode: WindowMode): {
   width: number;
@@ -132,6 +155,46 @@ function resolvePythonCommand(): string {
 
   resolvedPythonCommand = candidate ?? 'python';
   return resolvedPythonCommand;
+}
+
+const pythonDependencyModules: Array<{ module: string; package: string }> = [
+  { module: 'keyboard', package: 'keyboard' },
+  { module: 'pyautogui', package: 'pyautogui' },
+  { module: 'pygetwindow', package: 'pygetwindow' },
+  { module: 'cv2', package: 'opencv-python' },
+  { module: 'numpy', package: 'numpy' },
+  { module: 'PIL', package: 'pillow' },
+  { module: 'pytesseract', package: 'pytesseract' },
+  { module: 'rapidocr_onnxruntime', package: 'rapidocr_onnxruntime' }
+];
+
+function invalidatePythonEnvironmentProbe() {
+  pythonEnvironmentProbeCache = null;
+}
+
+function buildDependencyProbeScript(): string {
+  return [
+    'import importlib.util, json',
+    `modules = ${JSON.stringify(pythonDependencyModules)}`,
+    'result = []',
+    'for item in modules:',
+    "    module_name = item['module']",
+    "    package_name = item['package']",
+    '    result.append({',
+    "        'module': module_name,",
+    "        'package': package_name,",
+    "        'installed': importlib.util.find_spec(module_name) is not None,",
+    '    })',
+    'print(json.dumps(result))'
+  ].join('\n');
+}
+
+function buildOcrEngineProbeScript(): string {
+  return [
+    'import json',
+    'from common.ocr_utils import get_available_ocr_engine',
+    "print(json.dumps({'engine': get_available_ocr_engine()}))"
+  ].join('\n');
 }
 
 function getDayKey(input: Date): string {
@@ -1121,8 +1184,52 @@ function parseJsonOutput<T>(result: IntegrationRunResult): T {
   }
 }
 
+async function getPythonEnvironmentProbe(): Promise<PythonEnvironmentProbe> {
+  const cached = pythonEnvironmentProbeCache;
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const pythonCommand = resolvePythonCommand();
+  const pipVersionResult = await executeFileCommand(
+    pythonCommand,
+    ['-m', 'pip', '--version'],
+    pythonRuntimeRoot
+  );
+  const dependencyResult = await executeFileCommand(
+    pythonCommand,
+    ['-c', buildDependencyProbeScript()],
+    pythonRuntimeRoot
+  );
+  const ocrEngineResult = await executeFileCommand(
+    pythonCommand,
+    ['-c', buildOcrEngineProbeScript()],
+    pythonRuntimeRoot
+  );
+
+  const value: PythonEnvironmentProbe = {
+    pipAvailable: pipVersionResult.success,
+    pipVersion: (pipVersionResult.stdout || pipVersionResult.stderr).trim(),
+    dependencies: dependencyResult.success
+      ? parseJsonOutput<PythonDependencyProbeItem[]>(dependencyResult)
+      : pythonDependencyModules.map((item) => ({
+          ...item,
+          installed: false
+        })),
+    ocrEngine: ocrEngineResult.success
+      ? parseJsonOutput<{ engine: string }>(ocrEngineResult).engine
+      : 'none'
+  };
+
+  pythonEnvironmentProbeCache = {
+    expiresAt: Date.now() + 5_000,
+    value
+  };
+  return value;
+}
+
 async function writeAutomationLog(
-  id: IntegrationId,
+  id: string,
   actionLabel: string,
   command: string,
   args: string[],
@@ -1369,12 +1476,26 @@ async function buildAutomationPreflight(
     ...defaultAutomationDrafts(),
     ...payload.drafts
   };
+  const requirementsPath = runtimeRequirementsPath();
   const pythonCommand = resolvePythonCommand();
   const pythonVersion = await executeFileCommand(
     pythonCommand,
     ['--version'],
     pythonRuntimeRoot
   );
+  let environmentProbe: PythonEnvironmentProbe | null = null;
+  if (pythonVersion.success) {
+    try {
+      environmentProbe = await getPythonEnvironmentProbe();
+    } catch {
+      environmentProbe = null;
+    }
+  }
+  const missingPackages = environmentProbe
+    ? environmentProbe.dependencies
+        .filter((item) => !item.installed)
+        .map((item) => item.package)
+    : [];
 
   const globalChecks: AutomationCheckItem[] = [
     createCheck(
@@ -1392,6 +1513,52 @@ async function buildAutomationPreflight(
       pythonVersion.success
         ? `${pythonCommand} 可用：${(pythonVersion.stdout || pythonVersion.stderr).trim()}`
         : `无法运行 ${pythonCommand}，请先安装 Python 或补齐打包运行时。`
+    ),
+    createCheck(
+      'requirements-file',
+      existsSync(requirementsPath) ? 'ok' : 'error',
+      'requirements.txt',
+      existsSync(requirementsPath)
+        ? `已找到依赖清单：${requirementsPath}`
+        : `未找到依赖清单：${requirementsPath}`
+    ),
+    createCheck(
+      'pip-command',
+      environmentProbe?.pipAvailable ? 'ok' : pythonVersion.success ? 'error' : 'warning',
+      'pip 环境',
+      environmentProbe?.pipAvailable
+        ? environmentProbe.pipVersion
+        : pythonVersion.success
+          ? '当前 Python 缺少可用的 pip，无法在桌宠内直接安装运行时依赖。'
+          : '等待 Python 解释器先通过预检。'
+    ),
+    createCheck(
+      'python-dependencies',
+      !environmentProbe
+        ? 'warning'
+        : missingPackages.length === 0
+          ? 'ok'
+          : 'error',
+      'Python 依赖',
+      !environmentProbe
+        ? '等待 Python 解释器先通过预检。'
+        : missingPackages.length === 0
+          ? `已检测到 ${environmentProbe.dependencies.length} 项运行时依赖。`
+          : `缺少 ${missingPackages.length} 项：${missingPackages.join(', ')}`
+    ),
+    createCheck(
+      'ocr-engine',
+      !environmentProbe
+        ? 'warning'
+        : environmentProbe.ocrEngine === 'none'
+          ? 'warning'
+          : 'ok',
+      'OCR 引擎',
+      !environmentProbe
+        ? '等待 Python 解释器先通过预检。'
+        : environmentProbe.ocrEngine === 'none'
+          ? '当前没有可用 OCR 引擎，掉落识别和宝石截图识别会受影响。'
+          : `当前可用 OCR：${environmentProbe.ocrEngine}`
     )
   ];
 
@@ -1631,6 +1798,35 @@ async function runBuiltinAutomation(
   );
 
   return { result, logPath };
+}
+
+async function runEnvironmentAction(
+  payload: RunEnvironmentActionInput
+): Promise<EnvironmentActionResponse> {
+  const pythonCommand = resolvePythonCommand();
+  const requirementsPath = runtimeRequirementsPath();
+  let args: string[];
+
+  switch (payload.action) {
+    case 'install-python-deps':
+      if (!existsSync(requirementsPath)) {
+        throw new Error(`未找到依赖清单：${requirementsPath}`);
+      }
+      args = ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', requirementsPath];
+      break;
+  }
+
+  const result = await executeFileCommand(pythonCommand, args, pythonRuntimeRoot);
+  const logPath = await writeAutomationLog('environment', payload.action, pythonCommand, args, result);
+  invalidatePythonEnvironmentProbe();
+
+  return {
+    result,
+    log: {
+      path: logPath,
+      content: await readFile(logPath, 'utf8')
+    }
+  };
 }
 
 async function runDropOcr(imagePath: string): Promise<DropOcrResult> {
@@ -1992,6 +2188,24 @@ ipcMain.handle(
       path: logPath,
       content: await readFile(logPath, 'utf8')
     };
+  }
+);
+
+ipcMain.handle(
+  'environment:run-action',
+  async (_event, payload: RunEnvironmentActionInput): Promise<EnvironmentActionResponse> => {
+    const response = await runEnvironmentAction(payload);
+    void sendDesktopNotification(
+      response.result.success ? '环境修复完成' : '环境修复失败',
+      payload.action === 'install-python-deps'
+        ? response.result.success
+          ? 'Python 运行时依赖已经安装完成。'
+          : 'Python 运行时依赖安装失败，请查看日志。'
+        : response.result.success
+          ? '环境修复动作已完成。'
+          : '环境修复动作执行失败。'
+    );
+    return response;
   }
 );
 

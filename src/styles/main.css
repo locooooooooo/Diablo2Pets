@@ -853,6 +853,46 @@ select,
   gap: 12px;
 }
 
+.environment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.environment-card-success {
+  border-color: rgba(117, 194, 127, 0.22);
+}
+
+.environment-card-attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.environment-card-error {
+  border-color: rgba(230, 116, 97, 0.28);
+}
+
+.environment-summary {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(247, 209, 140, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(15, 9, 7, 0.42);
+}
+
+.environment-summary strong {
+  display: block;
+  color: #fff1cf;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 18px;
+}
+
+.environment-summary p {
+  margin: 8px 0 0;
+  color: #c3ab84;
+  line-height: 1.6;
+}
+
 .preflight-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

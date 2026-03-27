@@ -14,12 +14,14 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  EnvironmentActionResponse,
   ExportTextFileInput,
   ExportTextFileResult,
   ExportVisualReportInput,
   ExportVisualReportResult,
   IntegrationRunResponse,
   RunAutomationAdminInput,
+  RunEnvironmentActionInput,
   RunAutomationTaskInput,
   WindowMode
 } from './types';
@@ -273,6 +275,32 @@ export default function App() {
     }
   }
 
+  async function handleRunEnvironmentAction(
+    payload: RunEnvironmentActionInput
+  ): Promise<EnvironmentActionResponse> {
+    setBusyKey(`env-${payload.action}`);
+    setMessage(null);
+
+    try {
+      const response = await window.d2Pet.runEnvironmentAction(payload);
+      setMessage({
+        kind: response.result.success ? 'success' : 'error',
+        text: response.result.success
+          ? payload.action === 'install-python-deps'
+            ? 'Python 运行时依赖安装完成。'
+            : '环境修复动作已完成。'
+          : response.result.stderr || '环境修复失败。'
+      });
+      return response;
+    } catch (error) {
+      const text = getErrorMessage(error);
+      setMessage({ kind: 'error', text });
+      throw new Error(text);
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function handleGetAutomationLog(
     id: RunAutomationTaskInput['id']
   ): Promise<AutomationLogDocument> {
@@ -509,6 +537,7 @@ export default function App() {
               onGetLog={handleGetAutomationLog}
               onOpenPath={handleOpenPath}
               onRunAdmin={handleRunAutomationAdmin}
+              onRunEnvironmentAction={handleRunEnvironmentAction}
               onRunTask={handleRunAutomationTask}
             />
           ) : null}

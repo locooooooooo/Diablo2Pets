@@ -8,6 +8,7 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  EnvironmentActionResponse,
   ExportTextFileInput,
   ExportTextFileResult,
   ExportVisualReportInput,
@@ -15,6 +16,7 @@ import type {
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
+  RunEnvironmentActionInput,
   RunAutomationTaskInput,
   SaveImageInput,
   SaveImageResult,
@@ -40,6 +42,9 @@ declare global {
         payload: AutomationPreflightInput
       ) => Promise<AutomationPreflightResponse>;
       getAutomationLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
+      runEnvironmentAction: (
+        payload: RunEnvironmentActionInput
+      ) => Promise<EnvironmentActionResponse>;
       exportTextFile: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
       exportVisualReport: (
         payload: ExportVisualReportInput

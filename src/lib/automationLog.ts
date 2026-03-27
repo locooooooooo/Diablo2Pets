@@ -61,6 +61,10 @@ function buildSuccessHeadline(action: string, stdout: string): string {
     return '旧配置导入完成，建议再跑一次试运行。';
   }
 
+  if (action.includes('install-python-deps')) {
+    return 'Python 运行时依赖安装动作已经执行。';
+  }
+
   const firstStdoutLine = getFirstMeaningfulLine(stdout);
   return firstStdoutLine || '本次任务执行完成。';
 }
@@ -83,6 +87,10 @@ function buildGuidance(success: boolean | null, action: string, stderr: string, 
 
     if (action.includes('import-legacy-config')) {
       return '旧配置迁入后，最好立刻做一次试运行，确认新 runtime 解释没有偏差。';
+    }
+
+    if (action.includes('install-python-deps')) {
+      return '建议立刻刷新一次工坊预检，确认 Python 包和 OCR 引擎是否已经全部回绿。';
     }
 
     return '这次结果看起来正常，如需深挖细节可以继续展开原始日志。';

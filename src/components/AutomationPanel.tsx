@@ -15,11 +15,14 @@ import type {
   AutomationPreflightResponse,
   AutomationPreflightTask,
   AutomationRunMode,
+  EnvironmentAction,
+  EnvironmentActionResponse,
   GemInputMode,
   IntegrationConfig,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
+  RunEnvironmentActionInput,
   RunAutomationTaskInput
 } from '../types';
 
@@ -29,6 +32,7 @@ interface AutomationPanelProps {
   busyKey: string | null;
   onRunTask: (payload: RunAutomationTaskInput) => Promise<IntegrationRunResponse>;
   onRunAdmin: (payload: RunAutomationAdminInput) => Promise<IntegrationRunResponse>;
+  onRunEnvironmentAction: (payload: RunEnvironmentActionInput) => Promise<EnvironmentActionResponse>;
   onGetPreflight: (payload: AutomationPreflightInput) => Promise<AutomationPreflightResponse>;
   onGetLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
   onOpenPath: (targetPath: string) => Promise<void>;
@@ -48,6 +52,7 @@ interface QuickFixAction {
   label: string;
   kind:
     | 'admin'
+    | 'environment-action'
     | 'open-path'
     | 'set-gem-mode'
     | 'set-allow-inactive'
@@ -55,6 +60,7 @@ interface QuickFixAction {
     | 'clear-gem-path'
     | 'refresh';
   adminAction?: AutomationAdminAction;
+  environmentAction?: EnvironmentAction;
   path?: string;
   mode?: GemInputMode;
   value?: boolean | number;
@@ -105,6 +111,10 @@ function getBusyKey(id: IntegrationId, mode: AutomationRunMode): string {
 
 function getAdminBusyKey(id: IntegrationId, action: AutomationAdminAction): string {
   return `admin-${id}-${action}`;
+}
+
+function getEnvironmentBusyKey(action: EnvironmentAction): string {
+  return `env-${action}`;
 }
 
 function getModeLabel(mode: AutomationRunMode): string {
@@ -239,6 +249,10 @@ function findCheck(task: AutomationPreflightTask | null, key: string): Automatio
   return task?.checks.find((check) => check.key === key) ?? null;
 }
 
+function findGlobalCheck(checks: AutomationCheckItem[], key: string): AutomationCheckItem | null {
+  return checks.find((check) => check.key === key) ?? null;
+}
+
 function getParentPath(targetPath: string): string {
   const normalized = targetPath.trim().replace(/[\\/]+$/, '');
   const match = normalized.match(/^(.*)[\\/][^\\/]+$/);
@@ -249,6 +263,10 @@ function pushAction(actions: QuickFixAction[], action: QuickFixAction) {
   if (!actions.some((item) => item.key === action.key)) {
     actions.push(action);
   }
+}
+
+function buildSiblingPath(basePath: string, childName: string): string {
+  return `${basePath.replace(/[\\/]+$/, '')}\\${childName}`;
 }
 
 function getWaitRepair(
@@ -463,9 +481,131 @@ function buildTaskDiagnosis(
   };
 }
 
+function buildEnvironmentDiagnosis(
+  globalChecks: AutomationCheckItem[],
+  runtimeRoot: string
+): TaskDiagnosis {
+  const actions: QuickFixAction[] = [];
+  const runtimeCheck = findGlobalCheck(globalChecks, 'runtime-root');
+  const pythonCheck = findGlobalCheck(globalChecks, 'python-command');
+  const requirementsCheck = findGlobalCheck(globalChecks, 'requirements-file');
+  const pipCheck = findGlobalCheck(globalChecks, 'pip-command');
+  const dependencyCheck = findGlobalCheck(globalChecks, 'python-dependencies');
+  const ocrCheck = findGlobalCheck(globalChecks, 'ocr-engine');
+  const requirementsPath = buildSiblingPath(runtimeRoot, 'requirements.txt');
+  const readmePath = buildSiblingPath(runtimeRoot, 'README.md');
+
+  pushAction(actions, {
+    key: 'open-runtime-readme',
+    label: '打开 Runtime 说明',
+    kind: 'open-path',
+    path: readmePath
+  });
+  pushAction(actions, {
+    key: 'open-requirements',
+    label: '打开 requirements',
+    kind: 'open-path',
+    path: requirementsPath
+  });
+  pushAction(actions, {
+    key: 'refresh-environment',
+    label: '刷新环境诊断',
+    kind: 'refresh'
+  });
+
+  if (runtimeCheck?.level === 'error') {
+    pushAction(actions, {
+      key: 'open-runtime-root',
+      label: '打开 Runtime 目录',
+      kind: 'open-path',
+      path: runtimeRoot
+    });
+    return {
+      tone: 'error',
+      title: 'Python Runtime 缺失',
+      description: runtimeCheck.detail,
+      actions
+    };
+  }
+
+  if (pythonCheck?.level === 'error') {
+    return {
+      tone: 'error',
+      title: 'Python 解释器还没就位',
+      description: pythonCheck.detail,
+      actions
+    };
+  }
+
+  if (requirementsCheck?.level === 'error') {
+    pushAction(actions, {
+      key: 'open-runtime-root',
+      label: '打开 Runtime 目录',
+      kind: 'open-path',
+      path: runtimeRoot
+    });
+    return {
+      tone: 'error',
+      title: '依赖清单缺失',
+      description: requirementsCheck.detail,
+      actions
+    };
+  }
+
+  if (pipCheck?.level === 'error') {
+    return {
+      tone: 'error',
+      title: 'pip 当前不可用',
+      description: pipCheck.detail,
+      actions
+    };
+  }
+
+  if (dependencyCheck?.level === 'error') {
+    pushAction(actions, {
+      key: 'install-python-deps',
+      label: '安装 Python 依赖',
+      kind: 'environment-action',
+      environmentAction: 'install-python-deps'
+    });
+    return {
+      tone: 'error',
+      title: '运行时依赖还没装齐',
+      description: dependencyCheck.detail,
+      actions
+    };
+  }
+
+  if (ocrCheck?.level === 'warning') {
+    pushAction(actions, {
+      key: 'install-python-deps',
+      label: '补装 OCR 相关依赖',
+      kind: 'environment-action',
+      environmentAction: 'install-python-deps'
+    });
+    return {
+      tone: 'attention',
+      title: 'OCR 识别还没准备好',
+      description: ocrCheck.detail,
+      actions
+    };
+  }
+
+  return {
+    tone: 'success',
+    title: '环境已经就绪',
+    description: 'Python、依赖清单、运行时包和 OCR 能力都已经通过检查。',
+    actions
+  };
+}
+
 function getParsedTaskLabel(task: string): string {
   if (task === 'rune-cube' || task === 'gem-cube' || task === 'drop-shared-gold') {
     return getTaskMeta(task).title;
+  }
+
+  if (task === 'environment') {
+    return '环境修复站';
   }
 
   return task || '未知任务';
@@ -483,6 +623,8 @@ function getActionSummaryLabel(action: string): string {
       return '看 Profile';
     case 'import-legacy-config':
       return '导旧配置';
+    case 'install-python-deps':
+      return '安装 Python 依赖';
     default:
       return action || '未命名动作';
   }
@@ -699,11 +841,30 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }
   }
 
+  async function runEnvironmentAction(action: EnvironmentAction) {
+    try {
+      const response = await props.onRunEnvironmentAction({ action });
+      setViewer({
+        title: action === 'install-python-deps' ? '环境修复 / 安装 Python 依赖日志' : '环境修复日志',
+        path: response.log.path,
+        content: response.log.content
+      });
+      requestPreflightRefresh();
+    } catch {
+      return;
+    }
+  }
+
   async function handleQuickFix(item: IntegrationConfig, action: QuickFixAction) {
     switch (action.kind) {
       case 'admin':
         if (action.adminAction) {
           await runAdmin(item, action.adminAction);
+        }
+        return;
+      case 'environment-action':
+        if (action.environmentAction) {
+          await runEnvironmentAction(action.environmentAction);
         }
         return;
       case 'open-path':
@@ -810,7 +971,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div>
             <div className="card-title">工坊预检</div>
             <p className="secondary-text">
-              这里会实时检查 Python、runtime、profile 和当前输入条件，先扫雷再执行。
+              这里会实时检查 Python、runtime、依赖包、Profile 和当前输入条件，先扫雷再执行。
             </p>
           </div>
           <div className="tool-row">
@@ -841,6 +1002,59 @@ export function AutomationPanel(props: AutomationPanelProps) {
             ))}
           </div>
         )}
+      </article>
+    );
+  }
+
+  function renderEnvironmentStation() {
+    const diagnosis = buildEnvironmentDiagnosis(preflight?.globalChecks ?? [], runeTask.workingDirectory);
+
+    return (
+      <article className={`card environment-card environment-card-${diagnosis.tone}`}>
+        <div className="integration-head">
+          <div>
+            <div className="card-title">环境修复站</div>
+            <p className="secondary-text">
+              把 Python 解释器、requirements、运行时依赖和 OCR 能力收进一个地方管理。
+            </p>
+          </div>
+          <span className={`status-pill ${diagnosis.tone}`}>
+            {diagnosis.tone === 'success'
+              ? '环境就绪'
+              : diagnosis.tone === 'error'
+                ? '需要修复'
+                : '建议处理'}
+          </span>
+        </div>
+
+        <div className="environment-summary">
+          <strong>{diagnosis.title}</strong>
+          <p>{diagnosis.description}</p>
+        </div>
+
+        <div className="diagnosis-actions">
+          {diagnosis.actions.map((action, index) => (
+            <button
+              className={index === 0 ? 'primary-button' : 'ghost-button'}
+              disabled={
+                props.busyKey !== null ||
+                (action.kind === 'refresh' && preflightBusy) ||
+                (action.kind === 'environment-action' &&
+                  props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction))
+              }
+              key={action.key}
+              onClick={() => void handleQuickFix(runeTask, action)}
+              type="button"
+            >
+              {action.kind === 'refresh' && preflightBusy
+                ? '刷新中...'
+                : action.kind === 'environment-action' &&
+                    props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction)
+                  ? '处理中...'
+                  : action.label}
+            </button>
+          ))}
+        </div>
       </article>
     );
   }
@@ -1035,6 +1249,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </label>
       </article>
 
+      {renderEnvironmentStation()}
       {renderGlobalChecks()}
 
       <div className="overview-grid">
