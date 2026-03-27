@@ -4,6 +4,7 @@ import {
   type PetInteractionCue
 } from '../lib/petPersona';
 import type { PetCeremony } from '../lib/petCeremony';
+import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
 import type {
   PetEvent,
@@ -49,6 +50,8 @@ interface FloatingPetProps {
   onEventAction: () => void;
   onStartRun: (mapName: string) => void;
   onStopRun: () => void;
+  onOpenCodex: () => void;
+  onOpenCodexEntry: (entryId: string) => void;
   onOpenPanel: () => void;
   onOpenDrops: () => void;
   onOpenWorkshop: () => void;
@@ -454,15 +457,31 @@ export function FloatingPet(props: FloatingPetProps) {
               <strong>{props.habitat.title}</strong>
               <p>{props.habitat.collectionSummary}</p>
             </div>
-            <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
+            <div className="pet-habitat-crest">
+              <button
+                className="ghost-button pet-codex-launch compact"
+                onClick={props.onOpenCodex}
+                type="button"
+              >
+                藏品册
+              </button>
+              <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
+            </div>
           </div>
 
           <div className="pet-habitat-mini-grid">
             {props.habitat.exhibits.slice(0, 4).map((exhibit) => (
-              <article className={`pet-habitat-item compact state-${exhibit.state}`} key={exhibit.id}>
+              <button
+                className={`pet-habitat-item pet-codex-card compact state-${exhibit.state}`}
+                key={exhibit.id}
+                onClick={() =>
+                  props.onOpenCodexEntry(createPetCodexEntryId('relics', exhibit.id))
+                }
+                type="button"
+              >
                 <span className="pet-room-kicker">{exhibit.accent}</span>
                 <strong>{exhibit.label}</strong>
-              </article>
+              </button>
             ))}
           </div>
         </article>
@@ -492,14 +511,18 @@ export function FloatingPet(props: FloatingPetProps) {
 
           <div className="pet-reward-mini-grid">
             {props.rewards.rewards.map((reward) => (
-              <span
+              <button
                 className={`pet-reward-pill state-${reward.state} ${
                   rewardSpotlightIds.has(reward.id) ? 'is-spotlight' : ''
                 }`}
                 key={reward.id}
+                onClick={() =>
+                  props.onOpenCodexEntry(createPetCodexEntryId('rewards', reward.id))
+                }
+                type="button"
               >
                 Lv.{reward.level} {reward.shortLabel}
-              </span>
+              </button>
             ))}
           </div>
         </article>
@@ -513,16 +536,20 @@ export function FloatingPet(props: FloatingPetProps) {
 
           <div className="pet-room-grid compact">
             {props.room.items.map((item) => (
-              <article
-                className={`pet-room-item state-${item.state} ${
+              <button
+                className={`pet-room-item pet-codex-card state-${item.state} ${
                   roomSpotlightIds.has(item.id) ? 'is-spotlight' : ''
                 }`}
                 key={item.id}
+                onClick={() =>
+                  props.onOpenCodexEntry(createPetCodexEntryId('chamber', item.id))
+                }
+                type="button"
               >
                 <span className="pet-room-kicker">{item.shortLabel}</span>
                 <strong>{item.label}</strong>
                 <p>{item.detail}</p>
-              </article>
+              </button>
             ))}
           </div>
         </article>
@@ -601,6 +628,9 @@ export function FloatingPet(props: FloatingPetProps) {
           </button>
           <button className="floating-action" onClick={props.onOpenWorkshop} type="button">
             工坊
+          </button>
+          <button className="floating-action" onClick={props.onOpenCodex} type="button">
+            藏品册
           </button>
           <button
             className={props.alwaysOnTop ? 'floating-action active' : 'floating-action'}

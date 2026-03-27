@@ -3,6 +3,7 @@ import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
 import { FloatingPet } from './components/FloatingPet';
+import { PetCodexOverlay } from './components/PetCodexOverlay';
 import { PetShell } from './components/PetShell';
 import { SetupGuide } from './components/SetupGuide';
 import {
@@ -11,6 +12,7 @@ import {
   type PetCeremony
 } from './lib/petCeremony';
 import { formatDuration, getDayKey } from './lib/date';
+import { buildPetCodex } from './lib/petCodex';
 import { buildPetHabitat } from './lib/petHabitat';
 import {
   createPetInteractionCue,
@@ -89,6 +91,8 @@ export default function App() {
   });
   const [setupGuideTick, setSetupGuideTick] = useState(0);
   const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
+  const [showPetCodex, setShowPetCodex] = useState(false);
+  const [selectedCodexEntryId, setSelectedCodexEntryId] = useState<string | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
   const petCeremonySnapshotRef = useRef<ReturnType<typeof createPetCeremonySnapshot> | null>(null);
   const setupGuideInitializedRef = useRef(false);
@@ -318,6 +322,33 @@ export default function App() {
         : null,
     [petProgression, petRewards, petWorldInput]
   );
+  const petCodex = useMemo(
+    () =>
+      petProgression && petRewards && petRoom && petHabitat
+        ? buildPetCodex({
+            drops: data?.drops ?? [],
+            progression: petProgression,
+            rewards: petRewards,
+            room: petRoom,
+            habitat: petHabitat
+          })
+        : null,
+    [data?.drops, petHabitat, petProgression, petRewards, petRoom]
+  );
+
+  useEffect(() => {
+    if (!petCodex) {
+      return;
+    }
+
+    const entryIds = new Set(
+      petCodex.chapters.flatMap((chapter) => chapter.entries.map((entry) => entry.id))
+    );
+
+    if (!selectedCodexEntryId || !entryIds.has(selectedCodexEntryId)) {
+      setSelectedCodexEntryId(petCodex.featuredEntryId);
+    }
+  }, [petCodex, selectedCodexEntryId]);
 
   useEffect(() => {
     if (!petProgression || !petRewards) {
@@ -754,8 +785,13 @@ export default function App() {
     void handleUpdateSettings({ windowMode: mode });
   }
 
-  function handleOpenPanel(tab: TabKey) {
+  function handleSelectTab(tab: TabKey) {
     setActiveTab(tab);
+    setShowPetCodex(false);
+  }
+
+  function handleOpenPanel(tab: TabKey) {
+    handleSelectTab(tab);
 
     if (data.settings.windowMode !== 'panel') {
       void handleUpdateSettings({ windowMode: 'panel' });
@@ -763,16 +799,16 @@ export default function App() {
   }
 
   function handleOpenSetupGuide() {
-    setActiveTab('companion');
+    handleSelectTab('companion');
     setShowSetupGuide(true);
   }
 
   function handleOpenWorkshopFromGuide() {
-    setActiveTab('workshop');
+    handleSelectTab('workshop');
   }
 
   function handleOpenWorkshopTaskFromGuide(id: IntegrationId) {
-    setActiveTab('workshop');
+    handleSelectTab('workshop');
     setWorkshopFocusId(id);
   }
 
@@ -790,6 +826,24 @@ export default function App() {
     void handleUpdateSettings({ setupGuideCompleted: true });
   }
 
+  function handleOpenPetCodex(entryId?: string) {
+    if (petCodex) {
+      setSelectedCodexEntryId(entryId ?? petCodex.featuredEntryId);
+    }
+
+    setShowSetupGuide(false);
+    setShowPetCodex(true);
+    setActiveTab('companion');
+
+    if (data.settings.windowMode !== 'panel') {
+      void handleUpdateSettings({ windowMode: 'panel' });
+    }
+  }
+
+  function handleClosePetCodex() {
+    setShowPetCodex(false);
+  }
+
   if (isFloatingMode) {
     return (
       <div className="scene scene-floating">
@@ -805,6 +859,8 @@ export default function App() {
           liveDurationText={activeDurationText}
           onMinimize={() => void window.d2Pet.minimize()}
           onEventAction={handlePetEventAction}
+          onOpenCodex={() => handleOpenPetCodex()}
+          onOpenCodexEntry={handleOpenPetCodex}
           onOpenDrops={() => handleOpenPanel('drops')}
           onOpenPanel={() => handleOpenPanel('companion')}
           onOpenSetupGuide={handleOpenSetupGuide}
@@ -856,6 +912,8 @@ export default function App() {
           liveDurationText={activeDurationText}
           notificationsEnabled={data.settings.notificationsEnabled}
           onEventAction={handlePetEventAction}
+          onOpenCodex={() => handleOpenPetCodex()}
+          onOpenCodexEntry={handleOpenPetCodex}
           onOpenSetupGuide={handleOpenSetupGuide}
           onPetCheer={handlePetCheer}
           onPetHeadpat={handlePetHeadpat}
@@ -890,21 +948,21 @@ export default function App() {
         <nav className="tab-row">
           <button
             className={activeTab === 'companion' ? 'tab-button active' : 'tab-button'}
-            onClick={() => setActiveTab('companion')}
+            onClick={() => handleSelectTab('companion')}
             type="button"
           >
             陪刷
           </button>
           <button
             className={activeTab === 'drops' ? 'tab-button active' : 'tab-button'}
-            onClick={() => setActiveTab('drops')}
+            onClick={() => handleSelectTab('drops')}
             type="button"
           >
             战报
           </button>
           <button
             className={activeTab === 'workshop' ? 'tab-button active' : 'tab-button'}
-            onClick={() => setActiveTab('workshop')}
+            onClick={() => handleSelectTab('workshop')}
             type="button"
           >
             工坊
@@ -959,8 +1017,8 @@ export default function App() {
                 activeRun={data.activeRun}
                 busy={busyKey === 'start-run' || busyKey === 'stop-run'}
                 onOpenSetupGuide={handleOpenSetupGuide}
-                onGoToDrops={() => setActiveTab('drops')}
-                onGoToWorkshop={() => setActiveTab('workshop')}
+                onGoToDrops={() => handleSelectTab('drops')}
+                onGoToWorkshop={() => handleSelectTab('workshop')}
                 onStartRun={handleStartRun}
                 onStopRun={handleStopRun}
                 preflight={setupPreflight}
@@ -970,6 +1028,17 @@ export default function App() {
                 setupGuideCompleted={data.settings.setupGuideCompleted}
                 stats={todayStats}
               />
+
+              {showPetCodex && petCodex ? (
+                <PetCodexOverlay
+                  codex={petCodex}
+                  onClose={handleClosePetCodex}
+                  onOpenDrops={() => handleSelectTab('drops')}
+                  onOpenWorkshop={() => handleSelectTab('workshop')}
+                  onSelectEntry={setSelectedCodexEntryId}
+                  selectedEntryId={selectedCodexEntryId}
+                />
+              ) : null}
             </>
           ) : null}
 

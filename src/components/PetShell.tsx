@@ -4,6 +4,7 @@ import {
   type PetInteractionCue
 } from '../lib/petPersona';
 import type { PetCeremony } from '../lib/petCeremony';
+import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
 import type {
   PetEvent,
@@ -45,6 +46,8 @@ interface PetShellProps {
   onPetHeadpat: () => void;
   onPetCheer: () => void;
   onEventAction: () => void;
+  onOpenCodex: () => void;
+  onOpenCodexEntry: (entryId: string) => void;
   onToggleAlwaysOnTop: () => void;
   onToggleLaunchOnStartup: () => void;
   onToggleNotifications: () => void;
@@ -248,6 +251,9 @@ export function PetShell(props: PetShellProps) {
             <p>{props.habitat.subtitle}</p>
           </div>
           <div className="pet-habitat-crest">
+            <button className="ghost-button pet-codex-launch" onClick={props.onOpenCodex} type="button">
+              翻收藏册
+            </button>
             <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
             <span className="mini-pill">{props.habitat.aura}</span>
           </div>
@@ -261,11 +267,18 @@ export function PetShell(props: PetShellProps) {
 
           <div className="pet-habitat-grid">
             {props.habitat.exhibits.slice(0, 6).map((exhibit) => (
-              <article className={`pet-habitat-item state-${exhibit.state}`} key={exhibit.id}>
+              <button
+                className={`pet-habitat-item pet-codex-card state-${exhibit.state}`}
+                key={exhibit.id}
+                onClick={() =>
+                  props.onOpenCodexEntry(createPetCodexEntryId('relics', exhibit.id))
+                }
+                type="button"
+              >
                 <span className="pet-room-kicker">{exhibit.accent}</span>
                 <strong>{exhibit.label}</strong>
                 <p>{exhibit.detail}</p>
-              </article>
+              </button>
             ))}
           </div>
         </div>
@@ -298,16 +311,20 @@ export function PetShell(props: PetShellProps) {
 
         <div className="pet-reward-grid">
           {props.rewards.rewards.map((reward) => (
-            <article
-              className={`pet-reward-item state-${reward.state} ${
+            <button
+              className={`pet-reward-item pet-codex-card state-${reward.state} ${
                 rewardSpotlightIds.has(reward.id) ? 'is-spotlight' : ''
               }`}
               key={reward.id}
+              onClick={() =>
+                props.onOpenCodexEntry(createPetCodexEntryId('rewards', reward.id))
+              }
+              type="button"
             >
               <span className="pet-room-kicker">Lv.{reward.level}</span>
               <strong>{reward.label}</strong>
               <p>{reward.detail}</p>
-            </article>
+            </button>
           ))}
         </div>
       </article>
@@ -321,16 +338,20 @@ export function PetShell(props: PetShellProps) {
 
         <div className="pet-room-grid">
           {props.room.items.map((item) => (
-            <article
-              className={`pet-room-item state-${item.state} ${
+            <button
+              className={`pet-room-item pet-codex-card state-${item.state} ${
                 roomSpotlightIds.has(item.id) ? 'is-spotlight' : ''
               }`}
               key={item.id}
+              onClick={() =>
+                props.onOpenCodexEntry(createPetCodexEntryId('chamber', item.id))
+              }
+              type="button"
             >
               <span className="pet-room-kicker">{item.shortLabel}</span>
               <strong>{item.label}</strong>
               <p>{item.detail}</p>
-            </article>
+            </button>
           ))}
         </div>
       </article>
