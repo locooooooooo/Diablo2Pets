@@ -46,6 +46,15 @@ export interface PetRoom {
   items: PetRoomItem[];
 }
 
+export interface PetProgression {
+  level: number;
+  title: string;
+  progress: number;
+  progressLabel: string;
+  nextMilestone: string;
+  sceneLine: string;
+}
+
 export interface PetWorldInput extends PetPersonaInput {
   now: number;
 }
@@ -110,6 +119,15 @@ const RARE_STORY_TEMPLATES: RareStoryTemplate[] = [
     detail: (dropName) =>
       `${dropName} 这种底材会被单独摆进房间一角，提醒你它值得后续处理。`
   }
+];
+
+const PET_TITLES = [
+  { level: 1, title: '营地见习生', threshold: 0 },
+  { level: 2, title: '路线抄写员', threshold: 35 },
+  { level: 3, title: '战果记事官', threshold: 80 },
+  { level: 4, title: '方块看守人', threshold: 135 },
+  { level: 5, title: '凯旋收藏家', threshold: 205 },
+  { level: 6, title: '桌边大贤者', threshold: 290 }
 ];
 
 function getLatestRunNeedingWrapUp(
@@ -197,6 +215,20 @@ function getBestRareStory(input: PetWorldInput): RareStory | null {
   }
 
   return null;
+}
+
+function getProgressScore(input: PetWorldInput) {
+  const blockingTask = getBlockingTask(input.preflight);
+  const rareStory = getBestRareStory(input);
+
+  return (
+    (input.setupGuideCompleted ? 18 : 0) +
+    input.todayCount * 10 +
+    input.todayDropCount * 18 +
+    (input.highlightDropName ? 14 : 0) +
+    (!blockingTask && input.setupGuideCompleted ? 16 : 0) +
+    (rareStory ? 48 : 0)
+  );
 }
 
 export function buildPetScene(input: PetWorldInput): PetScene {
@@ -365,6 +397,49 @@ export function buildPetRoom(input: PetWorldInput): PetRoom {
         ? '今天的掉落和路线会慢慢把这间房填满。'
         : '随着引导、刷图和战报推进，房间里的家具会一件件亮起来。',
     items
+  };
+}
+
+export function buildPetProgression(input: PetWorldInput): PetProgression {
+  const score = getProgressScore(input);
+  const scene = buildPetScene(input);
+  const rareStory = getBestRareStory(input);
+  const currentTier =
+    [...PET_TITLES].reverse().find((tier) => score >= tier.threshold) ?? PET_TITLES[0];
+  const nextTier = PET_TITLES.find((tier) => tier.level === currentTier.level + 1) ?? currentTier;
+  const span = Math.max(1, nextTier.threshold - currentTier.threshold);
+  const progressValue =
+    currentTier.level === nextTier.level ? 1 : (score - currentTier.threshold) / span;
+  const progress = Math.max(0.08, Math.min(1, progressValue));
+
+  let sceneLine = '我会继续在桌边待命，把今天的上下文接住。';
+  if (scene.id === 'camp') {
+    sceneLine = '我在替你把炉火和卷册整理好，等你回来时桌边还是热的。';
+  } else if (scene.id === 'sanctuary') {
+    sceneLine = '石阶旁的路线刻印已经压住了，下一轮回来不会断节奏。';
+  } else if (scene.id === 'forge') {
+    sceneLine = '我在给方块底座校准刻纹，等你切进工坊时就会更顺手。';
+  } else if (scene.id === 'ledger') {
+    sceneLine = '账册页角还在自己翻动，我会继续把今天的战果看紧。';
+  } else if (scene.id === 'altar') {
+    sceneLine = rareStory
+      ? `${rareStory.dropName} 的收藏灯还亮着，这段剧情会在房间里常驻。`
+      : '凯旋祭台上的光还没退，这种高亮时刻值得多停留一会儿。';
+  }
+
+  return {
+    level: currentTier.level,
+    title: currentTier.title,
+    progress,
+    progressLabel:
+      currentTier.level === nextTier.level
+        ? '当前已经达到本轮称号上限'
+        : `距离 ${nextTier.title} 还差 ${Math.max(0, nextTier.threshold - score)} 点陪刷阅历`,
+    nextMilestone:
+      currentTier.level === nextTier.level
+        ? '已点亮当前全部称号'
+        : `下一称号：${nextTier.title}`,
+    sceneLine
   };
 }
 

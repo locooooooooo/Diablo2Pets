@@ -11,6 +11,7 @@ import {
   type PetInteractionCue
 } from './lib/petPersona';
 import {
+  buildPetProgression,
   buildPetRoom,
   buildPetScene,
   createPetEvent,
@@ -279,6 +280,10 @@ export default function App() {
   );
   const petRoom = useMemo(
     () => (petWorldInput ? buildPetRoom(petWorldInput) : null),
+    [petWorldInput]
+  );
+  const petProgression = useMemo(
+    () => (petWorldInput ? buildPetProgression(petWorldInput) : null),
     [petWorldInput]
   );
 
@@ -749,6 +754,7 @@ export default function App() {
           }
           preflight={setupPreflight}
           preflightBusy={setupPreflightBusy}
+          progression={petProgression!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}
@@ -801,6 +807,7 @@ export default function App() {
           }
           onToggleWindowMode={handleSwitchWindowMode}
           preflight={setupPreflight}
+          progression={petProgression!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}

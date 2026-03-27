@@ -3,7 +3,12 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
-import type { PetEvent, PetRoom, PetScene } from '../lib/petWorld';
+import type {
+  PetEvent,
+  PetProgression,
+  PetRoom,
+  PetScene
+} from '../lib/petWorld';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -22,6 +27,7 @@ interface FloatingPetProps {
   liveDurationText: string;
   highlightDropName: string;
   interactionCue: PetInteractionCue | null;
+  progression: PetProgression;
   room: PetRoom;
   scene: PetScene;
   event: PetEvent | null;
@@ -395,6 +401,30 @@ export function FloatingPet(props: FloatingPetProps) {
           <span className="pet-stage-chip">{props.scene.auraLabel}</span>
           <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
         </div>
+
+        <article className="pet-progress-card floating-progress-card no-drag">
+          <div className="pet-progress-head">
+            <div>
+              <p className="eyebrow">Bond</p>
+              <strong>
+                Lv.{props.progression.level} {props.progression.title}
+              </strong>
+            </div>
+            <span className="mini-pill">{props.progression.nextMilestone}</span>
+          </div>
+
+          <div aria-hidden="true" className="pet-progress-bar">
+            <span
+              className="pet-progress-fill"
+              style={{ width: `${Math.round(props.progression.progress * 100)}%` }}
+            />
+          </div>
+
+          <div className="pet-progress-meta">
+            <span>{props.progression.sceneLine}</span>
+            <span>{props.progression.progressLabel}</span>
+          </div>
+        </article>
 
         <article className="pet-room-card floating-room-card no-drag">
           <div className="pet-room-copy">

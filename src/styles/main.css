@@ -450,6 +450,67 @@ select,
   box-shadow: inset 0 1px 0 rgba(255, 234, 197, 0.05);
 }
 
+.pet-progress-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 224, 172, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(16, 9, 7, 0.44);
+}
+
+.floating-progress-card {
+  padding: 12px;
+}
+
+.pet-progress-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pet-progress-head strong {
+  display: block;
+  color: #fff3d1;
+  font-size: 15px;
+}
+
+.pet-progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 224, 172, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 243, 214, 0.08);
+}
+
+.pet-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgba(243, 167, 79, 0.88), rgba(236, 112, 64, 0.92)),
+    rgba(255, 195, 112, 0.12);
+  box-shadow: 0 0 18px rgba(245, 170, 89, 0.18);
+}
+
+.pet-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: #d6bc94;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .pet-room-copy strong {
   display: block;
   color: #fff1cf;
@@ -3781,6 +3842,14 @@ body {
 
   .pet-room-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pet-progress-head {
+    align-items: stretch;
+  }
+
+  .pet-progress-meta {
+    flex-direction: column;
   }
 
   .pet-stage-band,
