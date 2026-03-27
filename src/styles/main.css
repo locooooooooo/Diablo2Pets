@@ -4758,6 +4758,66 @@ body {
   line-height: 1.55;
 }
 
+.pet-codex-jump-context {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 204, 120, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(255, 183, 92, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012)),
+    rgba(43, 19, 12, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 233, 195, 0.05),
+    0 14px 28px rgba(18, 8, 5, 0.14);
+}
+
+.pet-codex-jump-context-copy {
+  min-width: 0;
+}
+
+.pet-codex-jump-context-copy strong {
+  display: block;
+  color: #fff1ce;
+  font-size: 14px;
+}
+
+.pet-codex-jump-context-copy p:last-child {
+  margin: 6px 0 0;
+  color: #d4b487;
+  line-height: 1.6;
+}
+
+.pet-codex-jump-context-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pet-codex-context-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 143, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    rgba(54, 23, 14, 0.52);
+  color: #f0d19d;
+  font-size: 11px;
+}
+
+.pet-codex-jump-context-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .pet-codex-entry-grid {
   display: flex;
   flex-direction: column;
@@ -5791,6 +5851,10 @@ body {
 
   .pet-codex-overview {
     grid-template-columns: 1fr;
+  }
+
+  .pet-codex-jump-context {
+    flex-direction: column;
   }
 
   .pet-codex-meter-panel,

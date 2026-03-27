@@ -27,6 +27,13 @@ type RarityFilter = 'all' | PetCodexRarity;
 const MAP_FILTER_ALL = '全部地图';
 const TYPE_FILTER_ALL = '全部类型';
 
+interface JumpContext {
+  sourceTitle: string;
+  sourceLabel?: string;
+  targetChapterTitle: string;
+  clues: string[];
+}
+
 const RARITY_FILTERS: Array<{ id: RarityFilter; label: string }> = [
   { id: 'all', label: '全部' },
   { id: 'mythic', label: '神话' },
@@ -86,6 +93,10 @@ function getRarityLabel(rarity: PetCodexRarity): string {
     case 'ember':
       return 'Ember';
   }
+}
+
+function getRarityFilterLabel(rarity: RarityFilter): string {
+  return RARITY_FILTERS.find((filter) => filter.id === rarity)?.label ?? '全部';
 }
 
 function groupEntries(entries: PetCodexEntry[]) {
@@ -304,6 +315,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [mapFilter, setMapFilter] = useState(MAP_FILTER_ALL);
   const [imageFailed, setImageFailed] = useState(false);
+  const [jumpContext, setJumpContext] = useState<JumpContext | null>(null);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -398,15 +410,22 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     [filteredEntries, selected]
   );
 
-  function resetFilters() {
+  function resetFilters(clearContext = true) {
     setSearchText('');
     setRarityFilter('all');
     setHighlightOnly(false);
     setMapFilter(MAP_FILTER_ALL);
     setTypeFilter(TYPE_FILTER_ALL);
+    if (clearContext) {
+      setJumpContext(null);
+    }
   }
 
-  function handleJumpTarget(target: PetCodexJumpTarget) {
+  function handleJumpTarget(
+    target: PetCodexJumpTarget,
+    sourceTitle: string,
+    sourceLabel?: string
+  ) {
     const chapter = props.codex.chapters.find((candidate) => candidate.id === target.chapterId);
     if (!chapter) {
       return;
@@ -420,8 +439,33 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
     const nextEntry = findJumpEntry(chapter, target);
     if (nextEntry) {
+      const clues = [
+        target.mapName ? `地图：${target.mapName}` : null,
+        target.typeLabel ? `类型：${target.typeLabel}` : null,
+        target.rarity && target.rarity !== 'all'
+          ? `稀有：${getRarityFilterLabel(target.rarity)}`
+          : null,
+        target.highlightOnly ? '只看点亮项' : null
+      ].filter(Boolean) as string[];
+
+      setJumpContext({
+        sourceTitle,
+        sourceLabel,
+        targetChapterTitle: chapter.title,
+        clues
+      });
       props.onSelectEntry(nextEntry.id);
     }
+  }
+
+  function handleReturnToAtlas() {
+    const atlasChapter = props.codex.chapters.find((chapter) => chapter.id === 'atlas');
+    if (!atlasChapter) {
+      return;
+    }
+
+    resetFilters();
+    props.onSelectEntry(atlasChapter.entries[0]?.id ?? props.codex.featuredEntryId);
   }
 
   const action = useMemo(
@@ -613,11 +657,51 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               ))}
             </section>
 
+            {jumpContext && selected.chapter.id !== 'atlas' ? (
+              <article className="pet-codex-jump-context">
+                <div className="pet-codex-jump-context-copy">
+                  <p className="eyebrow">Atlas Drilldown</p>
+                  <strong>
+                    来自 {jumpContext.sourceTitle}
+                    {jumpContext.sourceLabel ? ` · ${jumpContext.sourceLabel}` : ''}
+                  </strong>
+                  <p>当前正在 {jumpContext.targetChapterTitle} 中查看由这块图板钻取出的条目。</p>
+                  {jumpContext.clues.length > 0 ? (
+                    <div className="pet-codex-jump-context-pills">
+                      {jumpContext.clues.map((clue) => (
+                        <span className="pet-codex-context-pill" key={clue}>
+                          {clue}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="pet-codex-jump-context-actions">
+                  <button className="ghost-button" onClick={handleReturnToAtlas} type="button">
+                    返回总览
+                  </button>
+                  <button
+                    className="ghost-button"
+                    onClick={() => {
+                      resetFilters();
+                    }}
+                    type="button"
+                  >
+                    清除上下文
+                  </button>
+                </div>
+              </article>
+            ) : null}
+
             <div className="pet-codex-toolbar">
               <label className="pet-codex-search">
                 <span>搜索条目</span>
                 <input
-                  onChange={(event) => setSearchText(event.target.value)}
+                  onChange={(event) => {
+                    setJumpContext(null);
+                    setSearchText(event.target.value);
+                  }}
                   placeholder="搜索掉落、地图、徽章或奖励名"
                   type="text"
                   value={searchText}
@@ -633,7 +717,10 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                         : 'pet-codex-filter-chip'
                     }
                     key={filter.id}
-                    onClick={() => setRarityFilter(filter.id)}
+                    onClick={() => {
+                      setJumpContext(null);
+                      setRarityFilter(filter.id);
+                    }}
                     type="button"
                   >
                     {filter.label}
@@ -641,7 +728,10 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                 ))}
                 <button
                   className={highlightOnly ? 'pet-codex-filter-chip active' : 'pet-codex-filter-chip'}
-                  onClick={() => setHighlightOnly((current) => !current)}
+                  onClick={() => {
+                    setJumpContext(null);
+                    setHighlightOnly((current) => !current);
+                  }}
                   type="button"
                 >
                   只看点亮项
@@ -657,7 +747,10 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                         : 'pet-codex-filter-chip'
                     }
                     key={typeLabel}
-                    onClick={() => setTypeFilter(typeLabel)}
+                    onClick={() => {
+                      setJumpContext(null);
+                      setTypeFilter(typeLabel);
+                    }}
                     type="button"
                   >
                     {typeLabel}
@@ -675,7 +768,10 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                           : 'pet-codex-filter-chip'
                       }
                       key={mapLabel}
-                      onClick={() => setMapFilter(mapLabel)}
+                      onClick={() => {
+                        setJumpContext(null);
+                        setMapFilter(mapLabel);
+                      }}
                       type="button"
                     >
                       {mapLabel}
@@ -777,7 +873,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                           {visual.target ? (
                             <button
                               className="pet-codex-visual-link"
-                              onClick={() => handleJumpTarget(visual.target!)}
+                              onClick={() => handleJumpTarget(visual.target!, visual.title)}
                               type="button"
                             >
                               跳转
@@ -813,7 +909,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                               <button
                                 className={`pet-codex-bar-row is-clickable ${getVisualToneClass(item.tone ?? visual.tone)}`}
                                 key={`${visual.id}-${item.label}`}
-                                onClick={() => handleJumpTarget(item.target!)}
+                                onClick={() => handleJumpTarget(item.target!, visual.title, item.label)}
                                 type="button"
                               >
                                 <div className="pet-codex-bar-copy">
@@ -879,7 +975,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                                 <button
                                   className={`pet-codex-segment-card is-clickable ${getVisualToneClass(item.tone ?? visual.tone)}`}
                                   key={`${visual.id}-${item.label}`}
-                                  onClick={() => handleJumpTarget(item.target!)}
+                                  onClick={() => handleJumpTarget(item.target!, visual.title, item.label)}
                                   type="button"
                                 >
                                   <span>{item.label}</span>
