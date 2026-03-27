@@ -5133,6 +5133,12 @@ body {
   flex-wrap: wrap;
 }
 
+.pet-codex-trace-hint {
+  color: #d0af82;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .pet-codex-trace-nav .ghost-button:disabled {
   opacity: 0.46;
   cursor: not-allowed;

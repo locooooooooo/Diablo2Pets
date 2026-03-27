@@ -522,6 +522,39 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     };
   }, [drilldownEntries, jumpContext, selected, visibleSelectedEntry.id]);
 
+  useEffect(() => {
+    if (!drilldownPathState) {
+      return;
+    }
+
+    function handleDrilldownKeydown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isTypingContext =
+        tagName === 'input' ||
+        tagName === 'textarea' ||
+        tagName === 'select' ||
+        Boolean(target?.isContentEditable);
+
+      if (isTypingContext || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' && drilldownPathState.previousEntry) {
+        event.preventDefault();
+        props.onSelectEntry(drilldownPathState.previousEntry.id);
+      }
+
+      if (event.key === 'ArrowRight' && drilldownPathState.nextEntry) {
+        event.preventDefault();
+        props.onSelectEntry(drilldownPathState.nextEntry.id);
+      }
+    }
+
+    window.addEventListener('keydown', handleDrilldownKeydown);
+    return () => window.removeEventListener('keydown', handleDrilldownKeydown);
+  }, [drilldownPathState, props.onSelectEntry]);
+
   function resetFilters(clearContext = true) {
     setSearchText('');
     setRarityFilter('all');
@@ -1024,6 +1057,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                           ? `${drilldownPathState.currentStep} / ${drilldownPathState.total}`
                           : `焦点外 / ${drilldownPathState.total}`}
                       </span>
+                      <span className="pet-codex-trace-hint">键盘 ← / → 可沿这条钻取链翻页</span>
                       {drilldownPathState.currentIndex >= 0 ? (
                         <>
                           <button
