@@ -253,6 +253,14 @@ function findGlobalCheck(checks: AutomationCheckItem[], key: string): Automation
   return checks.find((check) => check.key === key) ?? null;
 }
 
+function getDependencyChecks(checks: AutomationCheckItem[]): AutomationCheckItem[] {
+  return checks.filter((check) => check.key.startsWith('dependency-'));
+}
+
+function getVisibleGlobalChecks(checks: AutomationCheckItem[]): AutomationCheckItem[] {
+  return checks.filter((check) => !check.key.startsWith('dependency-'));
+}
+
 function getParentPath(targetPath: string): string {
   const normalized = targetPath.trim().replace(/[\\/]+$/, '');
   const match = normalized.match(/^(.*)[\\/][^\\/]+$/);
@@ -597,6 +605,10 @@ function buildEnvironmentDiagnosis(
     description: 'Python、依赖清单、运行时包和 OCR 能力都已经通过检查。',
     actions
   };
+}
+
+function getDependencyTitle(check: AutomationCheckItem): string {
+  return check.label === 'pillow' ? 'Pillow' : check.label;
 }
 
 function getParsedTaskLabel(task: string): string {
@@ -965,6 +977,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }
 
   function renderGlobalChecks() {
+    const visibleChecks = getVisibleGlobalChecks(preflight?.globalChecks ?? []);
+
     return (
       <article className="card preflight-banner">
         <div className="integration-head">
@@ -994,7 +1008,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
         ) : (
           <div className="preflight-grid">
-            {(preflight?.globalChecks ?? []).map((check) => (
+            {visibleChecks.map((check) => (
               <div className={`check-chip ${getCheckToneClass(check.level)}`} key={check.key}>
                 <strong>{check.label}</strong>
                 <span>{check.detail}</span>
@@ -1007,7 +1021,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }
 
   function renderEnvironmentStation() {
-    const diagnosis = buildEnvironmentDiagnosis(preflight?.globalChecks ?? [], runeTask.workingDirectory);
+    const globalChecks = preflight?.globalChecks ?? [];
+    const dependencyChecks = getDependencyChecks(globalChecks);
+    const installedDependencies = dependencyChecks.filter((check) => check.level === 'ok').length;
+    const diagnosis = buildEnvironmentDiagnosis(globalChecks, runeTask.workingDirectory);
 
     return (
       <article className={`card environment-card environment-card-${diagnosis.tone}`}>
@@ -1030,6 +1047,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <div className="environment-summary">
           <strong>{diagnosis.title}</strong>
           <p>{diagnosis.description}</p>
+          <div className="tag-row">
+            <span className="mini-pill">依赖已安装 {installedDependencies}/{dependencyChecks.length || 0}</span>
+            {findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? (
+              <span className="mini-pill">OCR 已就绪</span>
+            ) : (
+              <span className="mini-pill">OCR 待补齐</span>
+            )}
+          </div>
         </div>
 
         <div className="diagnosis-actions">
@@ -1053,6 +1078,18 @@ export function AutomationPanel(props: AutomationPanelProps) {
                   ? '处理中...'
                   : action.label}
             </button>
+          ))}
+        </div>
+
+        <div className="environment-dependency-grid">
+          {dependencyChecks.map((check) => (
+            <article className={`dependency-card ${getCheckToneClass(check.level)}`} key={check.key}>
+              <div className="dependency-card-head">
+                <strong>{getDependencyTitle(check)}</strong>
+                <span>{check.level === 'ok' ? '已安装' : '缺失'}</span>
+              </div>
+              <p>{check.detail}</p>
+            </article>
           ))}
         </div>
       </article>

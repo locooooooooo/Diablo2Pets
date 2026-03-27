@@ -94,6 +94,7 @@ interface PythonDependencyProbeItem {
   module: string;
   package: string;
   installed: boolean;
+  version: string;
 }
 
 interface PythonEnvironmentProbe {
@@ -174,16 +175,24 @@ function invalidatePythonEnvironmentProbe() {
 
 function buildDependencyProbeScript(): string {
   return [
-    'import importlib.util, json',
+    'import importlib.metadata, importlib.util, json',
     `modules = ${JSON.stringify(pythonDependencyModules)}`,
     'result = []',
     'for item in modules:',
     "    module_name = item['module']",
     "    package_name = item['package']",
+    '    installed = importlib.util.find_spec(module_name) is not None',
+    "    version = ''",
+    '    if installed:',
+    '        try:',
+    '            version = importlib.metadata.version(package_name)',
+    '        except Exception:',
+    "            version = 'unknown'",
     '    result.append({',
     "        'module': module_name,",
     "        'package': package_name,",
-    "        'installed': importlib.util.find_spec(module_name) is not None,",
+    "        'installed': installed,",
+    "        'version': version,",
     '    })',
     'print(json.dumps(result))'
   ].join('\n');
@@ -1214,7 +1223,8 @@ async function getPythonEnvironmentProbe(): Promise<PythonEnvironmentProbe> {
       ? parseJsonOutput<PythonDependencyProbeItem[]>(dependencyResult)
       : pythonDependencyModules.map((item) => ({
           ...item,
-          installed: false
+          installed: false,
+          version: ''
         })),
     ocrEngine: ocrEngineResult.success
       ? parseJsonOutput<{ engine: string }>(ocrEngineResult).engine
@@ -1559,7 +1569,19 @@ async function buildAutomationPreflight(
         : environmentProbe.ocrEngine === 'none'
           ? '当前没有可用 OCR 引擎，掉落识别和宝石截图识别会受影响。'
           : `当前可用 OCR：${environmentProbe.ocrEngine}`
-    )
+    ),
+    ...(environmentProbe?.dependencies.map((item) =>
+      createCheck(
+        `dependency-${item.package}`,
+        item.installed ? 'ok' : 'error',
+        item.package,
+        item.installed
+          ? item.version && item.version !== 'unknown'
+            ? `已安装，版本 ${item.version}`
+            : '已安装，但当前无法读取版本号。'
+          : `未安装，对应模块 ${item.module} 当前不可用。`
+      )
+    ) ?? [])
   ];
 
   const tasks = data.integrations.map((integration) => {
