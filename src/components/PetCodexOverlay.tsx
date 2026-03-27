@@ -502,6 +502,25 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
           : [drilldownFocusSummary?.label ?? jumpContext.sourceTitle]
     };
   }, [drilldownEntryIds, drilldownFocusSummary?.label, jumpContext, selected, visibleSelectedEntry.id]);
+  const drilldownPathState = useMemo(() => {
+    if (!jumpContext || !selected || selected.chapter.id === 'atlas' || drilldownEntries.length === 0) {
+      return null;
+    }
+
+    const currentIndex = drilldownEntries.findIndex((entry) => entry.id === visibleSelectedEntry.id);
+
+    return {
+      total: drilldownEntries.length,
+      currentIndex,
+      currentStep: currentIndex >= 0 ? currentIndex + 1 : null,
+      previousEntry: currentIndex > 0 ? drilldownEntries[currentIndex - 1] : null,
+      nextEntry:
+        currentIndex >= 0 && currentIndex < drilldownEntries.length - 1
+          ? drilldownEntries[currentIndex + 1]
+          : null,
+      anchorEntry: currentIndex === -1 ? drilldownEntries[0] : null
+    };
+  }, [drilldownEntries, jumpContext, selected, visibleSelectedEntry.id]);
 
   function resetFilters(clearContext = true) {
     setSearchText('');
@@ -559,6 +578,14 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
     resetFilters();
     props.onSelectEntry(atlasChapter.entries[0]?.id ?? props.codex.featuredEntryId);
+  }
+
+  function handleTraceStep(entryId: string | null | undefined) {
+    if (!entryId) {
+      return;
+    }
+
+    props.onSelectEntry(entryId);
   }
 
   const action = useMemo(
@@ -990,6 +1017,43 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                       </span>
                     ))}
                   </div>
+                  {drilldownPathState ? (
+                    <div className="pet-codex-trace-nav">
+                      <span className="mini-pill">
+                        {drilldownPathState.currentStep
+                          ? `${drilldownPathState.currentStep} / ${drilldownPathState.total}`
+                          : `焦点外 / ${drilldownPathState.total}`}
+                      </span>
+                      {drilldownPathState.currentIndex >= 0 ? (
+                        <>
+                          <button
+                            className="ghost-button"
+                            disabled={!drilldownPathState.previousEntry}
+                            onClick={() => handleTraceStep(drilldownPathState.previousEntry?.id)}
+                            type="button"
+                          >
+                            上一条
+                          </button>
+                          <button
+                            className="ghost-button"
+                            disabled={!drilldownPathState.nextEntry}
+                            onClick={() => handleTraceStep(drilldownPathState.nextEntry?.id)}
+                            type="button"
+                          >
+                            下一条
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="ghost-button"
+                          onClick={() => handleTraceStep(drilldownPathState.anchorEntry?.id)}
+                          type="button"
+                        >
+                          回到焦点
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
                   <button className="ghost-button" onClick={handleReturnToAtlas} type="button">
                     返回总览
                   </button>
