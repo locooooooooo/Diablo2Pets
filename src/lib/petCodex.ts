@@ -1,8 +1,5 @@
 import { formatCompactDateTime } from './date';
-import type {
-  PetHabitat,
-  PetHabitatExhibitState
-} from './petHabitat';
+import type { PetHabitat, PetHabitatExhibitState } from './petHabitat';
 import type {
   PetProgression,
   PetReward,
@@ -14,11 +11,17 @@ import type { DropRecord } from '../types';
 
 export type PetCodexChapterId = 'relics' | 'rewards' | 'chamber' | 'chronicle';
 export type PetCodexEntryState = 'glory' | 'ready' | 'warming' | 'locked';
+export type PetCodexRarity = 'ember' | 'trophy' | 'artifact' | 'legend' | 'mythic';
 
 export interface PetCodexMetric {
   label: string;
   value: string;
   detail: string;
+}
+
+export interface PetCodexFact {
+  label: string;
+  value: string;
 }
 
 export interface PetCodexEntry {
@@ -30,6 +33,13 @@ export interface PetCodexEntry {
   meta: string;
   accent: string;
   state: PetCodexEntryState;
+  rarity: PetCodexRarity;
+  sigil: string;
+  storyTitle: string;
+  storyLead: string;
+  chips: string[];
+  facts: PetCodexFact[];
+  screenshotPath?: string;
 }
 
 export interface PetCodexChapter {
@@ -62,12 +72,22 @@ interface RareDropStory {
   accent: string;
   detail: string;
   tone: PetCodexEntryState;
+  rarity: PetCodexRarity;
+  sigil: string;
+  chips: string[];
+  storyTitle: (itemName: string) => string;
+  storyLead: (drop: DropRecord) => string;
 }
 
 interface RareDropPattern {
   accent: string;
   keywords: string[];
   detail: (itemName: string) => string;
+  rarity: PetCodexRarity;
+  sigil: string;
+  chips: string[];
+  storyTitle: (itemName: string) => string;
+  storyLead: (drop: DropRecord) => string;
 }
 
 const RARE_DROP_PATTERNS: RareDropPattern[] = [
@@ -89,7 +109,13 @@ const RARE_DROP_PATTERNS: RareDropPattern[] = [
       '萨德'
     ],
     detail: (itemName) =>
-      `${itemName} 已经被记入高阶符文卷宗，这类掉落会长期停留在桌宠的终局收藏线里。`
+      `${itemName} 已经被记入高阶符文卷宗，这类掉落会长期停留在桌宠的终局收藏线里。`,
+    rarity: 'mythic',
+    sigil: 'Rune',
+    chips: ['终局收藏', '高阶符文'],
+    storyTitle: (itemName) => `${itemName} 点亮了符文星盘`,
+    storyLead: (drop) =>
+      `${drop.itemName} 来自 ${drop.mapName || '未知场景'}，这是足以把整面收藏墙推向终局阶段的掉落。`
   },
   {
     accent: '传奇暗金',
@@ -106,7 +132,13 @@ const RARE_DROP_PATTERNS: RareDropPattern[] = [
       '泰瑞尔'
     ],
     detail: (itemName) =>
-      `${itemName} 会被当成传奇暗金记录，桌宠会把它视作可以反复翻看的战果故事。`
+      `${itemName} 会被当成传奇暗金记录，桌宠会把它视作可以反复翻看的战果故事。`,
+    rarity: 'legend',
+    sigil: 'Unique',
+    chips: ['传奇暗金', '陈列级'],
+    storyTitle: (itemName) => `${itemName} 进入凯旋陈列厅`,
+    storyLead: (drop) =>
+      `${drop.itemName} 这类掉落不会只停留在战报里，它会被当成真正的奖杯陈列进房间。`
   },
   {
     accent: '底材珍品',
@@ -121,7 +153,13 @@ const RARE_DROP_PATTERNS: RareDropPattern[] = [
       '神圣盔甲'
     ],
     detail: (itemName) =>
-      `${itemName} 已经被收进底材珍品页，提醒你它值得继续筛选、打孔或后续制作。`
+      `${itemName} 已经被收进底材珍品页，提醒你它值得继续筛选、打孔或后续制作。`,
+    rarity: 'artifact',
+    sigil: 'Base',
+    chips: ['底材珍品', '后续制作'],
+    storyTitle: (itemName) => `${itemName} 被挂上底材陈列架`,
+    storyLead: (drop) =>
+      `${drop.itemName} 这类底材会在收藏册里保留位置，提醒你它可能对应一条后续制作路线。`
   }
 ];
 
@@ -172,7 +210,12 @@ function detectRareDrop(drop: DropRecord): RareDropStory | null {
   return {
     accent: pattern.accent,
     detail: pattern.detail(drop.itemName),
-    tone: 'glory'
+    tone: 'glory',
+    rarity: pattern.rarity,
+    sigil: pattern.sigil,
+    chips: pattern.chips,
+    storyTitle: pattern.storyTitle,
+    storyLead: pattern.storyLead
   };
 }
 
@@ -192,7 +235,20 @@ function buildRelicEntries(habitat: PetHabitat): PetCodexEntry[] {
             ? '离正式陈列只差最后一点成长或联调进度。'
             : '还没有满足点亮条件，先继续陪刷和补工坊进度。',
     accent: exhibit.accent,
-    state: mapHabitatState(exhibit.state)
+    state: mapHabitatState(exhibit.state),
+    rarity: exhibit.state === 'glory' ? 'legend' : exhibit.state === 'ready' ? 'artifact' : 'ember',
+    sigil: exhibit.state === 'glory' ? 'Relic' : 'Wall',
+    storyTitle:
+      exhibit.state === 'glory'
+        ? `${exhibit.label} 正在收藏墙中央发亮`
+        : `${exhibit.label} 正在进入收藏墙`,
+    storyLead: `这件陈列属于 ${habitat.collectionTitle}，会和桌宠成长阶段一起改变房间气氛。`,
+    chips: [habitat.crest, exhibit.accent],
+    facts: [
+      { label: '所属主题', value: habitat.title },
+      { label: '当前阶段', value: exhibit.state === 'glory' ? '高亮陈列' : exhibit.state === 'ready' ? '稳定陈列' : exhibit.state === 'warming' ? '即将点亮' : '尚未解锁' },
+      { label: '收藏线', value: habitat.collectionTitle }
+    ]
   }));
 }
 
@@ -213,7 +269,30 @@ function buildRewardEntries(
           ? '这是距离最近的一条奖励轨道，继续刷图和记账就会点亮。'
           : '还在后续成长线中，先让前面的奖励稳定亮起来。',
     accent: reward.shortLabel,
-    state: mapRewardState(reward, rewards)
+    state: mapRewardState(reward, rewards),
+    rarity:
+      rewards.activeReward?.id === reward.id
+        ? 'legend'
+        : reward.state === 'unlocked'
+          ? 'artifact'
+          : reward.state === 'next'
+            ? 'trophy'
+            : 'ember',
+    sigil: reward.state === 'unlocked' ? 'Bond' : 'Track',
+    storyTitle:
+      reward.state === 'unlocked'
+        ? `${reward.label} 已经进入当前桌宠形态`
+        : `${reward.label} 仍在成长轨道上等待点亮`,
+    storyLead:
+      reward.state === 'unlocked'
+        ? '奖励一旦点亮，就会真正改变桌宠的房间、演出或信息结构。'
+        : '成长线不是纯数字，它会在桌宠房间里变成具体陈列和新的交互表达。',
+    chips: [`Lv.${reward.level}`, reward.shortLabel],
+    facts: [
+      { label: '当前状态', value: reward.state === 'unlocked' ? '已解锁' : reward.state === 'next' ? '下一件' : '待解锁' },
+      { label: '奖励效果', value: reward.bonus },
+      { label: '当前等级', value: `Lv.${progression.level}` }
+    ]
   }));
 }
 
@@ -233,7 +312,21 @@ function buildChamberEntries(room: PetRoom): PetCodexEntry[] {
             ? '已经开始显影，但还没进入最终的完整形态。'
             : '目前仍在预留位置，等后续成长再真正入驻。',
     accent: item.shortLabel,
-    state: mapRoomState(item.state)
+    state: mapRoomState(item.state),
+    rarity:
+      item.state === 'glory' ? 'legend' : item.state === 'ready' ? 'artifact' : item.state === 'warming' ? 'trophy' : 'ember',
+    sigil: item.state === 'glory' ? 'Room' : 'Slot',
+    storyTitle:
+      item.state === 'glory'
+        ? `${item.label} 已经成为房间的主陈列`
+        : `${item.label} 正在慢慢进入房间布局`,
+    storyLead: `这件房间陈列属于 ${room.title}，会跟着桌宠成长和陪刷节奏逐步丰富起来。`,
+    chips: [room.title, item.shortLabel],
+    facts: [
+      { label: '所属房间', value: room.title },
+      { label: '当前阶段', value: item.state === 'glory' ? '主陈列' : item.state === 'ready' ? '已入驻' : item.state === 'warming' ? '预热中' : '未入驻' },
+      { label: '布置标签', value: item.label }
+    ]
   }));
 }
 
@@ -264,7 +357,26 @@ function buildChronicleEntries(drops: DropRecord[]): PetCodexEntry[] {
             ? '这是当前最新的一条战果记录。'
             : '这条记录来自历史掉落档案。',
       accent: rare?.accent ?? (index === 0 ? '最新战果' : '战利品'),
-      state: rare?.tone ?? (index === 0 ? 'ready' : 'warming')
+      state: rare?.tone ?? (index === 0 ? 'ready' : 'warming'),
+      rarity: rare?.rarity ?? (index === 0 ? 'trophy' : 'ember'),
+      sigil: rare?.sigil ?? (drop.screenshotPath ? 'Drop' : 'Log'),
+      storyTitle:
+        rare?.storyTitle(drop.itemName) ??
+        `${drop.itemName} 已经被写入今日卷宗`,
+      storyLead:
+        rare?.storyLead(drop) ??
+        `${drop.itemName} 于 ${drop.mapName || '未知场景'} 掉落，已经被桌宠收入编年册。`,
+      chips: [
+        rare?.accent ?? '战利品',
+        drop.mapName || '未标注地图',
+        hasManualNote ? '手写备注' : drop.ocrEngine ? 'OCR 入账' : '基础记录'
+      ],
+      facts: [
+        { label: '掉落时间', value: formatCompactDateTime(drop.createdAt) },
+        { label: '掉落场景', value: drop.mapName || '未标注地图' },
+        { label: '记录来源', value: hasManualNote ? '手动补充' : drop.ocrEngine ? drop.ocrEngine : '直接记账' }
+      ],
+      screenshotPath: drop.screenshotPath
     };
   });
 }
@@ -367,7 +479,9 @@ export function buildPetCodex(input: PetCodexInput): PetCodex {
         label: '编年记录',
         value: String(input.drops.length),
         detail:
-          chronicleEntries.find((entry) => entry.state === 'glory')?.accent ?? '战利品条目'
+          highlightedChronicle?.accent ??
+          chronicleEntries[0]?.accent ??
+          '战利品条目'
       }
     ]
   };

@@ -18,6 +18,7 @@ import {
   createPetInteractionCue,
   type PetInteractionCue
 } from './lib/petPersona';
+import { playPetChime } from './lib/petSound';
 import {
   buildPetProgression,
   buildPetRewards,
@@ -214,6 +215,20 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [petCeremony]);
+
+  useEffect(() => {
+    if (!petCeremony || !data?.settings.notificationsEnabled) {
+      return;
+    }
+
+    playPetChime(
+      petCeremony.kind === 'mastery'
+        ? 'mastery'
+        : petCeremony.kind === 'unlock'
+          ? 'unlock'
+          : 'rare'
+    );
+  }, [data?.settings.notificationsEnabled, petCeremony?.id]);
 
   useEffect(() => {
     if (!workshopFocusId) {
@@ -1034,9 +1049,11 @@ export default function App() {
                   codex={petCodex}
                   onClose={handleClosePetCodex}
                   onOpenDrops={() => handleSelectTab('drops')}
+                  onOpenPath={handleOpenPath}
                   onOpenWorkshop={() => handleSelectTab('workshop')}
                   onSelectEntry={setSelectedCodexEntryId}
                   selectedEntryId={selectedCodexEntryId}
+                  soundEnabled={data.settings.notificationsEnabled}
                 />
               ) : null}
             </>
