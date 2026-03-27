@@ -4,6 +4,7 @@ import {
   type PetInteractionCue
 } from '../lib/petPersona';
 import type { PetCeremony } from '../lib/petCeremony';
+import type { PetHabitat } from '../lib/petHabitat';
 import type {
   PetEvent,
   PetProgression,
@@ -31,6 +32,7 @@ interface FloatingPetProps {
   interactionCue: PetInteractionCue | null;
   progression: PetProgression;
   rewards: PetRewardTrack;
+  habitat: PetHabitat;
   room: PetRoom;
   scene: PetScene;
   ceremony: PetCeremony | null;
@@ -329,7 +331,7 @@ export function FloatingPet(props: FloatingPetProps) {
   return (
     <section className="floating-shell">
       <div
-        className={`floating-card floating-card-${persona.emotion} scene-${props.scene.id} ${
+        className={`floating-card floating-card-${persona.emotion} scene-${props.scene.id} habitat-${props.habitat.tier} ${
           props.interactionCue ? 'floating-card-interaction' : ''
         } ${interactionClass} ${
           props.snapPreview.visible && props.snapPreview.edge
@@ -442,6 +444,26 @@ export function FloatingPet(props: FloatingPetProps) {
           <div className="pet-progress-meta">
             <span>{props.progression.sceneLine}</span>
             <span>{props.progression.progressLabel}</span>
+          </div>
+        </article>
+
+        <article className="pet-habitat-card floating-habitat-card no-drag">
+          <div className="pet-habitat-head">
+            <div className="pet-habitat-copy">
+              <p className="eyebrow">Habitat</p>
+              <strong>{props.habitat.title}</strong>
+              <p>{props.habitat.collectionSummary}</p>
+            </div>
+            <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
+          </div>
+
+          <div className="pet-habitat-mini-grid">
+            {props.habitat.exhibits.slice(0, 4).map((exhibit) => (
+              <article className={`pet-habitat-item compact state-${exhibit.state}`} key={exhibit.id}>
+                <span className="pet-room-kicker">{exhibit.accent}</span>
+                <strong>{exhibit.label}</strong>
+              </article>
+            ))}
           </div>
         </article>
 

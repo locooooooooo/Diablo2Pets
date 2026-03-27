@@ -11,6 +11,7 @@ import {
   type PetCeremony
 } from './lib/petCeremony';
 import { formatDuration, getDayKey } from './lib/date';
+import { buildPetHabitat } from './lib/petHabitat';
 import {
   createPetInteractionCue,
   type PetInteractionCue
@@ -309,6 +310,13 @@ export default function App() {
   const petRewards = useMemo(
     () => (petWorldInput ? buildPetRewards(petWorldInput) : null),
     [petWorldInput]
+  );
+  const petHabitat = useMemo(
+    () =>
+      petWorldInput && petProgression && petRewards
+        ? buildPetHabitat(petWorldInput, petProgression, petRewards)
+        : null,
+    [petProgression, petRewards, petWorldInput]
   );
 
   useEffect(() => {
@@ -813,6 +821,7 @@ export default function App() {
           preflightBusy={setupPreflightBusy}
           progression={petProgression!}
           rewards={petRewards!}
+          habitat={petHabitat!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}
@@ -868,6 +877,7 @@ export default function App() {
           preflight={setupPreflight}
           progression={petProgression!}
           rewards={petRewards!}
+          habitat={petHabitat!}
           recentDrops={todayDrops}
           recentRuns={recentRuns}
           room={petRoom!}

@@ -4,6 +4,7 @@ import {
   type PetInteractionCue
 } from '../lib/petPersona';
 import type { PetCeremony } from '../lib/petCeremony';
+import type { PetHabitat } from '../lib/petHabitat';
 import type {
   PetEvent,
   PetProgression,
@@ -31,6 +32,7 @@ interface PetShellProps {
   interactionCue: PetInteractionCue | null;
   progression: PetProgression;
   rewards: PetRewardTrack;
+  habitat: PetHabitat;
   room: PetRoom;
   scene: PetScene;
   ceremony: PetCeremony | null;
@@ -110,7 +112,7 @@ export function PetShell(props: PetShellProps) {
 
   return (
     <section
-      className={`pet-shell compact-pet-shell pet-shell-${persona.emotion} scene-${props.scene.id} ${
+      className={`pet-shell compact-pet-shell pet-shell-${persona.emotion} scene-${props.scene.id} habitat-${props.habitat.tier} ${
         props.interactionCue ? 'pet-shell-interaction' : ''
       } ${interactionClass}`}
     >
@@ -235,6 +237,37 @@ export function PetShell(props: PetShellProps) {
         <div className="pet-progress-meta">
           <span>{props.progression.sceneLine}</span>
           <span>{props.progression.progressLabel}</span>
+        </div>
+      </article>
+
+      <article className="pet-habitat-card no-drag">
+        <div className="pet-habitat-head">
+          <div className="pet-habitat-copy">
+            <p className="eyebrow">Habitat</p>
+            <strong>{props.habitat.title}</strong>
+            <p>{props.habitat.subtitle}</p>
+          </div>
+          <div className="pet-habitat-crest">
+            <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
+            <span className="mini-pill">{props.habitat.aura}</span>
+          </div>
+        </div>
+
+        <div className="pet-habitat-wall">
+          <div className="pet-habitat-wall-copy">
+            <strong>{props.habitat.collectionTitle}</strong>
+            <p>{props.habitat.collectionSummary}</p>
+          </div>
+
+          <div className="pet-habitat-grid">
+            {props.habitat.exhibits.slice(0, 6).map((exhibit) => (
+              <article className={`pet-habitat-item state-${exhibit.state}`} key={exhibit.id}>
+                <span className="pet-room-kicker">{exhibit.accent}</span>
+                <strong>{exhibit.label}</strong>
+                <p>{exhibit.detail}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </article>
 

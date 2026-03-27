@@ -189,6 +189,13 @@ select,
   margin-top: 10px;
 }
 
+.pet-shell,
+.floating-card {
+  --pet-orb-a: radial-gradient(circle, rgba(244, 174, 85, 0.18), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(92, 159, 182, 0.14), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(197, 98, 54, 0.14), transparent 74%);
+}
+
 .pet-scene-orbs {
   position: absolute;
   inset: 0;
@@ -209,7 +216,7 @@ select,
   left: 28px;
   width: 92px;
   height: 92px;
-  background: radial-gradient(circle, rgba(244, 174, 85, 0.18), transparent 68%);
+  background: var(--pet-orb-a);
 }
 
 .pet-scene-orb.orb-b {
@@ -217,7 +224,7 @@ select,
   top: 12px;
   width: 126px;
   height: 126px;
-  background: radial-gradient(circle, rgba(92, 159, 182, 0.14), transparent 72%);
+  background: var(--pet-orb-b);
   animation-delay: -4s;
 }
 
@@ -226,7 +233,7 @@ select,
   bottom: -28px;
   width: 144px;
   height: 144px;
-  background: radial-gradient(circle, rgba(197, 98, 54, 0.14), transparent 74%);
+  background: var(--pet-orb-c);
   animation-delay: -7s;
 }
 
@@ -489,6 +496,153 @@ select,
   margin: 0;
   color: #dfc59b;
   line-height: 1.6;
+}
+
+.pet-habitat-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 224, 172, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    rgba(16, 9, 7, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 234, 197, 0.05),
+    0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.floating-habitat-card {
+  padding: 12px;
+}
+
+.pet-habitat-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pet-habitat-copy {
+  min-width: 0;
+}
+
+.pet-habitat-copy strong {
+  display: block;
+  color: #fff3d5;
+  font-size: 15px;
+}
+
+.pet-habitat-copy p:last-child {
+  margin: 6px 0 0;
+  color: #d8bf97;
+  line-height: 1.6;
+}
+
+.pet-habitat-crest {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pet-habitat-crest-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 217, 150, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 244, 221, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(33, 16, 12, 0.42);
+  color: #fff1cf;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.pet-habitat-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pet-habitat-wall-copy strong {
+  display: block;
+  color: #fbe4b9;
+  font-size: 14px;
+}
+
+.pet-habitat-wall-copy p {
+  margin: 6px 0 0;
+  color: #ceb188;
+  line-height: 1.55;
+}
+
+.pet-habitat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px;
+}
+
+.pet-habitat-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pet-habitat-item {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 223, 170, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    rgba(22, 12, 9, 0.34);
+}
+
+.pet-habitat-item strong {
+  display: block;
+  margin-top: 6px;
+  color: #f8e3bc;
+  font-size: 13px;
+}
+
+.pet-habitat-item p {
+  margin: 6px 0 0;
+  color: #c8af89;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pet-habitat-item.compact p {
+  display: none;
+}
+
+.pet-habitat-item.state-glory {
+  border-color: rgba(255, 204, 120, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(255, 204, 120, 0.12),
+    0 14px 28px rgba(74, 32, 14, 0.18),
+    0 0 26px rgba(255, 176, 70, 0.1);
+}
+
+.pet-habitat-item.state-ready {
+  border-color: rgba(255, 204, 120, 0.18);
+}
+
+.pet-habitat-item.state-warming {
+  border-color: rgba(212, 154, 87, 0.14);
+}
+
+.pet-habitat-item.state-locked {
+  opacity: 0.58;
+  filter: saturate(0.72);
 }
 
 .pet-event-card {
@@ -3518,6 +3672,48 @@ body {
     linear-gradient(180deg, rgba(66, 25, 14, 0.8), rgba(24, 11, 8, 0.74));
 }
 
+.pet-shell.habitat-campfire,
+.floating-card.habitat-campfire {
+  --pet-orb-a: radial-gradient(circle, rgba(255, 189, 107, 0.2), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(96, 146, 178, 0.12), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(193, 100, 58, 0.14), transparent 74%);
+}
+
+.pet-shell.habitat-routehall,
+.floating-card.habitat-routehall {
+  --pet-orb-a: radial-gradient(circle, rgba(89, 164, 199, 0.18), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(245, 183, 99, 0.16), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(210, 117, 72, 0.14), transparent 74%);
+}
+
+.pet-shell.habitat-archive,
+.floating-card.habitat-archive {
+  --pet-orb-a: radial-gradient(circle, rgba(104, 172, 142, 0.18), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(242, 193, 118, 0.14), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(101, 139, 186, 0.12), transparent 74%);
+}
+
+.pet-shell.habitat-forgehall,
+.floating-card.habitat-forgehall {
+  --pet-orb-a: radial-gradient(circle, rgba(255, 198, 104, 0.2), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(214, 100, 57, 0.18), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(93, 146, 177, 0.12), transparent 74%);
+}
+
+.pet-shell.habitat-triumph,
+.floating-card.habitat-triumph {
+  --pet-orb-a: radial-gradient(circle, rgba(255, 212, 128, 0.22), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(225, 113, 65, 0.18), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(91, 170, 120, 0.12), transparent 74%);
+}
+
+.pet-shell.habitat-vault,
+.floating-card.habitat-vault {
+  --pet-orb-a: radial-gradient(circle, rgba(121, 178, 222, 0.2), transparent 68%);
+  --pet-orb-b: radial-gradient(circle, rgba(255, 216, 132, 0.18), transparent 72%);
+  --pet-orb-c: radial-gradient(circle, rgba(185, 115, 255, 0.12), transparent 74%);
+}
+
 .eyebrow {
   color: var(--pet-accent);
   letter-spacing: 0.2em;
@@ -4155,6 +4351,7 @@ body {
   }
 
   .compact-header,
+  .pet-habitat-head,
   .setup-guide-head,
   .setup-guide-reminder,
   .workshop-spotlight-banner,
