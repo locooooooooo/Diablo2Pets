@@ -5,6 +5,7 @@ import {
   type DropCategory,
   type PreparedDropRecord
 } from './dropReport';
+import type { VisualReportListItem, VisualReportPayload } from '../types';
 
 export interface DropHotspot {
   mapName: string;
@@ -71,6 +72,15 @@ function formatNoteLine(drop: PreparedDropRecord): string {
   }
 
   return '无备注';
+}
+
+function buildDropListItem(drop: PreparedDropRecord): VisualReportListItem {
+  return {
+    title: drop.itemName,
+    meta: `${getDropCategoryLabel(drop.category)} · ${drop.mapName || '未填写场景'} · ${formatCompactDateTime(drop.createdAt)}`,
+    detail: formatNoteLine(drop),
+    highlighted: drop.highlighted
+  };
 }
 
 function buildCategoryBreakdown(summary: DailyDropSummary): string[] {
@@ -180,4 +190,42 @@ export function buildDropReportJson(payload: DropExportPayload): string {
     null,
     2
   );
+}
+
+export function buildVisualDropReportPayload(
+  payload: DropExportPayload,
+  options: {
+    subtitle: string;
+    badge: string;
+    footer: string;
+    maxTimeline: number;
+  }
+): VisualReportPayload {
+  return {
+    title: payload.title,
+    subtitle: options.subtitle,
+    periodLabel: payload.periodLabel,
+    generatedAt: payload.generatedAt,
+    badge: options.badge,
+    metrics: [
+      { label: '总掉落', value: `${payload.summary.totalCount} 条` },
+      { label: '高亮战利品', value: `${payload.summary.highlightedCount} 条` },
+      { label: '覆盖场景', value: `${payload.summary.mapCount} 个` },
+      {
+        label: '主类目',
+        value: payload.summary.topCategory
+          ? `${getDropCategoryLabel(payload.summary.topCategory)} ${payload.summary.topCategoryCount}`
+          : '尚未形成'
+      }
+    ],
+    highlights: payload.summary.highlights.map((drop) => buildDropListItem(drop)),
+    hotspots: payload.hotspots.map((spot) => ({
+      title: spot.mapName,
+      meta: `${spot.totalCount} 条掉落`,
+      detail: spot.highlightedCount > 0 ? `高亮 ${spot.highlightedCount} 条` : '暂无高亮掉落',
+      highlighted: spot.highlightedCount > 0
+    })),
+    timeline: payload.items.slice(0, options.maxTimeline).map((drop) => buildDropListItem(drop)),
+    footer: options.footer
+  };
 }

@@ -153,6 +153,44 @@ export interface ExportTextFileResult {
   path?: string;
 }
 
+export type VisualReportFormat = 'png' | 'pdf';
+
+export interface VisualReportMetric {
+  label: string;
+  value: string;
+}
+
+export interface VisualReportListItem {
+  title: string;
+  meta: string;
+  detail: string;
+  highlighted?: boolean;
+}
+
+export interface VisualReportPayload {
+  title: string;
+  subtitle: string;
+  periodLabel: string;
+  generatedAt: string;
+  badge: string;
+  metrics: VisualReportMetric[];
+  highlights: VisualReportListItem[];
+  hotspots: VisualReportListItem[];
+  timeline: VisualReportListItem[];
+  footer: string;
+}
+
+export interface ExportVisualReportInput {
+  suggestedName: string;
+  format: VisualReportFormat;
+  report: VisualReportPayload;
+}
+
+export interface ExportVisualReportResult {
+  canceled: boolean;
+  path?: string;
+}
+
 export interface IntegrationRunResult {
   success: boolean;
   code: number | string | null;

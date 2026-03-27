@@ -1,6 +1,6 @@
 import { exec, execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -30,6 +30,8 @@ import type {
   DropOcrResult,
   ExportTextFileInput,
   ExportTextFileResult,
+  ExportVisualReportInput,
+  ExportVisualReportResult,
   IntegrationConfig,
   IntegrationId,
   IntegrationRunResult,
@@ -39,6 +41,7 @@ import type {
   StartRunInput,
   UpdateIntegrationInput,
   UpdateSettingsInput,
+  VisualReportPayload,
   WindowMode
 } from '../src/types.js';
 
@@ -69,6 +72,7 @@ const pythonRuntimeRoot = getPythonRuntimeRoot();
 const dataFilePath = () => join(app.getPath('userData'), 'd2-pet', 'data.json');
 const screenshotRoot = () => join(app.getPath('userData'), 'd2-pet', 'screenshots');
 const automationLogRoot = () => join(app.getPath('userData'), 'd2-pet', 'automation-logs');
+const reportPreviewRoot = () => join(app.getPath('userData'), 'd2-pet', 'report-previews');
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -151,6 +155,403 @@ function buildId(prefix: string): string {
 function sanitizeFileName(value: string): string {
   const trimmed = value.trim().replace(/[\\/:*?"<>|]/g, '-');
   return trimmed.length > 0 ? trimmed.slice(0, 40) : 'file';
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatExportDateTime(input: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).format(new Date(input));
+}
+
+function renderVisualList(
+  items: VisualReportPayload['highlights'],
+  emptyTitle: string,
+  emptyDetail: string
+): string {
+  if (items.length === 0) {
+    return `
+      <div class="empty">
+        <strong>${escapeHtml(emptyTitle)}</strong>
+        <span>${escapeHtml(emptyDetail)}</span>
+      </div>
+    `;
+  }
+
+  return items
+    .map(
+      (item) => `
+        <div class="list-item ${item.highlighted ? 'highlighted' : ''}">
+          <strong>${escapeHtml(item.title)}</strong>
+          <div class="meta">${escapeHtml(item.meta)}</div>
+          <div class="detail">${escapeHtml(item.detail)}</div>
+        </div>
+      `
+    )
+    .join('');
+}
+
+function buildVisualReportHtml(report: VisualReportPayload): string {
+  const metricsHtml = report.metrics
+    .map(
+      (metric) => `
+        <article class="metric">
+          <span>${escapeHtml(metric.label)}</span>
+          <strong>${escapeHtml(metric.value)}</strong>
+        </article>
+      `
+    )
+    .join('');
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(report.title)}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+        --bg: #0d0706;
+        --panel: rgba(29, 16, 11, 0.9);
+        --panel-soft: rgba(45, 25, 17, 0.86);
+        --border: rgba(244, 188, 96, 0.22);
+        --text: #f8ecd2;
+        --muted: #cfb38a;
+        --accent: #f0b360;
+        --accent-soft: rgba(240, 179, 96, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top right, rgba(242, 174, 88, 0.2), transparent 28%),
+          radial-gradient(circle at left center, rgba(82, 148, 171, 0.12), transparent 32%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .page {
+        width: 1100px;
+        margin: 0 auto;
+        padding: 44px;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 28px 30px;
+        border-radius: 28px;
+        border: 1px solid var(--border);
+        background:
+          radial-gradient(circle at top right, rgba(242, 174, 88, 0.18), transparent 32%),
+          linear-gradient(180deg, rgba(76, 33, 18, 0.92), rgba(25, 13, 10, 0.96));
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 220, 163, 0.18);
+        background: rgba(255, 248, 230, 0.05);
+        color: #ffdba6;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+
+      h1 {
+        margin: 18px 0 10px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 42px;
+        line-height: 1.12;
+      }
+
+      .subtitle,
+      .hero-meta,
+      .section-intro,
+      .meta,
+      .detail,
+      footer {
+        color: var(--muted);
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .hero-meta span {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 216, 150, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .metric-grid,
+      .content-grid {
+        display: grid;
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .content-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric,
+      .card,
+      .timeline-card {
+        border-radius: 22px;
+        border: 1px solid var(--border);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+          var(--panel);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 229, 180, 0.06),
+          0 16px 40px rgba(0, 0, 0, 0.18);
+      }
+
+      .metric {
+        padding: 18px 20px;
+      }
+
+      .metric span {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 12px;
+        color: #fff4d7;
+        font-size: 28px;
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .card,
+      .timeline-card {
+        padding: 24px;
+        page-break-inside: avoid;
+      }
+
+      .timeline-card {
+        margin-top: 16px;
+      }
+
+      h2 {
+        margin: 0 0 8px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 24px;
+      }
+
+      .section-intro {
+        margin: 0 0 18px;
+        line-height: 1.6;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .list-item,
+      .empty {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(247, 209, 140, 0.12);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+          var(--panel-soft);
+      }
+
+      .list-item.highlighted {
+        border-color: rgba(255, 212, 127, 0.28);
+        background:
+          radial-gradient(circle at top right, rgba(242, 174, 88, 0.12), transparent 34%),
+          linear-gradient(180deg, rgba(94, 44, 20, 0.72), rgba(30, 15, 10, 0.92));
+      }
+
+      .list-item strong,
+      .empty strong {
+        display: block;
+        font-size: 18px;
+        color: #fff3d7;
+      }
+
+      .meta {
+        margin-top: 8px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .detail {
+        margin-top: 8px;
+        font-size: 14px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+      }
+
+      footer {
+        margin-top: 20px;
+        text-align: right;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="eyebrow">${escapeHtml(report.badge)}</div>
+        <h1>${escapeHtml(report.title)}</h1>
+        <p class="subtitle">${escapeHtml(report.subtitle)}</p>
+        <div class="hero-meta">
+          <span>${escapeHtml(report.periodLabel)}</span>
+          <span>导出时间 ${escapeHtml(formatExportDateTime(report.generatedAt))}</span>
+        </div>
+      </section>
+
+      <section class="metric-grid">${metricsHtml}</section>
+
+      <section class="content-grid">
+        <article class="card">
+          <h2>高亮战利品</h2>
+          <p class="section-intro">优先展示当前周期里最值得记住的战果。</p>
+          <div class="list">
+            ${renderVisualList(report.highlights, '还没有高亮战利品', '继续刷图后，这里会优先亮出关键掉落。')}
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>场景热区</h2>
+          <p class="section-intro">最近最热的地图和你最常出货的区域。</p>
+          <div class="list">
+            ${renderVisualList(report.hotspots, '还没有形成热区', '再多记录几轮掉落后，这里会开始形成地图热度。')}
+          </div>
+        </article>
+      </section>
+
+      <article class="timeline-card">
+        <h2>关键时间线</h2>
+        <p class="section-intro">按最近记录整理的战利品时间线，适合回看节奏和收益。</p>
+        <div class="list">
+          ${renderVisualList(report.timeline, '当前区间没有战利品记录', '先继续记录几条战利品，这里就会长出来。')}
+        </div>
+      </article>
+
+      <footer>${escapeHtml(report.footer)}</footer>
+    </main>
+  </body>
+</html>`;
+}
+
+function getVisualReportHeight(report: VisualReportPayload): number {
+  return Math.min(2400, Math.max(1440, 960 + report.timeline.length * 88));
+}
+
+async function exportVisualReportFile(
+  payload: ExportVisualReportInput
+): Promise<ExportVisualReportResult> {
+  const suggestedBase = sanitizeFileName(payload.suggestedName.replace(/\.[^.]+$/, ''));
+  const extension = payload.format;
+  const saveDialogOptions = {
+    title: payload.format === 'pdf' ? '导出战报 PDF' : '导出战报海报',
+    defaultPath: join(app.getPath('documents'), `${suggestedBase}.${extension}`),
+    filters: [
+      {
+        name: payload.format === 'pdf' ? 'PDF 文件' : 'PNG 图片',
+        extensions: [extension]
+      }
+    ]
+  };
+  const saveResult = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, saveDialogOptions)
+    : await dialog.showSaveDialog(saveDialogOptions);
+
+  if (saveResult.canceled || !saveResult.filePath) {
+    return { canceled: true };
+  }
+
+  await mkdir(dirname(saveResult.filePath), { recursive: true });
+  await mkdir(reportPreviewRoot(), { recursive: true });
+
+  const previewFilePath = join(reportPreviewRoot(), `${suggestedBase}-${Date.now()}.html`);
+  await writeFile(previewFilePath, buildVisualReportHtml(payload.report), 'utf8');
+
+  const previewWindow = new BrowserWindow({
+    show: false,
+    width: 1180,
+    height: getVisualReportHeight(payload.report),
+    backgroundColor: '#0d0706',
+    webPreferences: {
+      sandbox: false
+    }
+  });
+
+  try {
+    await previewWindow.loadFile(previewFilePath);
+    await previewWindow.webContents.executeJavaScript(
+      'document.fonts?.ready ? document.fonts.ready.then(() => true) : Promise.resolve(true)'
+    );
+    await new Promise((resolve) => setTimeout(resolve, 180));
+
+    if (payload.format === 'pdf') {
+      const pdfBuffer = await previewWindow.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        landscape: false
+      });
+      await writeFile(saveResult.filePath, pdfBuffer);
+    } else {
+      const capturedImage = await previewWindow.webContents.capturePage();
+      await writeFile(saveResult.filePath, capturedImage.toPNG());
+    }
+
+    return {
+      canceled: false,
+      path: saveResult.filePath
+    };
+  } finally {
+    if (!previewWindow.isDestroyed()) {
+      previewWindow.destroy();
+    }
+    await rm(previewFilePath, { force: true });
+  }
 }
 
 function resolveMaybeAbsolutePath(inputPath: string): string {
@@ -1629,6 +2030,13 @@ ipcMain.handle(
       canceled: false,
       path: saveResult.filePath
     };
+  }
+);
+
+ipcMain.handle(
+  'report:export-visual',
+  async (_event, payload: ExportVisualReportInput): Promise<ExportVisualReportResult> => {
+    return exportVisualReportFile(payload);
   }
 );
 

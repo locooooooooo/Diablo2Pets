@@ -9,7 +9,8 @@ import { formatCompactDateTime } from '../lib/date';
 import {
   buildDropHotspots,
   buildDropReportJson,
-  buildDropReportMarkdown
+  buildDropReportMarkdown,
+  buildVisualDropReportPayload
 } from '../lib/dropExports';
 import {
   buildDailyDropSummary,
@@ -25,7 +26,9 @@ import type {
   DropOcrResult,
   DropRecord,
   ExportTextFileInput,
-  ExportTextFileResult
+  ExportTextFileResult,
+  ExportVisualReportInput,
+  ExportVisualReportResult
 } from '../types';
 
 interface DropPanelProps {
@@ -43,6 +46,7 @@ interface DropPanelProps {
     ocrItemName?: string;
   }) => Promise<void>;
   onExportText: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
+  onExportVisual: (payload: ExportVisualReportInput) => Promise<ExportVisualReportResult>;
   onPreviewOcr: (payload: {
     dataUrl: string;
     suggestedName: string;
@@ -115,7 +119,7 @@ export function DropPanel(props: DropPanelProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [exportBusyKey, setExportBusyKey] = useState('');
   const [exportNote, setExportNote] = useState(
-    '周报会导出最近 7 天，月报会导出当前自然月，适合直接归档或发给队友。'
+    '周报会导出最近 7 天，月报会导出当前自然月。归档和分享素材现在都能直接生成。'
   );
 
   const preparedDrops = useMemo(() => prepareDropRecords(props.drops), [props.drops]);
@@ -400,6 +404,67 @@ export function DropPanel(props: DropPanelProps) {
     }
   }
 
+  async function exportVisualReport(mode: 'weekly-png' | 'monthly-pdf') {
+    const isWeekly = mode === 'weekly-png';
+    const format = isWeekly ? 'png' : 'pdf';
+    const title = isWeekly ? '暗黑 2 桌宠助手周报海报' : '暗黑 2 桌宠助手月报';
+    const items = isWeekly ? weeklyDrops : monthlyDrops;
+    const summary = isWeekly ? weeklySummary : monthlySummary;
+    const hotspots = isWeekly ? weeklyHotspots : monthlyHotspots;
+    const weeklyDayRange = getRecentDayKeys(props.todayKey, 7);
+    const periodLabel = isWeekly
+      ? `${weeklyDayRange[weeklyDayRange.length - 1]} 至 ${props.todayKey}`
+      : `${monthKey} 月`;
+
+    setExportBusyKey(mode);
+    setExportNote(isWeekly ? '正在生成周报海报...' : '正在排版月报 PDF...');
+
+    try {
+      const report = buildVisualDropReportPayload(
+        {
+          title,
+          periodLabel,
+          generatedAt: new Date().toISOString(),
+          items,
+          summary,
+          hotspots
+        },
+        {
+          subtitle: isWeekly
+            ? '适合发群、发队友、晒战绩的高亮战报海报'
+            : '适合留档和复盘的月度战利品 PDF',
+          badge: isWeekly ? 'WEEKLY SHARE' : 'MONTHLY ARCHIVE',
+          footer: isWeekly
+            ? '周报海报会优先展示高亮掉落、热区和近期关键战果。'
+            : '月报 PDF 会保留更长的时间线，适合整月复盘和长期归档。',
+          maxTimeline: isWeekly ? 8 : 18
+        }
+      );
+
+      const result = await props.onExportVisual({
+        suggestedName: isWeekly
+          ? `d2-weekly-share-${props.todayKey}`
+          : `d2-monthly-report-${monthKey}`,
+        format,
+        report
+      });
+
+      if (result.canceled) {
+        setExportNote('这次取消了导出，当前战报内容仍然保留在页面里。');
+      } else {
+        setExportNote(
+          isWeekly
+            ? '周报海报已经生成，适合直接发群或留作当周战绩图。'
+            : '月报 PDF 已经生成，适合归档和整月复盘。'
+        );
+      }
+    } catch (error) {
+      setExportNote(`导出失败：${getErrorMessage(error)}`);
+    } finally {
+      setExportBusyKey('');
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -557,31 +622,60 @@ export function DropPanel(props: DropPanelProps) {
                 </div>
               </div>
               <p className="helper-text">{exportNote}</p>
-              <div className="inline-actions report-export-actions">
-                <button
-                  className="ghost-button"
-                  disabled={exportBusyKey !== ''}
-                  onClick={() => void exportReport('weekly-markdown')}
-                  type="button"
-                >
-                  {exportBusyKey === 'weekly-markdown' ? '导出中...' : '导出周报'}
-                </button>
-                <button
-                  className="ghost-button"
-                  disabled={exportBusyKey !== ''}
-                  onClick={() => void exportReport('monthly-markdown')}
-                  type="button"
-                >
-                  {exportBusyKey === 'monthly-markdown' ? '导出中...' : '导出月报'}
-                </button>
-                <button
-                  className="ghost-button"
-                  disabled={exportBusyKey !== ''}
-                  onClick={() => void exportReport('monthly-json')}
-                  type="button"
-                >
-                  {exportBusyKey === 'monthly-json' ? '导出中...' : '导出 JSON'}
-                </button>
+              <div className="report-export-sections">
+                <div className="export-cluster">
+                  <span className="mini-pill">分享素材</span>
+                  <div className="export-tile-grid">
+                    <button
+                      className="export-tile primary"
+                      disabled={exportBusyKey !== ''}
+                      onClick={() => void exportVisualReport('weekly-png')}
+                      type="button"
+                    >
+                      <strong>{exportBusyKey === 'weekly-png' ? '生成中...' : '周报海报 PNG'}</strong>
+                      <span>适合直接发群，重点展示高亮掉落和热区。</span>
+                    </button>
+                    <button
+                      className="export-tile"
+                      disabled={exportBusyKey !== ''}
+                      onClick={() => void exportVisualReport('monthly-pdf')}
+                      type="button"
+                    >
+                      <strong>{exportBusyKey === 'monthly-pdf' ? '生成中...' : '月报 PDF'}</strong>
+                      <span>适合留档和复盘，带更完整的月度时间线。</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="export-cluster">
+                  <span className="mini-pill">归档文件</span>
+                  <div className="inline-actions report-export-actions">
+                    <button
+                      className="ghost-button"
+                      disabled={exportBusyKey !== ''}
+                      onClick={() => void exportReport('weekly-markdown')}
+                      type="button"
+                    >
+                      {exportBusyKey === 'weekly-markdown' ? '导出中...' : '周报 Markdown'}
+                    </button>
+                    <button
+                      className="ghost-button"
+                      disabled={exportBusyKey !== ''}
+                      onClick={() => void exportReport('monthly-markdown')}
+                      type="button"
+                    >
+                      {exportBusyKey === 'monthly-markdown' ? '导出中...' : '月报 Markdown'}
+                    </button>
+                    <button
+                      className="ghost-button"
+                      disabled={exportBusyKey !== ''}
+                      onClick={() => void exportReport('monthly-json')}
+                      type="button"
+                    >
+                      {exportBusyKey === 'monthly-json' ? '导出中...' : '月报 JSON'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </article>
           </div>

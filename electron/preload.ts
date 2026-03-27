@@ -9,6 +9,8 @@ import type {
   DropOcrResult,
   ExportTextFileInput,
   ExportTextFileResult,
+  ExportVisualReportInput,
+  ExportVisualReportResult,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -45,6 +47,8 @@ const api = {
     ipcRenderer.invoke('automation:get-log', id) as Promise<AutomationLogDocument>,
   exportTextFile: (payload: ExportTextFileInput) =>
     ipcRenderer.invoke('file:export-text', payload) as Promise<ExportTextFileResult>,
+  exportVisualReport: (payload: ExportVisualReportInput) =>
+    ipcRenderer.invoke('report:export-visual', payload) as Promise<ExportVisualReportResult>,
   onDataChanged: (listener: (data: AppData) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: AppData) => {
       listener(data);

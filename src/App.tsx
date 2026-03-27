@@ -16,6 +16,8 @@ import type {
   DropOcrResult,
   ExportTextFileInput,
   ExportTextFileResult,
+  ExportVisualReportInput,
+  ExportVisualReportResult,
   IntegrationRunResponse,
   RunAutomationAdminInput,
   RunAutomationTaskInput,
@@ -310,6 +312,28 @@ export default function App() {
     }
   }
 
+  async function handleExportVisualReport(
+    payload: ExportVisualReportInput
+  ): Promise<ExportVisualReportResult> {
+    try {
+      const result = await window.d2Pet.exportVisualReport(payload);
+      if (!result.canceled && result.path) {
+        setMessage({
+          kind: 'success',
+          text:
+            payload.format === 'pdf'
+              ? `战报 PDF 已导出到 ${result.path}`
+              : `战报海报已导出到 ${result.path}`
+        });
+      }
+      return result;
+    } catch (error) {
+      const text = getErrorMessage(error);
+      setMessage({ kind: 'error', text });
+      throw new Error(text);
+    }
+  }
+
   async function handleUpdateSettings(patch: Partial<AppData['settings']>) {
     setBusyKey('settings');
     setMessage(null);
@@ -469,6 +493,7 @@ export default function App() {
               drops={data.drops}
               onCreateDrop={handleCreateDrop}
               onExportText={handleExportTextFile}
+              onExportVisual={handleExportVisualReport}
               onOpenPath={handleOpenPath}
               onPreviewOcr={handlePreviewDropOcr}
               todayKey={todayKey}
