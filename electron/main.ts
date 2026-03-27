@@ -745,7 +745,8 @@ function createDefaultData(): AppData {
       alwaysOnTop: true,
       launchOnStartup: false,
       notificationsEnabled: true,
-      windowMode: 'panel'
+      windowMode: 'panel',
+      setupGuideCompleted: false
     }
   };
 }
@@ -775,7 +776,9 @@ function normalizeData(input: Partial<AppData> | undefined): AppData {
         input?.settings?.launchOnStartup ?? fallback.settings.launchOnStartup,
       notificationsEnabled:
         input?.settings?.notificationsEnabled ?? fallback.settings.notificationsEnabled,
-      windowMode: input?.settings?.windowMode ?? fallback.settings.windowMode
+      windowMode: input?.settings?.windowMode ?? fallback.settings.windowMode,
+      setupGuideCompleted:
+        input?.settings?.setupGuideCompleted ?? fallback.settings.setupGuideCompleted
     }
   };
 }

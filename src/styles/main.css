@@ -1021,6 +1021,152 @@ select,
   color: #fff1cf;
 }
 
+.setup-guide,
+.setup-guide-reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setup-guide {
+  padding: 18px;
+  border-color: rgba(240, 184, 96, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(56, 28, 18, 0.9), rgba(20, 11, 8, 0.94));
+}
+
+.setup-guide-head,
+.setup-guide-reminder {
+  border-radius: 22px;
+}
+
+.setup-guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setup-guide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.setup-progress-row,
+.setup-step-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.setup-progress-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.setup-progress-card,
+.setup-step-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(228, 178, 102, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(13, 8, 6, 0.42);
+}
+
+.setup-progress-card span,
+.setup-step-summary,
+.setup-step-card .secondary-text {
+  color: #ceb28b;
+}
+
+.setup-progress-card span {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.setup-progress-card strong {
+  display: block;
+  margin-top: 10px;
+  color: #fff2d1;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 28px;
+}
+
+.setup-progress-card p,
+.setup-step-card p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+.setup-step-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.setup-step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-step-card.success {
+  border-color: rgba(117, 194, 127, 0.22);
+}
+
+.setup-step-card.attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.setup-step-card.error {
+  border-color: rgba(230, 116, 97, 0.26);
+}
+
+.setup-step-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-step-head strong {
+  display: block;
+  margin-top: 8px;
+  color: #fff2d1;
+  font-size: 18px;
+}
+
+.setup-step-summary {
+  margin: 0;
+  font-size: 15px;
+}
+
+.setup-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.setup-step-actions .primary-button,
+.setup-step-actions .ghost-button {
+  flex: 1 1 140px;
+}
+
+.setup-guide-reminder {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setup-guide-reminder strong {
+  color: #fff2d1;
+  font-size: 18px;
+}
+
 .preflight-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2358,6 +2504,8 @@ body {
   .insight-grid,
   .overview-grid,
   .report-hero,
+  .setup-progress-row,
+  .setup-step-grid,
   .report-summary-grid,
   .report-trend-grid,
   .export-tile-grid,
@@ -2374,6 +2522,8 @@ body {
   }
 
   .compact-header,
+  .setup-guide-head,
+  .setup-guide-reminder,
   .workshop-topbar,
   .panel-header {
     flex-direction: column;

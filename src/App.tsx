@@ -4,6 +4,7 @@ import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
 import { FloatingPet } from './components/FloatingPet';
 import { PetShell } from './components/PetShell';
+import { SetupGuide } from './components/SetupGuide';
 import { formatDuration, getDayKey } from './lib/date';
 import { buildTodayStats } from './lib/stats';
 import type {
@@ -55,7 +56,13 @@ export default function App() {
   const [message, setMessage] = useState<Message>(null);
   const [now, setNow] = useState(Date.now());
   const [highlightedDropName, setHighlightedDropName] = useState('');
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [setupPreflight, setSetupPreflight] = useState<AutomationPreflightResponse | null>(null);
+  const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
+  const [setupPreflightError, setSetupPreflightError] = useState('');
+  const [setupGuideTick, setSetupGuideTick] = useState(0);
   const latestDropIdRef = useRef<string | null>(null);
+  const setupGuideInitializedRef = useRef(false);
 
   useEffect(() => {
     void window.d2Pet
@@ -74,6 +81,23 @@ export default function App() {
       setData(value);
     });
   }, []);
+
+  useEffect(() => {
+    if (!data || setupGuideInitializedRef.current) {
+      return;
+    }
+
+    setShowSetupGuide(!data.settings.setupGuideCompleted);
+    setupGuideInitializedRef.current = true;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data?.settings.setupGuideCompleted) {
+      return;
+    }
+
+    setShowSetupGuide(false);
+  }, [data?.settings.setupGuideCompleted]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -114,6 +138,27 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [highlightedDropName]);
 
+  useEffect(() => {
+    if (!data || data.settings.setupGuideCompleted) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSetupPreflightBusy(true);
+      setSetupPreflightError('');
+      void window.d2Pet
+        .getAutomationPreflight({
+          drafts: data.automationDrafts,
+          hasGemClipboardImage: false
+        })
+        .then((value) => setSetupPreflight(value))
+        .catch((error) => setSetupPreflightError(getErrorMessage(error)))
+        .finally(() => setSetupPreflightBusy(false));
+    }, 160);
+
+    return () => window.clearTimeout(timer);
+  }, [data, setupGuideTick]);
+
   if (!data) {
     return (
       <div className="boot-screen">
@@ -134,6 +179,10 @@ export default function App() {
     ? formatDuration((now - new Date(data.activeRun.startedAt).getTime()) / 1000)
     : '00:00';
   const isFloatingMode = data.settings.windowMode === 'floating';
+
+  function refreshSetupGuide() {
+    setSetupGuideTick((current) => current + 1);
+  }
 
   async function handleStartRun(mapName: string) {
     setBusyKey('start-run');
@@ -240,6 +289,7 @@ export default function App() {
             : '自动化任务执行完成。'
           : response.result.stderr || '自动化任务执行失败。'
       });
+      refreshSetupGuide();
       return response;
     } catch (error) {
       const text = getErrorMessage(error);
@@ -265,6 +315,7 @@ export default function App() {
           ? getAdminSuccessText(payload.action)
           : response.result.stderr || '自动化工具操作失败。'
       });
+      refreshSetupGuide();
       return response;
     } catch (error) {
       const text = getErrorMessage(error);
@@ -291,6 +342,7 @@ export default function App() {
             : '环境修复动作已完成。'
           : response.result.stderr || '环境修复失败。'
       });
+      refreshSetupGuide();
       return response;
     } catch (error) {
       const text = getErrorMessage(error);
@@ -380,6 +432,7 @@ export default function App() {
     try {
       const nextData = await window.d2Pet.updateSettings({ patch });
       setData(nextData);
+      refreshSetupGuide();
 
       if (typeof patch.alwaysOnTop === 'boolean') {
         setMessage({
@@ -406,6 +459,11 @@ export default function App() {
             ? '已开启系统通知。'
             : '已关闭系统通知。'
         });
+      } else if (typeof patch.setupGuideCompleted === 'boolean') {
+        setMessage({
+          kind: 'success',
+          text: patch.setupGuideCompleted ? '首次引导已经标记完成。' : '首次引导已重新开启。'
+        });
       }
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
@@ -428,6 +486,29 @@ export default function App() {
     if (data.settings.windowMode !== 'panel') {
       void handleUpdateSettings({ windowMode: 'panel' });
     }
+  }
+
+  function handleOpenSetupGuide() {
+    setActiveTab('companion');
+    setShowSetupGuide(true);
+  }
+
+  function handleOpenWorkshopFromGuide() {
+    setActiveTab('workshop');
+  }
+
+  function handleEnableFloatingFromGuide() {
+    void handleUpdateSettings({ windowMode: 'floating' });
+  }
+
+  function handleEnableNotificationsFromGuide() {
+    if (!data.settings.notificationsEnabled) {
+      void handleUpdateSettings({ notificationsEnabled: true });
+    }
+  }
+
+  function handleCompleteSetupGuide() {
+    void handleUpdateSettings({ setupGuideCompleted: true });
   }
 
   if (isFloatingMode) {
@@ -512,18 +593,59 @@ export default function App() {
 
         <div className="panel-stack">
           {activeTab === 'companion' ? (
-            <CounterPanel
-              activeDurationText={activeDurationText}
-              activeRun={data.activeRun}
-              busy={busyKey === 'start-run' || busyKey === 'stop-run'}
-              onGoToDrops={() => setActiveTab('drops')}
-              onGoToWorkshop={() => setActiveTab('workshop')}
-              onStartRun={handleStartRun}
-              onStopRun={handleStopRun}
-              recentDrops={todayDrops}
-              recentRuns={recentRuns}
-              stats={todayStats}
-            />
+            <>
+              {!data.settings.setupGuideCompleted && showSetupGuide ? (
+                <SetupGuide
+                  busyKey={busyKey}
+                  error={setupPreflightError}
+                  loading={setupPreflightBusy}
+                  onComplete={handleCompleteSetupGuide}
+                  onDismiss={() => setShowSetupGuide(false)}
+                  onEnableFloating={handleEnableFloatingFromGuide}
+                  onEnableNotifications={handleEnableNotificationsFromGuide}
+                  onInstallDependencies={() =>
+                    handleRunEnvironmentAction({ action: 'install-python-deps' }).then(() => undefined)
+                  }
+                  onOpenWorkshop={handleOpenWorkshopFromGuide}
+                  onRefresh={refreshSetupGuide}
+                  preflight={setupPreflight}
+                  settings={data.settings}
+                />
+              ) : null}
+
+              {!data.settings.setupGuideCompleted && !showSetupGuide ? (
+                <article className="card setup-guide-reminder">
+                  <div>
+                    <p className="eyebrow">Guide</p>
+                    <strong>首次启动引导已收起</strong>
+                    <p className="secondary-text">
+                      你可以随时再打开，把 Python、依赖、Profile 和悬浮态继续补完整。
+                    </p>
+                  </div>
+                  <div className="tool-row">
+                    <button className="ghost-button" onClick={handleOpenSetupGuide} type="button">
+                      继续引导
+                    </button>
+                    <button className="primary-button" onClick={handleCompleteSetupGuide} type="button">
+                      直接完成
+                    </button>
+                  </div>
+                </article>
+              ) : null}
+
+              <CounterPanel
+                activeDurationText={activeDurationText}
+                activeRun={data.activeRun}
+                busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+                onGoToDrops={() => setActiveTab('drops')}
+                onGoToWorkshop={() => setActiveTab('workshop')}
+                onStartRun={handleStartRun}
+                onStopRun={handleStopRun}
+                recentDrops={todayDrops}
+                recentRuns={recentRuns}
+                stats={todayStats}
+              />
+            </>
           ) : null}
 
           {activeTab === 'drops' ? (

@@ -54,6 +54,7 @@ export interface AppSettings {
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
   windowMode: WindowMode;
+  setupGuideCompleted: boolean;
 }
 
 export interface AutomationDrafts {
