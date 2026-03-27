@@ -646,6 +646,80 @@ select,
   gap: 12px;
 }
 
+.preset-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preset-label {
+  color: #bda57a;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.preset-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(214, 165, 96, 0.18);
+  border-radius: 999px;
+  color: #e4d3aa;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.preset-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(238, 179, 80, 0.4);
+}
+
+.preset-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.preset-button.active {
+  color: #fff2ca;
+  background: linear-gradient(180deg, rgba(179, 70, 31, 0.34), rgba(82, 31, 17, 0.42));
+  border-color: rgba(244, 174, 85, 0.4);
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.insight-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(217, 164, 88, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.34);
+}
+
+.insight-card strong {
+  color: #fff0ce;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+}
+
+.insight-card p {
+  margin: 0;
+  color: #c3ab84;
+  line-height: 1.6;
+}
+
 .report-hero {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -682,6 +756,12 @@ select,
 
 .highlight-row span {
   color: #bfa780;
+}
+
+.report-pulse {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .filter-grid {
@@ -894,6 +974,12 @@ select,
 }
 
 .ocr-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ocr-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -1165,6 +1251,57 @@ select,
   border-color: rgba(244, 174, 85, 0.4);
 }
 
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(217, 164, 88, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.3);
+}
+
+.overview-card p {
+  margin: 0;
+  color: #c3ab84;
+  line-height: 1.6;
+}
+
+.overview-card strong {
+  color: #fff0ce;
+}
+
+.overview-card-ready {
+  border-color: rgba(118, 189, 132, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(76, 164, 113, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.3);
+}
+
+.overview-card-attention {
+  border-color: rgba(244, 174, 85, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(220, 116, 54, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.3);
+}
+
+.overview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .workshop-grid {
   display: flex;
   flex-direction: column;
@@ -1188,6 +1325,19 @@ select,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.task-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-section-label {
+  color: #bda57a;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .task-toolbar.secondary .ghost-button {
@@ -1404,6 +1554,18 @@ body {
     linear-gradient(180deg, rgba(213, 97, 49, 0.42), rgba(97, 34, 18, 0.52)),
     rgba(255, 199, 115, 0.06);
   box-shadow: 0 10px 22px rgba(107, 37, 18, 0.22);
+}
+
+.status-pill.success {
+  color: #e7ffe8;
+  background: rgba(71, 126, 75, 0.22);
+  border-color: rgba(117, 194, 127, 0.28);
+}
+
+.status-pill.attention {
+  color: #fff3d3;
+  background: rgba(214, 83, 37, 0.16);
+  border-color: rgba(255, 133, 84, 0.28);
 }
 
 .panel-stack {
@@ -1726,6 +1888,8 @@ body {
   }
 
   .companion-hero,
+  .insight-grid,
+  .overview-grid,
   .report-hero,
   .report-summary-grid,
   .filter-grid,

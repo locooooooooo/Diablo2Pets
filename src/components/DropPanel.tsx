@@ -137,6 +137,10 @@ export function DropPanel(props: DropPanelProps) {
       ocrText: ocrResult?.text
     });
   }, [itemName, note, ocrResult]);
+  const canAdoptSuggestedItem =
+    Boolean(ocrResult?.suggestedItemName) && itemName !== (ocrResult?.suggestedItemName ?? '');
+  const canAdoptSuggestedNote =
+    Boolean(ocrResult?.suggestedNote) && note !== (ocrResult?.suggestedNote ?? '');
 
   useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
@@ -267,6 +271,18 @@ export function DropPanel(props: DropPanelProps) {
     setHighlightOnly(false);
   }
 
+  function applySuggestedItem() {
+    if (ocrResult?.suggestedItemName) {
+      setItemName(ocrResult.suggestedItemName);
+    }
+  }
+
+  function applySuggestedNote() {
+    if (ocrResult?.suggestedNote) {
+      setNote(ocrResult.suggestedNote);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -345,6 +361,19 @@ export function DropPanel(props: DropPanelProps) {
                 </div>
               )}
             </article>
+          </div>
+
+          <div className="report-pulse">
+            <span className="mini-pill">
+              主类目：
+              {dailySummary.topCategory
+                ? `${getDropCategoryLabel(dailySummary.topCategory)} ${dailySummary.topCategoryCount} 件`
+                : '尚未形成'}
+            </span>
+            <span className="mini-pill">
+              最新高亮：
+              {dailySummary.highlights[0]?.itemName ?? '等待下一件重点掉落'}
+            </span>
           </div>
         </article>
 
@@ -437,6 +466,33 @@ export function DropPanel(props: DropPanelProps) {
                 <span className="status-pill">
                   建议分类：{getDropCategoryLabel(currentCategory)}
                 </span>
+              </div>
+
+              <div className="ocr-actions">
+                <button
+                  className="ghost-button"
+                  disabled={!canAdoptSuggestedItem}
+                  onClick={applySuggestedItem}
+                  type="button"
+                >
+                  采用建议物品
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={!canAdoptSuggestedNote}
+                  onClick={applySuggestedNote}
+                  type="button"
+                >
+                  采用建议备注
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={ocrBusy || !imageDataUrl}
+                  onClick={() => void runOcrForImage(imageDataUrl)}
+                  type="button"
+                >
+                  重新识别
+                </button>
               </div>
 
               {ocrResult.suggestedNote ? (

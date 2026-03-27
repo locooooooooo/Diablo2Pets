@@ -33,6 +33,13 @@ interface ViewerState {
   content: string;
 }
 
+interface TaskReadiness {
+  tone: 'ready' | 'attention';
+  label: string;
+  summary: string;
+  chips: string[];
+}
+
 function getIntegration(
   integrations: IntegrationConfig[],
   id: IntegrationId
@@ -128,6 +135,95 @@ function getProfileNote(item: IntegrationConfig): string {
   return '这条任务线没有独立旧配置，建议直接录新的 profile。';
 }
 
+function getTaskReadiness(
+  id: IntegrationId,
+  drafts: AutomationDrafts,
+  hasGemScreenshot: boolean
+): TaskReadiness {
+  switch (id) {
+    case 'rune-cube': {
+      const counts = drafts.runeCounts
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (counts.length === 0) {
+        return {
+          tone: 'attention',
+          label: '等待输入',
+          summary: '先填一组符文数量，再决定是试运行还是正式执行。',
+          chips: ['缺少符文数量', `等待 ${drafts.runeWaitSeconds}s`]
+        };
+      }
+
+      return {
+        tone: 'ready',
+        label: '可直接试运行',
+        summary: `已填 ${counts.length} 个槽位，建议先看合成计划再切回游戏。`,
+        chips: [`${counts.length} 个槽位`, `等待 ${drafts.runeWaitSeconds}s`]
+      };
+    }
+    case 'gem-cube': {
+      if (drafts.gemInputMode === 'scan-image') {
+        if (!hasGemScreenshot && !drafts.gemImagePath.trim()) {
+          return {
+            tone: 'attention',
+            label: '等待截图',
+            summary: '切到截图识别后先 Ctrl+V 粘贴，或者填一个现有截图路径。',
+            chips: ['截图识别', `等待 ${drafts.gemWaitSeconds}s`]
+          };
+        }
+
+        return {
+          tone: 'ready',
+          label: '截图已就绪',
+          summary: '可以先跑识别计划，确认后再执行宝石合成。',
+          chips: [
+            hasGemScreenshot ? '剪贴板截图' : '本地截图路径',
+            `等待 ${drafts.gemWaitSeconds}s`
+          ]
+        };
+      }
+
+      if (!drafts.gemMatrix.trim()) {
+        return {
+          tone: 'attention',
+          label: '等待矩阵',
+          summary: '矩阵模式下先填库存分布，再开始试运行。',
+          chips: ['矩阵模式', `等待 ${drafts.gemWaitSeconds}s`]
+        };
+      }
+
+      return {
+        tone: 'ready',
+        label: '矩阵已就绪',
+        summary: '库存矩阵已填，可以直接生成合成计划。',
+        chips: ['矩阵模式', `等待 ${drafts.gemWaitSeconds}s`]
+      };
+    }
+    case 'drop-shared-gold': {
+      const amountReady = /^\d+$/.test(drafts.goldAmount.trim());
+      const levelReady = /^\d+$/.test(drafts.goldLevel.trim());
+
+      if (!amountReady || !levelReady) {
+        return {
+          tone: 'attention',
+          label: '等待参数',
+          summary: '总金额和角色等级都需要是整数，试运行才会生成分批方案。',
+          chips: ['缺少数值参数', `等待 ${drafts.goldWaitSeconds}s`]
+        };
+      }
+
+      return {
+        tone: 'ready',
+        label: '方案可生成',
+        summary: '金额和等级都齐了，先试运行看批次数和风险提示。',
+        chips: [`金额 ${drafts.goldAmount.trim()}`, `等级 ${drafts.goldLevel.trim()}`]
+      };
+    }
+  }
+}
+
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
   const imageItem = Array.from(items).find((item) => item.type.startsWith('image/'));
   const imageFile = imageItem?.getAsFile();
@@ -204,6 +300,11 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const runeTask = getIntegration(props.integrations, 'rune-cube');
   const gemTask = getIntegration(props.integrations, 'gem-cube');
   const goldTask = getIntegration(props.integrations, 'drop-shared-gold');
+  const taskReadiness = {
+    'rune-cube': getTaskReadiness('rune-cube', drafts, false),
+    'gem-cube': getTaskReadiness('gem-cube', drafts, Boolean(gemImageDataUrl)),
+    'drop-shared-gold': getTaskReadiness('drop-shared-gold', drafts, false)
+  } as const;
 
   function updateDraft<Key extends keyof AutomationDrafts>(
     key: Key,
@@ -373,6 +474,38 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderTaskOverviewCard(item: IntegrationConfig) {
+    const readiness = taskReadiness[item.id];
+
+    return (
+      <article className={`overview-card overview-card-${readiness.tone}`} key={item.id}>
+        <div className="overview-head">
+          <div>
+            <span className="eyebrow">Task</span>
+            <strong>{getTaskMeta(item.id).title}</strong>
+          </div>
+          <span
+            className={
+              readiness.tone === 'ready'
+                ? 'status-pill success'
+                : 'status-pill attention'
+            }
+          >
+            {readiness.label}
+          </span>
+        </div>
+        <p>{readiness.summary}</p>
+        <div className="tag-row">
+          {readiness.chips.map((chip) => (
+            <span className="mini-pill" key={chip}>
+              {chip}
+            </span>
+          ))}
+        </div>
+      </article>
+    );
+  }
+
   function renderAdvancedDetails(item: IntegrationConfig) {
     return (
       <details className="tool-details">
@@ -454,18 +587,44 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </label>
       </article>
 
+      <div className="overview-grid">
+        {[runeTask, gemTask, goldTask].map((item) => renderTaskOverviewCard(item))}
+      </div>
+
       <div className="workshop-grid">
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
+              <p className="eyebrow">builtin:rune_cubing</p>
               <div className="card-title">{getTaskMeta(runeTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(runeTask.id).description}</p>
             </div>
-            <span className="status-pill warm">builtin:rune_cubing</span>
+            <span
+              className={
+                taskReadiness['rune-cube'].tone === 'ready'
+                  ? 'status-pill success'
+                  : 'status-pill attention'
+              }
+            >
+              {taskReadiness['rune-cube'].label}
+            </span>
           </div>
 
-          <div className="task-toolbar">{renderRunButtons('rune-cube')}</div>
-          <div className="task-toolbar secondary">{renderAdminButtons(runeTask)}</div>
+          <div className="task-section">
+            <span className="task-section-label">运行</span>
+            <div className="task-toolbar">{renderRunButtons('rune-cube')}</div>
+          </div>
+          <div className="task-section">
+            <span className="task-section-label">维护</span>
+            <div className="task-toolbar secondary">{renderAdminButtons(runeTask)}</div>
+          </div>
+          <div className="tag-row">
+            {taskReadiness['rune-cube'].chips.map((chip) => (
+              <span className="mini-pill" key={chip}>
+                {chip}
+              </span>
+            ))}
+          </div>
 
           <label className="field">
             <span>符文数量</span>
@@ -497,14 +656,36 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
+              <p className="eyebrow">builtin:gem_cubing</p>
               <div className="card-title">{getTaskMeta(gemTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(gemTask.id).description}</p>
             </div>
-            <span className="status-pill warm">builtin:gem_cubing</span>
+            <span
+              className={
+                taskReadiness['gem-cube'].tone === 'ready'
+                  ? 'status-pill success'
+                  : 'status-pill attention'
+              }
+            >
+              {taskReadiness['gem-cube'].label}
+            </span>
           </div>
 
-          <div className="task-toolbar">{renderRunButtons('gem-cube')}</div>
-          <div className="task-toolbar secondary">{renderAdminButtons(gemTask)}</div>
+          <div className="task-section">
+            <span className="task-section-label">运行</span>
+            <div className="task-toolbar">{renderRunButtons('gem-cube')}</div>
+          </div>
+          <div className="task-section">
+            <span className="task-section-label">维护</span>
+            <div className="task-toolbar secondary">{renderAdminButtons(gemTask)}</div>
+          </div>
+          <div className="tag-row">
+            {taskReadiness['gem-cube'].chips.map((chip) => (
+              <span className="mini-pill" key={chip}>
+                {chip}
+              </span>
+            ))}
+          </div>
 
           <div className="mode-switch">
             {(['matrix', 'scan-image'] as GemInputMode[]).map((mode) => (
@@ -594,14 +775,36 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
+              <p className="eyebrow">builtin:gold_drop</p>
               <div className="card-title">{getTaskMeta(goldTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(goldTask.id).description}</p>
             </div>
-            <span className="status-pill warm">builtin:gold_drop</span>
+            <span
+              className={
+                taskReadiness['drop-shared-gold'].tone === 'ready'
+                  ? 'status-pill success'
+                  : 'status-pill attention'
+              }
+            >
+              {taskReadiness['drop-shared-gold'].label}
+            </span>
           </div>
 
-          <div className="task-toolbar">{renderRunButtons('drop-shared-gold')}</div>
-          <div className="task-toolbar secondary">{renderAdminButtons(goldTask)}</div>
+          <div className="task-section">
+            <span className="task-section-label">运行</span>
+            <div className="task-toolbar">{renderRunButtons('drop-shared-gold')}</div>
+          </div>
+          <div className="task-section">
+            <span className="task-section-label">维护</span>
+            <div className="task-toolbar secondary">{renderAdminButtons(goldTask)}</div>
+          </div>
+          <div className="tag-row">
+            {taskReadiness['drop-shared-gold'].chips.map((chip) => (
+              <span className="mini-pill" key={chip}>
+                {chip}
+              </span>
+            ))}
+          </div>
 
           <div className="task-grid">
             <label className="field">

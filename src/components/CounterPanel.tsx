@@ -3,6 +3,8 @@ import { formatCompactDateTime, formatDuration } from '../lib/date';
 import type { TodayStats } from '../lib/stats';
 import type { ActiveRun, DropRecord, RunRecord } from '../types';
 
+const routePresets = ['混沌避难所', '牛场', '巴尔', '古代通道', '恐怖地带'];
+
 interface CounterPanelProps {
   activeRun: ActiveRun | null;
   activeDurationText: string;
@@ -24,10 +26,45 @@ function getLatestRunText(recentRuns: RunRecord[]): string {
   return `${recentRuns[0].mapName} 路 ${formatDuration(recentRuns[0].durationSeconds)}`;
 }
 
+function getTopRouteText(stats: TodayStats): string {
+  const topRoute = stats.mapBreakdown[0];
+  if (!topRoute) {
+    return '还没形成主刷路线';
+  }
+
+  return `${topRoute.mapName} · ${topRoute.count} 次`;
+}
+
+function getLatestDropText(recentDrops: DropRecord[]): string {
+  const latestDrop = recentDrops[0];
+  if (!latestDrop) {
+    return '等你贴第一张战利品截图';
+  }
+
+  return latestDrop.mapName
+    ? `${latestDrop.itemName} · ${latestDrop.mapName}`
+    : latestDrop.itemName;
+}
+
+function getNextActionText(activeRun: ActiveRun | null, recentDrops: DropRecord[]): string {
+  if (activeRun) {
+    return '刷完这一轮就点结束，然后去战报贴图收口。';
+  }
+
+  if (recentDrops.length > 0) {
+    return '今天已经有战果了，可以直接回工坊做下一步自动化。';
+  }
+
+  return '先开一轮，或者先去战报页贴一张截图把今天的账本立起来。';
+}
+
 export function CounterPanel(props: CounterPanelProps) {
   const [mapName, setMapName] = useState(props.activeRun?.mapName ?? '混沌避难所');
   const hasRuns = props.recentRuns.length > 0;
   const hasDrops = props.recentDrops.length > 0;
+  const topRouteText = getTopRouteText(props.stats);
+  const latestDropText = getLatestDropText(props.recentDrops);
+  const nextActionText = getNextActionText(props.activeRun, props.recentDrops);
 
   useEffect(() => {
     if (props.activeRun) {
@@ -84,6 +121,23 @@ export function CounterPanel(props: CounterPanelProps) {
                 value={mapName}
               />
             </label>
+
+            <div className="preset-strip">
+              <span className="preset-label">常用路线</span>
+              <div className="tag-row">
+                {routePresets.map((preset) => (
+                  <button
+                    className={mapName === preset ? 'preset-button active' : 'preset-button'}
+                    disabled={Boolean(props.activeRun)}
+                    key={preset}
+                    onClick={() => setMapName(preset)}
+                    type="button"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="inline-actions">
               <button className="primary-button" disabled={props.busy} type="submit">
@@ -147,6 +201,28 @@ export function CounterPanel(props: CounterPanelProps) {
               <strong>{props.recentDrops.length} 条记录</strong>
             </div>
           </div>
+        </article>
+      </div>
+
+      <div className="insight-grid">
+        <article className="insight-card">
+          <span className="eyebrow">Route Pulse</span>
+          <strong>{topRouteText}</strong>
+          <p>
+            {props.stats.mapBreakdown[0]
+              ? `平均 ${formatDuration(props.stats.mapBreakdown[0].averageDurationSeconds)}`
+              : '等你完成第一轮后自动生成节奏画像'}
+          </p>
+        </article>
+        <article className="insight-card">
+          <span className="eyebrow">Latest Loot</span>
+          <strong>{latestDropText}</strong>
+          <p>{hasDrops ? '最近战利品会优先在首页抬头。' : '战报页贴图后，这里会变成今天的热区。'}</p>
+        </article>
+        <article className="insight-card">
+          <span className="eyebrow">Next Step</span>
+          <strong>{props.activeRun ? '先收口，再记账' : '让桌宠先开跑'}</strong>
+          <p>{nextActionText}</p>
         </article>
       </div>
 
