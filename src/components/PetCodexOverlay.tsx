@@ -3,6 +3,7 @@ import type {
   PetCodex,
   PetCodexChapter,
   PetCodexEntry,
+  PetCodexJumpTarget,
   PetCodexRarity,
   PetCodexVisualBlock,
   PetCodexVisualItem,
@@ -22,6 +23,9 @@ interface PetCodexOverlayProps {
 }
 
 type RarityFilter = 'all' | PetCodexRarity;
+
+const MAP_FILTER_ALL = '全部地图';
+const TYPE_FILTER_ALL = '全部类型';
 
 const RARITY_FILTERS: Array<{ id: RarityFilter; label: string }> = [
   { id: 'all', label: '全部' },
@@ -94,6 +98,33 @@ function groupEntries(entries: PetCodexEntry[]) {
   });
 
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+}
+
+function findJumpEntry(
+  chapter: PetCodexChapter,
+  target: PetCodexJumpTarget
+): PetCodexEntry | null {
+  const filtered = chapter.entries.filter((entry) => {
+    const matchesMap = target.mapName ? entry.mapName === target.mapName : true;
+    const matchesType = target.typeLabel ? entry.categoryLabel === target.typeLabel : true;
+    const matchesHighlight = target.highlightOnly
+      ? entry.state === 'glory' || entry.state === 'ready'
+      : true;
+    const matchesRarity =
+      target.rarity && target.rarity !== 'all' ? entry.rarity === target.rarity : true;
+
+    return matchesMap && matchesType && matchesHighlight && matchesRarity;
+  });
+
+  if (target.entryId) {
+    return (
+      filtered.find((entry) => entry.id === target.entryId) ??
+      chapter.entries.find((entry) => entry.id === target.entryId) ??
+      null
+    );
+  }
+
+  return filtered[0] ?? chapter.entries[0] ?? null;
 }
 
 function formatCompletion(readyCount: number, totalCount: number): string {
@@ -271,7 +302,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
   const [searchText, setSearchText] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all');
   const [highlightOnly, setHighlightOnly] = useState(false);
-  const [mapFilter, setMapFilter] = useState('全部地图');
+  const [mapFilter, setMapFilter] = useState(MAP_FILTER_ALL);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -291,11 +322,11 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
   const availableMaps = useMemo(() => {
     if (!selected) {
-      return ['全部地图'];
+      return [MAP_FILTER_ALL];
     }
 
     return [
-      '全部地图',
+      MAP_FILTER_ALL,
       ...Array.from(
         new Set(selected.chapter.entries.map((entry) => entry.mapName).filter(Boolean))
       )
@@ -304,25 +335,25 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
   useEffect(() => {
     if (!availableMaps.includes(mapFilter)) {
-      setMapFilter('全部地图');
+      setMapFilter(MAP_FILTER_ALL);
     }
   }, [availableMaps, mapFilter]);
 
   const availableTypes = useMemo(() => {
     if (!selected) {
-      return ['全部类型'];
+      return [TYPE_FILTER_ALL];
     }
 
     return [
-      '全部类型',
+      TYPE_FILTER_ALL,
       ...Array.from(new Set(selected.chapter.entries.map((entry) => entry.categoryLabel)))
     ];
   }, [selected]);
-  const [typeFilter, setTypeFilter] = useState('全部类型');
+  const [typeFilter, setTypeFilter] = useState(TYPE_FILTER_ALL);
 
   useEffect(() => {
     if (!availableTypes.includes(typeFilter)) {
-      setTypeFilter('全部类型');
+      setTypeFilter(TYPE_FILTER_ALL);
     }
   }, [availableTypes, typeFilter]);
 
@@ -339,8 +370,8 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
         : true;
       const matchesRarity = rarityFilter === 'all' ? true : entry.rarity === rarityFilter;
       const matchesHighlight = highlightOnly ? entry.state === 'glory' || entry.state === 'ready' : true;
-      const matchesType = typeFilter === '全部类型' ? true : entry.categoryLabel === typeFilter;
-      const matchesMap = mapFilter === '全部地图' ? true : entry.mapName === mapFilter;
+      const matchesType = typeFilter === TYPE_FILTER_ALL ? true : entry.categoryLabel === typeFilter;
+      const matchesMap = mapFilter === MAP_FILTER_ALL ? true : entry.mapName === mapFilter;
 
       return matchesSearch && matchesRarity && matchesHighlight && matchesType && matchesMap;
     });
@@ -366,6 +397,32 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     () => (selected ? buildOverviewCards(selected.chapter, filteredEntries) : []),
     [filteredEntries, selected]
   );
+
+  function resetFilters() {
+    setSearchText('');
+    setRarityFilter('all');
+    setHighlightOnly(false);
+    setMapFilter(MAP_FILTER_ALL);
+    setTypeFilter(TYPE_FILTER_ALL);
+  }
+
+  function handleJumpTarget(target: PetCodexJumpTarget) {
+    const chapter = props.codex.chapters.find((candidate) => candidate.id === target.chapterId);
+    if (!chapter) {
+      return;
+    }
+
+    setSearchText('');
+    setRarityFilter(target.rarity ?? 'all');
+    setHighlightOnly(Boolean(target.highlightOnly));
+    setMapFilter(target.mapName ?? MAP_FILTER_ALL);
+    setTypeFilter(target.typeLabel ?? TYPE_FILTER_ALL);
+
+    const nextEntry = findJumpEntry(chapter, target);
+    if (nextEntry) {
+      props.onSelectEntry(nextEntry.id);
+    }
+  }
 
   const action = useMemo(
     () =>
@@ -505,11 +562,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                   key={chapter.id}
                   onClick={() => {
                     props.onSelectEntry(chapter.entries[0]?.id ?? props.codex.featuredEntryId);
-                    setSearchText('');
-                    setRarityFilter('all');
-                    setHighlightOnly(false);
-                    setMapFilter('全部地图');
-                    setTypeFilter('全部类型');
+                    resetFilters();
                   }}
                   type="button"
                 >
@@ -668,11 +721,7 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                   <button
                     className="ghost-button"
                     onClick={() => {
-                      setSearchText('');
-                      setRarityFilter('all');
-                      setHighlightOnly(false);
-                      setMapFilter('全部地图');
-                      setTypeFilter('全部类型');
+                      resetFilters();
                     }}
                     type="button"
                   >
@@ -721,9 +770,20 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                           <strong>{visual.title}</strong>
                           <p>{visual.subtitle}</p>
                         </div>
-                        {visual.kind === 'meter' ? (
-                          <span className="mini-pill">{Math.round(progress * 100)}%</span>
-                        ) : null}
+                        <div className="pet-codex-visual-head-actions">
+                          {visual.kind === 'meter' ? (
+                            <span className="mini-pill">{Math.round(progress * 100)}%</span>
+                          ) : null}
+                          {visual.target ? (
+                            <button
+                              className="pet-codex-visual-link"
+                              onClick={() => handleJumpTarget(visual.target!)}
+                              type="button"
+                            >
+                              跳转
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {visual.kind === 'meter' ? (
@@ -748,26 +808,49 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
 
                       {visual.kind === 'bars' && visual.items?.length ? (
                         <div className="pet-codex-bar-list">
-                          {visual.items.map((item) => (
-                            <article
-                              className={`pet-codex-bar-row ${getVisualToneClass(item.tone ?? visual.tone)}`}
-                              key={`${visual.id}-${item.label}`}
-                            >
-                              <div className="pet-codex-bar-copy">
-                                <strong>{item.label}</strong>
-                                <span>{item.detail ?? item.displayValue ?? `${item.value}`}</span>
-                              </div>
-                              <div className="pet-codex-bar-track">
-                                <span
-                                  className="pet-codex-bar-fill"
-                                  style={{ width: `${Math.round((item.value / maxValue) * 100)}%` }}
-                                />
-                              </div>
-                              <span className="pet-codex-bar-value">
-                                {item.displayValue ?? item.value}
-                              </span>
-                            </article>
-                          ))}
+                          {visual.items.map((item) =>
+                            item.target ? (
+                              <button
+                                className={`pet-codex-bar-row is-clickable ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                key={`${visual.id}-${item.label}`}
+                                onClick={() => handleJumpTarget(item.target!)}
+                                type="button"
+                              >
+                                <div className="pet-codex-bar-copy">
+                                  <strong>{item.label}</strong>
+                                  <span>{item.detail ?? item.displayValue ?? `${item.value}`}</span>
+                                </div>
+                                <div className="pet-codex-bar-track">
+                                  <span
+                                    className="pet-codex-bar-fill"
+                                    style={{ width: `${Math.round((item.value / maxValue) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="pet-codex-bar-value">
+                                  {item.displayValue ?? item.value}
+                                </span>
+                              </button>
+                            ) : (
+                              <article
+                                className={`pet-codex-bar-row ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                key={`${visual.id}-${item.label}`}
+                              >
+                                <div className="pet-codex-bar-copy">
+                                  <strong>{item.label}</strong>
+                                  <span>{item.detail ?? item.displayValue ?? `${item.value}`}</span>
+                                </div>
+                                <div className="pet-codex-bar-track">
+                                  <span
+                                    className="pet-codex-bar-fill"
+                                    style={{ width: `${Math.round((item.value / maxValue) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="pet-codex-bar-value">
+                                  {item.displayValue ?? item.value}
+                                </span>
+                              </article>
+                            )
+                          )}
                           {visual.footnote ? (
                             <p className="pet-codex-visual-footnote">{visual.footnote}</p>
                           ) : null}
@@ -791,16 +874,29 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                           </div>
 
                           <div className="pet-codex-segment-grid">
-                            {visual.items.map((item) => (
-                              <article
-                                className={`pet-codex-segment-card ${getVisualToneClass(item.tone ?? visual.tone)}`}
-                                key={`${visual.id}-${item.label}`}
-                              >
-                                <span>{item.label}</span>
-                                <strong>{item.displayValue ?? item.value}</strong>
-                                {item.detail ? <p>{item.detail}</p> : null}
-                              </article>
-                            ))}
+                            {visual.items.map((item) =>
+                              item.target ? (
+                                <button
+                                  className={`pet-codex-segment-card is-clickable ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                  key={`${visual.id}-${item.label}`}
+                                  onClick={() => handleJumpTarget(item.target!)}
+                                  type="button"
+                                >
+                                  <span>{item.label}</span>
+                                  <strong>{item.displayValue ?? item.value}</strong>
+                                  {item.detail ? <p>{item.detail}</p> : null}
+                                </button>
+                              ) : (
+                                <article
+                                  className={`pet-codex-segment-card ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                  key={`${visual.id}-${item.label}`}
+                                >
+                                  <span>{item.label}</span>
+                                  <strong>{item.displayValue ?? item.value}</strong>
+                                  {item.detail ? <p>{item.detail}</p> : null}
+                                </article>
+                              )
+                            )}
                           </div>
 
                           {visual.footnote ? (

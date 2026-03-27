@@ -38,6 +38,7 @@ export interface PetCodexVisualItem {
   displayValue?: string;
   detail?: string;
   tone?: PetCodexVisualTone;
+  target?: PetCodexJumpTarget;
 }
 
 export interface PetCodexVisualBlock {
@@ -50,6 +51,16 @@ export interface PetCodexVisualBlock {
   items?: PetCodexVisualItem[];
   tone?: PetCodexVisualTone;
   footnote?: string;
+  target?: PetCodexJumpTarget;
+}
+
+export interface PetCodexJumpTarget {
+  chapterId: PetCodexChapterId;
+  entryId?: string;
+  mapName?: string;
+  typeLabel?: string;
+  highlightOnly?: boolean;
+  rarity?: 'all' | PetCodexRarity;
 }
 
 export interface PetCodexEntry {
@@ -602,45 +613,54 @@ function buildAtlasEntries(
     .sort((left, right) => right[1] - left[1])
     .slice(0, 4);
   const uniqueMapCount = mapCounts.size;
-  const rarityBands: Array<{ label: string; count: number }> = [
+  const rarityBands: Array<{ label: string; count: number; rarity: PetCodexRarity }> = [
     {
       label: '神话',
-      count: archiveEntries.filter((entry) => entry.rarity === 'mythic').length
+      count: archiveEntries.filter((entry) => entry.rarity === 'mythic').length,
+      rarity: 'mythic'
     },
     {
       label: '传奇',
-      count: archiveEntries.filter((entry) => entry.rarity === 'legend').length
+      count: archiveEntries.filter((entry) => entry.rarity === 'legend').length,
+      rarity: 'legend'
     },
     {
       label: '珍品',
-      count: archiveEntries.filter((entry) => entry.rarity === 'artifact').length
+      count: archiveEntries.filter((entry) => entry.rarity === 'artifact').length,
+      rarity: 'artifact'
     },
     {
       label: '战果',
-      count: archiveEntries.filter((entry) => entry.rarity === 'trophy').length
+      count: archiveEntries.filter((entry) => entry.rarity === 'trophy').length,
+      rarity: 'trophy'
     },
     {
       label: '基石',
-      count: archiveEntries.filter((entry) => entry.rarity === 'ember').length
+      count: archiveEntries.filter((entry) => entry.rarity === 'ember').length,
+      rarity: 'ember'
     }
   ];
   const chapterBoards = [
     {
+      chapterId: 'relics' as const,
       label: '收藏墙',
       ready: countReadyEntries(relicEntries),
       total: relicEntries.length
     },
     {
+      chapterId: 'rewards' as const,
       label: '成长轨',
       ready: countReadyEntries(rewardEntries),
       total: rewardEntries.length
     },
     {
+      chapterId: 'chamber' as const,
       label: '房间陈列',
       ready: countReadyEntries(chamberEntries),
       total: chamberEntries.length
     },
     {
+      chapterId: 'chronicle' as const,
       label: '战果编年',
       ready: countReadyEntries(chronicleEntries),
       total: chronicleEntries.length
@@ -713,6 +733,9 @@ function buildAtlasEntries(
             value: item.ready,
             displayValue: `${item.ready}/${item.total}`,
             detail: item.total > 0 ? `${Math.round((item.ready / item.total) * 100)}%` : '0%',
+            target: {
+              chapterId: item.chapterId
+            },
             tone:
               item.ready === item.total
                 ? 'gold'
@@ -774,6 +797,10 @@ function buildAtlasEntries(
                   value: count,
                   displayValue: `${count}次`,
                   detail: index === 0 ? '当前最热路线' : `热区 ${index + 1}`,
+                  target: {
+                    chapterId: 'chronicle',
+                    mapName
+                  },
                   tone: index === 0 ? 'gold' : index === 1 ? 'artifact' : 'ember'
                 }))
               : [
@@ -833,6 +860,13 @@ function buildAtlasEntries(
             value: band.count,
             displayValue: `${band.count} 项`,
             detail: index === 0 ? '最高阶条目' : index === 1 ? '高价值收藏' : undefined,
+            target: archiveEntries.find((entry) => entry.rarity === band.rarity)
+              ? {
+                  chapterId: archiveEntries.find((entry) => entry.rarity === band.rarity)!.chapterId,
+                  entryId: archiveEntries.find((entry) => entry.rarity === band.rarity)!.id,
+                  rarity: band.rarity
+                }
+              : undefined,
             tone:
               band.label === '神话'
                 ? 'mythic'
@@ -887,6 +921,9 @@ function buildAtlasEntries(
             value: item.ready,
             displayValue: `${item.ready}/${item.total}`,
             detail: item.ready === item.total ? '已收口' : '仍可继续推进',
+            target: {
+              chapterId: item.chapterId
+            },
             tone:
               item.ready === item.total
                 ? 'gold'
