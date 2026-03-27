@@ -154,6 +154,10 @@ export interface ExportTextFileResult {
   path?: string;
 }
 
+export interface CopyTextInput {
+  text: string;
+}
+
 export type VisualReportFormat = 'png' | 'pdf';
 
 export interface VisualReportMetric {

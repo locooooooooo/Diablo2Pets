@@ -4,6 +4,7 @@ import type {
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
+  CopyTextInput,
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
@@ -51,6 +52,8 @@ const api = {
     ipcRenderer.invoke('environment:run-action', payload) as Promise<EnvironmentActionResponse>,
   exportTextFile: (payload: ExportTextFileInput) =>
     ipcRenderer.invoke('file:export-text', payload) as Promise<ExportTextFileResult>,
+  copyText: (payload: CopyTextInput) =>
+    ipcRenderer.invoke('clipboard:write-text', payload) as Promise<void>,
   exportVisualReport: (payload: ExportVisualReportInput) =>
     ipcRenderer.invoke('report:export-visual', payload) as Promise<ExportVisualReportResult>,
   onDataChanged: (listener: (data: AppData) => void) => {

@@ -5,6 +5,7 @@ import type {
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
+  CopyTextInput,
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
@@ -46,6 +47,7 @@ declare global {
         payload: RunEnvironmentActionInput
       ) => Promise<EnvironmentActionResponse>;
       exportTextFile: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
+      copyText: (payload: CopyTextInput) => Promise<void>;
       exportVisualReport: (
         payload: ExportVisualReportInput
       ) => Promise<ExportVisualReportResult>;

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent
 } from 'react';
@@ -13,10 +14,13 @@ import type {
   AutomationLogDocument,
   AutomationPreflightInput,
   AutomationPreflightResponse,
+  AutomationPreflightStatus,
   AutomationPreflightTask,
   AutomationRunMode,
   EnvironmentAction,
   EnvironmentActionResponse,
+  ExportTextFileInput,
+  ExportTextFileResult,
   GemInputMode,
   IntegrationConfig,
   IntegrationId,
@@ -30,6 +34,8 @@ interface AutomationPanelProps {
   integrations: IntegrationConfig[];
   initialDrafts: AutomationDrafts;
   busyKey: string | null;
+  onCopyText: (text: string) => Promise<void>;
+  onExportText: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
   onRunTask: (payload: RunAutomationTaskInput) => Promise<IntegrationRunResponse>;
   onRunAdmin: (payload: RunAutomationAdminInput) => Promise<IntegrationRunResponse>;
   onRunEnvironmentAction: (payload: RunEnvironmentActionInput) => Promise<EnvironmentActionResponse>;
@@ -43,6 +49,15 @@ interface ViewerState {
   title: string;
   path?: string;
   content: string;
+}
+
+interface EnvironmentTimelineEntry {
+  id: string;
+  time: string;
+  tone: DiagnosisTone;
+  title: string;
+  detail: string;
+  meta: string;
 }
 
 type DiagnosisTone = 'success' | 'attention' | 'error';
@@ -666,6 +681,41 @@ function getLogResultLabel(success: boolean | null): string {
   return '结果未知';
 }
 
+function getCheckLevelLabel(level: AutomationCheckItem['level']): string {
+  switch (level) {
+    case 'ok':
+      return '正常';
+    case 'warning':
+      return '提醒';
+    case 'error':
+      return '阻塞';
+  }
+}
+
+function getDiagnosisToneLabel(tone: DiagnosisTone): string {
+  switch (tone) {
+    case 'success':
+      return '已就绪';
+    case 'attention':
+      return '建议处理';
+    case 'error':
+      return '需要修复';
+  }
+}
+
+function getTaskStatusLabel(status: AutomationPreflightStatus | undefined): string {
+  switch (status) {
+    case 'ready':
+      return '可以开跑';
+    case 'warning':
+      return '先看提醒';
+    case 'error':
+      return '先补条件';
+    default:
+      return '等待预检';
+  }
+}
+
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -673,11 +723,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
     '切到“截图识别”后，截图后直接按 Ctrl+V，下一次运行会自动保存到本地。'
   );
   const [viewer, setViewer] = useState<ViewerState | null>(null);
+  const [environmentLog, setEnvironmentLog] = useState<AutomationLogDocument | null>(null);
+  const [environmentTimeline, setEnvironmentTimeline] = useState<EnvironmentTimelineEntry[]>([]);
   const [logBusyId, setLogBusyId] = useState<IntegrationId | null>(null);
   const [preflight, setPreflight] = useState<AutomationPreflightResponse | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [preflightError, setPreflightError] = useState('');
   const [preflightTick, setPreflightTick] = useState(0);
+  const environmentSnapshotRef = useRef('');
 
   useEffect(() => {
     setDrafts(props.initialDrafts);
@@ -749,6 +802,50 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const viewerIntegration = useMemo(() => {
     return viewer?.id ? props.integrations.find((item) => item.id === viewer.id) ?? null : null;
   }, [props.integrations, viewer]);
+  const globalChecks = preflight?.globalChecks ?? [];
+  const dependencyChecks = useMemo(() => getDependencyChecks(globalChecks), [globalChecks]);
+  const installedDependencies = dependencyChecks.filter((check) => check.level === 'ok').length;
+  const environmentDiagnosis = useMemo(() => {
+    return buildEnvironmentDiagnosis(globalChecks, runeTask.workingDirectory);
+  }, [globalChecks, runeTask.workingDirectory]);
+  const parsedEnvironmentLog = useMemo(() => {
+    return environmentLog ? parseAutomationLog(environmentLog.content) : null;
+  }, [environmentLog]);
+
+  useEffect(() => {
+    if (!preflight || globalChecks.length === 0) {
+      return;
+    }
+
+    const signature = JSON.stringify({
+      tone: environmentDiagnosis.tone,
+      title: environmentDiagnosis.title,
+      description: environmentDiagnosis.description,
+      dependencies: dependencyChecks.map((check) => `${check.key}:${check.detail}`),
+      global: globalChecks.map((check) => `${check.key}:${check.level}:${check.detail}`)
+    });
+
+    if (environmentSnapshotRef.current === signature) {
+      return;
+    }
+
+    environmentSnapshotRef.current = signature;
+    appendEnvironmentTimeline({
+      time: preflight.generatedAt,
+      tone: environmentDiagnosis.tone,
+      title: `环境快照 · ${environmentDiagnosis.title}`,
+      detail: `${environmentDiagnosis.description} 依赖 ${installedDependencies}/${dependencyChecks.length || 0}，OCR ${
+        findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? '已就绪' : '待补齐'
+      }。`,
+      meta: '自动预检'
+    });
+  }, [
+    preflight,
+    globalChecks,
+    dependencyChecks,
+    environmentDiagnosis,
+    installedDependencies
+  ]);
 
   function updateDraft<Key extends keyof AutomationDrafts>(
     key: Key,
@@ -770,6 +867,137 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
   function requestPreflightRefresh() {
     setPreflightTick((current) => current + 1);
+  }
+
+  function appendEnvironmentTimeline(
+    entry: Omit<EnvironmentTimelineEntry, 'id'>
+  ) {
+    setEnvironmentTimeline((current) => {
+      const duplicate = current[0];
+      if (
+        duplicate &&
+        duplicate.title === entry.title &&
+        duplicate.detail === entry.detail &&
+        duplicate.meta === entry.meta
+      ) {
+        return current;
+      }
+
+      return [
+        {
+          ...entry,
+          id: `${entry.time}-${Math.random().toString(36).slice(2, 8)}`
+        },
+        ...current
+      ].slice(0, 8);
+    });
+  }
+
+  function buildEnvironmentReport(): string {
+    const generatedAt = new Date().toISOString();
+    const ocrReady = findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok';
+    const globalSection =
+      globalChecks.length > 0
+        ? globalChecks
+            .map(
+              (check) =>
+                `- [${getCheckLevelLabel(check.level)}] ${check.label}: ${check.detail}`
+            )
+            .join('\n')
+        : '- 暂无全局预检结果';
+    const dependencySection =
+      dependencyChecks.length > 0
+        ? dependencyChecks
+            .map(
+              (check) =>
+                `- ${getDependencyTitle(check)}: ${check.detail}`
+            )
+            .join('\n')
+        : '- 暂无依赖诊断结果';
+    const taskSection =
+      (preflight?.tasks ?? []).length > 0
+        ? (preflight?.tasks ?? [])
+            .map((task) => {
+              const taskLines =
+                task.checks.length > 0
+                  ? task.checks
+                      .map(
+                        (check) =>
+                          `  - [${getCheckLevelLabel(check.level)}] ${check.label}: ${check.detail}`
+                      )
+                      .join('\n')
+                  : '  - 暂无细分检查';
+
+              return [
+                `### ${getTaskMeta(task.id).title}`,
+                `- 状态：${getTaskStatusLabel(task.status)}`,
+                `- 摘要：${task.summary}`,
+                taskLines
+              ].join('\n');
+            })
+            .join('\n\n')
+        : '### 暂无任务预检结果\n- 当前还没有生成任务级诊断';
+    const timelineSection =
+      environmentTimeline.length > 0
+        ? environmentTimeline
+            .map(
+              (entry, index) =>
+                `${index + 1}. ${entry.title} (${formatCompactDateTime(entry.time)})\n   ${entry.detail}\n   ${entry.meta}`
+            )
+            .join('\n')
+        : '1. 还没有环境事件记录';
+    const latestLogSection = environmentLog
+      ? [
+          `- 日志路径：${environmentLog.path}`,
+          parsedEnvironmentLog?.headline
+            ? `- 结果摘要：${parsedEnvironmentLog.headline}`
+            : '- 结果摘要：暂无摘要',
+          parsedEnvironmentLog?.guidance
+            ? `- 处理建议：${parsedEnvironmentLog.guidance}`
+            : '- 处理建议：请查看原始日志'
+        ].join('\n')
+      : '- 暂无环境修复日志';
+
+    return [
+      '# 暗黑2桌宠 环境诊断报告',
+      `生成时间：${formatCompactDateTime(generatedAt)}`,
+      '',
+      '## 当前结论',
+      `- 诊断：${environmentDiagnosis.title}`,
+      `- 状态：${getDiagnosisToneLabel(environmentDiagnosis.tone)}`,
+      `- 说明：${environmentDiagnosis.description}`,
+      `- 依赖安装：${installedDependencies}/${dependencyChecks.length || 0}`,
+      `- OCR：${ocrReady ? '已就绪' : '待补齐'}`,
+      `- Runtime 目录：${runeTask.workingDirectory}`,
+      '',
+      '## 全局预检',
+      globalSection,
+      '',
+      '## 依赖矩阵',
+      dependencySection,
+      '',
+      '## 任务状态',
+      taskSection,
+      '',
+      '## 最近环境时间线',
+      timelineSection,
+      '',
+      '## 最近一次环境日志',
+      latestLogSection
+    ].join('\n');
+  }
+
+  async function copyEnvironmentReport() {
+    await props.onCopyText(buildEnvironmentReport());
+  }
+
+  async function exportEnvironmentReport() {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    await props.onExportText({
+      suggestedName: `environment-diagnostic-${stamp}`,
+      defaultExtension: 'md',
+      content: buildEnvironmentReport()
+    });
   }
 
   function clearGemImage() {
@@ -856,10 +1084,24 @@ export function AutomationPanel(props: AutomationPanelProps) {
   async function runEnvironmentAction(action: EnvironmentAction) {
     try {
       const response = await props.onRunEnvironmentAction({ action });
+      const nextParsedLog = parseAutomationLog(response.log.content);
+      setEnvironmentLog(response.log);
       setViewer({
         title: action === 'install-python-deps' ? '环境修复 / 安装 Python 依赖日志' : '环境修复日志',
         path: response.log.path,
         content: response.log.content
+      });
+      appendEnvironmentTimeline({
+        time: new Date().toISOString(),
+        tone: response.result.success ? 'success' : 'error',
+        title: action === 'install-python-deps' ? '安装 Python 依赖' : '执行环境修复动作',
+        detail: response.result.success
+          ? nextParsedLog?.headline || '环境修复动作已经完成。'
+          : nextParsedLog?.headline || response.result.stderr || '环境修复动作执行失败。',
+        meta:
+          response.result.code !== null
+            ? `退出码 ${response.result.code}`
+            : '日志已写入'
       });
       requestPreflightRefresh();
     } catch {
@@ -1021,13 +1263,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }
 
   function renderEnvironmentStation() {
-    const globalChecks = preflight?.globalChecks ?? [];
-    const dependencyChecks = getDependencyChecks(globalChecks);
-    const installedDependencies = dependencyChecks.filter((check) => check.level === 'ok').length;
-    const diagnosis = buildEnvironmentDiagnosis(globalChecks, runeTask.workingDirectory);
-
+    const diagnosis = environmentDiagnosis;
     return (
-      <article className={`card environment-card environment-card-${diagnosis.tone}`}>
+      <article className={`card environment-card environment-card-${environmentDiagnosis.tone}`}>
         <div className="integration-head">
           <div>
             <div className="card-title">环境修复站</div>
@@ -1091,6 +1329,145 @@ export function AutomationPanel(props: AutomationPanelProps) {
               <p>{check.detail}</p>
             </article>
           ))}
+        </div>
+      </article>
+    );
+  }
+
+  function renderEnvironmentStationModern() {
+    return (
+      <article className={`card environment-card environment-card-${environmentDiagnosis.tone}`}>
+        <div className="integration-head">
+          <div>
+            <div className="card-title">环境修复站</div>
+            <p className="secondary-text">
+              把 Python 解释器、requirements、运行时依赖和 OCR 能力收进一个地方管理。
+            </p>
+          </div>
+          <span className={`status-pill ${environmentDiagnosis.tone}`}>
+            {getDiagnosisToneLabel(environmentDiagnosis.tone)}
+          </span>
+        </div>
+
+        <div className="environment-summary">
+          <strong>{environmentDiagnosis.title}</strong>
+          <p>{environmentDiagnosis.description}</p>
+          <div className="tag-row">
+            <span className="mini-pill">
+              依赖已安装 {installedDependencies}/{dependencyChecks.length || 0}
+            </span>
+            {findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? (
+              <span className="mini-pill">OCR 已就绪</span>
+            ) : (
+              <span className="mini-pill">OCR 待补齐</span>
+            )}
+            {environmentLog?.path ? <span className="mini-pill">最近修复日志已留存</span> : null}
+          </div>
+        </div>
+
+        <div className="diagnosis-actions">
+          {environmentDiagnosis.actions.map((action, index) => (
+            <button
+              className={index === 0 ? 'primary-button' : 'ghost-button'}
+              disabled={
+                props.busyKey !== null ||
+                (action.kind === 'refresh' && preflightBusy) ||
+                (action.kind === 'environment-action' &&
+                  props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction))
+              }
+              key={action.key}
+              onClick={() => void handleQuickFix(runeTask, action)}
+              type="button"
+            >
+              {action.kind === 'refresh' && preflightBusy
+                ? '刷新中...'
+                : action.kind === 'environment-action' &&
+                    props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction)
+                  ? '处理中...'
+                  : action.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="environment-utility-row">
+          <button
+            className="ghost-button"
+            disabled={props.busyKey !== null || !preflight}
+            onClick={() => void copyEnvironmentReport()}
+            type="button"
+          >
+            复制诊断报告
+          </button>
+          <button
+            className="ghost-button"
+            disabled={props.busyKey !== null || !preflight}
+            onClick={() => void exportEnvironmentReport()}
+            type="button"
+          >
+            导出诊断报告
+          </button>
+          {environmentLog?.path ? (
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void props.onOpenPath(environmentLog.path)}
+              type="button"
+            >
+              打开最新修复日志
+            </button>
+          ) : null}
+        </div>
+
+        <div className="environment-detail-grid">
+          <div className="environment-dependency-grid">
+            {dependencyChecks.map((check) => (
+              <article className={`dependency-card ${getCheckToneClass(check.level)}`} key={check.key}>
+                <div className="dependency-card-head">
+                  <strong>{getDependencyTitle(check)}</strong>
+                  <span>{check.level === 'ok' ? '已安装' : '缺失'}</span>
+                </div>
+                <p>{check.detail}</p>
+              </article>
+            ))}
+          </div>
+
+          <article className="report-summary-card environment-timeline-card">
+            <div className="integration-head">
+              <div>
+                <div className="card-title small">修复时间线</div>
+                <p className="secondary-text">记录最近的预检变化和环境修复动作。</p>
+              </div>
+              <span className="mini-pill">{environmentTimeline.length} 条</span>
+            </div>
+
+            {environmentTimeline.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <strong>还没有环境事件</strong>
+                <p>等一次预检快照或环境修复动作完成后，这里就会开始留痕。</p>
+              </div>
+            ) : (
+              <div className="environment-timeline">
+                {environmentTimeline.map((entry) => (
+                  <article className={`timeline-entry ${entry.tone}`} key={entry.id}>
+                    <div className="timeline-entry-head">
+                      <strong>{entry.title}</strong>
+                      <span>{formatCompactDateTime(entry.time)}</span>
+                    </div>
+                    <p>{entry.detail}</p>
+                    <span className="helper-text">{entry.meta}</span>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {parsedEnvironmentLog ? (
+              <div className="environment-log-note">
+                <strong>最近一次修复怎么看</strong>
+                <p>{parsedEnvironmentLog.headline}</p>
+                <span>{parsedEnvironmentLog.guidance}</span>
+              </div>
+            ) : null}
+          </article>
         </div>
       </article>
     );
@@ -1286,7 +1663,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </label>
       </article>
 
-      {renderEnvironmentStation()}
+      {renderEnvironmentStationModern()}
       {renderGlobalChecks()}
 
       <div className="overview-grid">

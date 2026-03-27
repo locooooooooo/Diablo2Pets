@@ -9,6 +9,7 @@ import {
   Notification,
   Tray,
   app,
+  clipboard,
   dialog,
   globalShortcut,
   ipcMain,
@@ -22,6 +23,7 @@ import type {
   AutomationCheckItem,
   AutomationDrafts,
   AutomationLogDocument,
+  CopyTextInput,
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationPreflightStatus,
@@ -2268,6 +2270,10 @@ ipcMain.handle(
     };
   }
 );
+
+ipcMain.handle('clipboard:write-text', async (_event, payload: CopyTextInput) => {
+  clipboard.writeText(payload.text);
+});
 
 ipcMain.handle(
   'report:export-visual',

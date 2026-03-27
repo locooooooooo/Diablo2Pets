@@ -330,13 +330,24 @@ export default function App() {
     try {
       const result = await window.d2Pet.exportTextFile(payload);
       if (!result.canceled && result.path) {
-        setMessage({ kind: 'success', text: `战报已导出到 ${result.path}` });
+        setMessage({ kind: 'success', text: `文件已导出到 ${result.path}` });
       }
       return result;
     } catch (error) {
       const text = getErrorMessage(error);
       setMessage({ kind: 'error', text });
       throw new Error(text);
+    }
+  }
+
+  async function handleCopyText(text: string) {
+    try {
+      await window.d2Pet.copyText({ text });
+      setMessage({ kind: 'success', text: '诊断内容已经复制到剪贴板。' });
+    } catch (error) {
+      const nextText = getErrorMessage(error);
+      setMessage({ kind: 'error', text: nextText });
+      throw new Error(nextText);
     }
   }
 
@@ -532,6 +543,8 @@ export default function App() {
             <AutomationPanel
               busyKey={busyKey}
               initialDrafts={data.automationDrafts}
+              onCopyText={handleCopyText}
+              onExportText={handleExportTextFile}
               integrations={data.integrations}
               onGetPreflight={handleGetAutomationPreflight}
               onGetLog={handleGetAutomationLog}
