@@ -153,7 +153,7 @@ export default function App() {
   }, [workshopFocusId]);
 
   useEffect(() => {
-    if (!data || data.settings.setupGuideCompleted) {
+    if (!data) {
       return;
     }
 
@@ -659,12 +659,16 @@ export default function App() {
                 activeDurationText={activeDurationText}
                 activeRun={data.activeRun}
                 busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+                onOpenSetupGuide={handleOpenSetupGuide}
                 onGoToDrops={() => setActiveTab('drops')}
                 onGoToWorkshop={() => setActiveTab('workshop')}
                 onStartRun={handleStartRun}
                 onStopRun={handleStopRun}
+                preflight={setupPreflight}
+                preflightBusy={setupPreflightBusy}
                 recentDrops={todayDrops}
                 recentRuns={recentRuns}
+                setupGuideCompleted={data.settings.setupGuideCompleted}
                 stats={todayStats}
               />
             </>

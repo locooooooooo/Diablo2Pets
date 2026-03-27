@@ -1197,6 +1197,100 @@ select,
   padding-left: 0;
 }
 
+.companion-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 14px;
+}
+
+.command-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.command-card-success {
+  border-color: rgba(117, 194, 127, 0.22);
+}
+
+.command-card-attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.command-card-error {
+  border-color: rgba(230, 116, 97, 0.26);
+}
+
+.command-card-action {
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.readiness-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 13px;
+  border-radius: 16px;
+  border: 1px solid rgba(217, 164, 88, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02)),
+    rgba(12, 7, 5, 0.28);
+}
+
+.readiness-item.ready {
+  border-color: rgba(117, 194, 127, 0.24);
+}
+
+.readiness-item.pending {
+  border-color: rgba(244, 174, 85, 0.2);
+}
+
+.readiness-item strong {
+  color: #fff2d1;
+}
+
+.readiness-item span,
+.readiness-item p,
+.command-focus p {
+  color: #ceb28b;
+}
+
+.readiness-item p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.command-focus {
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 206, 130, 0.12);
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+    rgba(12, 7, 5, 0.26);
+}
+
+.command-focus strong {
+  display: block;
+  color: #fff2d1;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+}
+
+.command-focus p {
+  margin: 10px 0 0;
+  line-height: 1.65;
+}
+
 .preflight-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2565,6 +2659,7 @@ body {
   }
 
   .companion-hero,
+  .companion-command-grid,
   .insight-grid,
   .overview-grid,
   .report-hero,
@@ -2583,6 +2678,10 @@ body {
   .split-grid,
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .compact-header,
