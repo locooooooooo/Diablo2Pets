@@ -3,6 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { PetCeremony } from '../lib/petCeremony';
 import type {
   PetEvent,
   PetProgression,
@@ -32,6 +33,7 @@ interface PetShellProps {
   rewards: PetRewardTrack;
   room: PetRoom;
   scene: PetScene;
+  ceremony: PetCeremony | null;
   event: PetEvent | null;
   eventBusy: boolean;
   alwaysOnTop: boolean;
@@ -103,6 +105,8 @@ export function PetShell(props: PetShellProps) {
   const interactionClass = props.interactionCue
     ? `interaction-${props.interactionCue.kind}`
     : '';
+  const rewardSpotlightIds = new Set(props.ceremony?.rewardIds ?? []);
+  const roomSpotlightIds = new Set(props.ceremony?.roomIds ?? []);
 
   return (
     <section
@@ -193,6 +197,17 @@ export function PetShell(props: PetShellProps) {
         </button>
       </div>
 
+      {props.ceremony ? (
+        <article className={`pet-ceremony-banner no-drag ceremony-${props.ceremony.kind}`}>
+          <div className="pet-ceremony-head">
+            <span className="pet-ceremony-badge">{props.ceremony.badge}</span>
+            <span className="mini-pill">Lv.{props.ceremony.level}</span>
+          </div>
+          <strong>{props.ceremony.title}</strong>
+          <p>{props.ceremony.detail}</p>
+        </article>
+      ) : null}
+
       <div className="pet-stage-band no-drag">
         <span className="pet-stage-chip strong">{props.scene.label}</span>
         <span className="pet-stage-chip">{props.scene.auraLabel}</span>
@@ -250,7 +265,12 @@ export function PetShell(props: PetShellProps) {
 
         <div className="pet-reward-grid">
           {props.rewards.rewards.map((reward) => (
-            <article className={`pet-reward-item state-${reward.state}`} key={reward.id}>
+            <article
+              className={`pet-reward-item state-${reward.state} ${
+                rewardSpotlightIds.has(reward.id) ? 'is-spotlight' : ''
+              }`}
+              key={reward.id}
+            >
               <span className="pet-room-kicker">Lv.{reward.level}</span>
               <strong>{reward.label}</strong>
               <p>{reward.detail}</p>
@@ -268,7 +288,12 @@ export function PetShell(props: PetShellProps) {
 
         <div className="pet-room-grid">
           {props.room.items.map((item) => (
-            <article className={`pet-room-item state-${item.state}`} key={item.id}>
+            <article
+              className={`pet-room-item state-${item.state} ${
+                roomSpotlightIds.has(item.id) ? 'is-spotlight' : ''
+              }`}
+              key={item.id}
+            >
               <span className="pet-room-kicker">{item.shortLabel}</span>
               <strong>{item.label}</strong>
               <p>{item.detail}</p>

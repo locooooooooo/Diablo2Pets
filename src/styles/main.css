@@ -418,6 +418,79 @@ select,
   line-height: 1.5;
 }
 
+.pet-ceremony-banner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 214, 141, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(255, 183, 92, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(255, 252, 243, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(28, 13, 8, 0.54);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 197, 0.08),
+    0 18px 36px rgba(62, 25, 12, 0.18);
+  animation: ceremony-banner-rise 720ms ease;
+}
+
+.floating-ceremony-banner {
+  padding: 12px;
+}
+
+.pet-ceremony-banner.ceremony-level-up {
+  border-color: rgba(255, 204, 120, 0.28);
+}
+
+.pet-ceremony-banner.ceremony-unlock {
+  border-color: rgba(255, 196, 107, 0.32);
+}
+
+.pet-ceremony-banner.ceremony-mastery {
+  border-color: rgba(255, 213, 147, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 197, 0.1),
+    0 20px 42px rgba(74, 32, 14, 0.24),
+    0 0 34px rgba(255, 176, 70, 0.12);
+}
+
+.pet-ceremony-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pet-ceremony-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 141, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 219, 146, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(73, 32, 16, 0.36);
+  color: #fff1ce;
+  font-size: 12px;
+}
+
+.pet-ceremony-banner strong {
+  color: #fff3d5;
+  font-size: 15px;
+}
+
+.pet-ceremony-banner p {
+  margin: 0;
+  color: #dfc59b;
+  line-height: 1.6;
+}
+
 .pet-event-card {
   position: relative;
   z-index: 1;
@@ -639,6 +712,21 @@ select,
   filter: saturate(0.72);
 }
 
+.pet-reward-item.is-spotlight,
+.pet-room-item.is-spotlight,
+.pet-reward-pill.is-spotlight {
+  animation: unlock-spotlight 1.2s ease 2;
+}
+
+.pet-reward-item.is-spotlight,
+.pet-room-item.is-spotlight {
+  border-color: rgba(255, 204, 120, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(255, 204, 120, 0.12),
+    0 14px 28px rgba(74, 32, 14, 0.2),
+    0 0 28px rgba(255, 176, 70, 0.1);
+}
+
 .pet-reward-mini-grid {
   display: flex;
   gap: 8px;
@@ -671,6 +759,14 @@ select,
 
 .pet-reward-pill.state-locked {
   opacity: 0.58;
+}
+
+.pet-reward-pill.is-spotlight {
+  border-color: rgba(255, 204, 120, 0.34);
+  color: #fff3d4;
+  box-shadow:
+    0 0 0 1px rgba(255, 204, 120, 0.1),
+    0 0 18px rgba(255, 176, 70, 0.12);
 }
 
 .pet-room-copy strong {
@@ -3962,6 +4058,37 @@ body {
     box-shadow:
       0 0 0 1px rgba(255, 205, 132, 0.24),
       0 26px 48px rgba(112, 46, 20, 0.28);
+  }
+}
+
+@keyframes ceremony-banner-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes unlock-spotlight {
+  0%,
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  45% {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+  }
+  70% {
+    transform: translateY(0);
+    filter: brightness(1.02);
   }
 }
 

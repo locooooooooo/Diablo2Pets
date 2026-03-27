@@ -5,6 +5,11 @@ import { DropPanel } from './components/DropPanel';
 import { FloatingPet } from './components/FloatingPet';
 import { PetShell } from './components/PetShell';
 import { SetupGuide } from './components/SetupGuide';
+import {
+  buildPetCeremony,
+  createPetCeremonySnapshot,
+  type PetCeremony
+} from './lib/petCeremony';
 import { formatDuration, getDayKey } from './lib/date';
 import {
   createPetInteractionCue,
@@ -75,6 +80,7 @@ export default function App() {
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
   const [petInteractionCue, setPetInteractionCue] = useState<PetInteractionCue | null>(null);
+  const [petCeremony, setPetCeremony] = useState<PetCeremony | null>(null);
   const [petEvent, setPetEvent] = useState<PetEvent | null>(null);
   const [floatingSnapPreview, setFloatingSnapPreview] = useState<FloatingSnapPreview>({
     visible: false,
@@ -83,6 +89,7 @@ export default function App() {
   const [setupGuideTick, setSetupGuideTick] = useState(0);
   const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
+  const petCeremonySnapshotRef = useRef<ReturnType<typeof createPetCeremonySnapshot> | null>(null);
   const setupGuideInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -192,6 +199,18 @@ export default function App() {
   }, [petEvent]);
 
   useEffect(() => {
+    if (!petCeremony) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetCeremony((current) => (current?.id === petCeremony.id ? null : current));
+    }, 7600);
+
+    return () => window.clearTimeout(timer);
+  }, [petCeremony]);
+
+  useEffect(() => {
     if (!workshopFocusId) {
       return undefined;
     }
@@ -291,6 +310,38 @@ export default function App() {
     () => (petWorldInput ? buildPetRewards(petWorldInput) : null),
     [petWorldInput]
   );
+
+  useEffect(() => {
+    if (!petProgression || !petRewards) {
+      return;
+    }
+
+    const snapshot = createPetCeremonySnapshot(petProgression, petRewards);
+    const previousSnapshot = petCeremonySnapshotRef.current;
+    petCeremonySnapshotRef.current = snapshot;
+
+    if (!previousSnapshot) {
+      return;
+    }
+
+    const nextCeremony = buildPetCeremony(previousSnapshot, petProgression, petRewards);
+    if (!nextCeremony) {
+      return;
+    }
+
+    setPetCeremony(nextCeremony);
+    setPetEvent(null);
+    setPetInteractionCue({
+      id: nextCeremony.id,
+      kind: 'cheer',
+      emotion: nextCeremony.kind === 'level-up' ? 'proud' : 'celebrate',
+      emotionLabel: nextCeremony.badge,
+      headline: nextCeremony.title,
+      statusLine: nextCeremony.detail,
+      scripts: nextCeremony.scripts,
+      durationMs: 5600
+    });
+  }, [petProgression, petRewards]);
 
   useEffect(() => {
     if (
@@ -740,6 +791,7 @@ export default function App() {
           busy={busyKey === 'start-run' || busyKey === 'stop-run'}
           event={petEvent}
           eventBusy={Boolean(busyKey)}
+          ceremony={petCeremony}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           liveDurationText={activeDurationText}
@@ -788,6 +840,7 @@ export default function App() {
           alwaysOnTop={data.settings.alwaysOnTop}
           event={petEvent}
           eventBusy={Boolean(busyKey)}
+          ceremony={petCeremony}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           launchOnStartup={data.settings.launchOnStartup}
