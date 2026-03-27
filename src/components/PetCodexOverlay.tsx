@@ -114,6 +114,31 @@ function buildOverviewCards(
     (entry) => entry.state === 'warming' || entry.state === 'locked'
   );
 
+  if (chapter.id === 'atlas') {
+    return [
+      {
+        label: '总览页签',
+        value: `${visibleEntries.length} 页`,
+        detail: '地图热区、稀有层级和完成度总表都在这里收口'
+      },
+      {
+        label: '点亮状态',
+        value: formatCompletion(chapter.readyCount, totalCount),
+        detail: '总览层会跟随战报、成长和陈列实时刷新'
+      },
+      {
+        label: '信息分组',
+        value: `${visibleGroupCount} 组`,
+        detail: '你可以按总览、地图、稀有和完成度来翻'
+      },
+      {
+        label: '当前焦点',
+        value: latestEntry?.title ?? '待生成',
+        detail: latestEntry ? latestEntry.subtitle : '等第一批数据写入后这里会变得完整'
+      }
+    ];
+  }
+
   if (chapter.id === 'chronicle') {
     return [
       {

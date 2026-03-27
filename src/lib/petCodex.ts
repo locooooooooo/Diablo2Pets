@@ -9,7 +9,7 @@ import type {
 } from './petWorld';
 import type { DropRecord } from '../types';
 
-export type PetCodexChapterId = 'relics' | 'rewards' | 'chamber' | 'chronicle';
+export type PetCodexChapterId = 'atlas' | 'relics' | 'rewards' | 'chamber' | 'chronicle';
 export type PetCodexEntryState = 'glory' | 'ready' | 'warming' | 'locked';
 export type PetCodexRarity = 'ember' | 'trophy' | 'artifact' | 'legend' | 'mythic';
 
@@ -540,6 +540,239 @@ function buildChronicleEntries(drops: DropRecord[]): PetCodexEntry[] {
   });
 }
 
+function countReadyEntries(entries: PetCodexEntry[]): number {
+  return entries.filter((entry) => entry.state === 'glory' || entry.state === 'ready').length;
+}
+
+function buildAtlasEntries(
+  input: PetCodexInput,
+  relicEntries: PetCodexEntry[],
+  rewardEntries: PetCodexEntry[],
+  chamberEntries: PetCodexEntry[],
+  chronicleEntries: PetCodexEntry[]
+): PetCodexEntry[] {
+  const archiveEntries = [
+    ...relicEntries,
+    ...rewardEntries,
+    ...chamberEntries,
+    ...chronicleEntries
+  ];
+  const readyCount = countReadyEntries(archiveEntries);
+  const totalCount = archiveEntries.length;
+  const completionPercent =
+    totalCount > 0 ? Math.round((readyCount / totalCount) * 100) : 0;
+  const rareEntries = archiveEntries.filter(
+    (entry) => entry.rarity === 'mythic' || entry.rarity === 'legend'
+  );
+  const mapCounts = new Map<string, number>();
+
+  input.drops.forEach((drop) => {
+    const key = drop.mapName.trim();
+    if (!key) {
+      return;
+    }
+
+    mapCounts.set(key, (mapCounts.get(key) ?? 0) + 1);
+  });
+
+  const topMaps = Array.from(mapCounts.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4);
+  const uniqueMapCount = mapCounts.size;
+  const rarityBands: Array<{ label: string; count: number }> = [
+    {
+      label: '神话',
+      count: archiveEntries.filter((entry) => entry.rarity === 'mythic').length
+    },
+    {
+      label: '传奇',
+      count: archiveEntries.filter((entry) => entry.rarity === 'legend').length
+    },
+    {
+      label: '珍品',
+      count: archiveEntries.filter((entry) => entry.rarity === 'artifact').length
+    },
+    {
+      label: '战果',
+      count: archiveEntries.filter((entry) => entry.rarity === 'trophy').length
+    },
+    {
+      label: '基石',
+      count: archiveEntries.filter((entry) => entry.rarity === 'ember').length
+    }
+  ];
+  const chapterBoards = [
+    {
+      label: '收藏墙',
+      ready: countReadyEntries(relicEntries),
+      total: relicEntries.length
+    },
+    {
+      label: '成长轨',
+      ready: countReadyEntries(rewardEntries),
+      total: rewardEntries.length
+    },
+    {
+      label: '房间陈列',
+      ready: countReadyEntries(chamberEntries),
+      total: chamberEntries.length
+    },
+    {
+      label: '战果编年',
+      ready: countReadyEntries(chronicleEntries),
+      total: chronicleEntries.length
+    }
+  ];
+  const topMapLine =
+    topMaps.length > 0
+      ? topMaps.map(([mapName, count]) => `${mapName} ${count}次`).join(' · ')
+      : '等待第一张地图写入档案馆';
+  const rareLine =
+    rareEntries.length > 0
+      ? `${rareEntries.length} 项高阶条目已经进入收藏序列`
+      : '目前还没有神话或传奇条目进入总览层';
+
+  return [
+    {
+      id: createPetCodexEntryId('atlas', 'overview'),
+      chapterId: 'atlas',
+      title: '档案总览',
+      subtitle: `Lv.${input.progression.level} · ${readyCount}/${totalCount} 已点亮`,
+      detail: '总览页会把收藏墙、成长轨、房间陈列和战果编年压成一页，先看全局，再决定往哪条线继续翻。',
+      meta: `当前总完成度 ${completionPercent}% ，地图覆盖 ${uniqueMapCount} 张，稀有条目 ${rareEntries.length} 项。`,
+      accent: '总览',
+      categoryLabel: '统计总览',
+      groupLabel: '档案总览',
+      state: readyCount > 0 ? 'glory' : 'warming',
+      rarity: rareEntries.length > 0 ? 'legend' : 'artifact',
+      sigil: 'Atlas',
+      storyTitle: '档案馆已经长出可回看的总览层',
+      storyLead: '这张总览会把今日掉落、长期收藏和成长进度压进同一页，让你先看到全局节奏。',
+      chips: [`完成度 ${completionPercent}%`, `地图 ${uniqueMapCount} 张`, `稀有 ${rareEntries.length} 项`],
+      badges: ['总览首页', '档案馆', input.progression.title],
+      facts: [
+        { label: '当前等级', value: `Lv.${input.progression.level}` },
+        { label: '点亮条目', value: `${readyCount}/${totalCount}` },
+        { label: '地图覆盖', value: `${uniqueMapCount} 张` },
+        { label: '稀有条目', value: `${rareEntries.length} 项` }
+      ],
+      searchableText: buildSearchableText([
+        '档案总览',
+        '统计总览',
+        input.progression.title,
+        `lv${input.progression.level}`,
+        topMapLine,
+        rareLine
+      ]),
+      illustration: buildIllustration('AT', 'Codex Atlas', [
+        `Lv.${input.progression.level}`,
+        `${completionPercent}%`,
+        `${uniqueMapCount} Maps`
+      ])
+    },
+    {
+      id: createPetCodexEntryId('atlas', 'maps'),
+      chapterId: 'atlas',
+      title: '地图热区',
+      subtitle: uniqueMapCount > 0 ? `覆盖 ${uniqueMapCount} 张地图` : '等待地图样本写入',
+      detail: topMapLine,
+      meta:
+        uniqueMapCount > 0
+          ? '地图热区会按掉落记录自动滚动更新。'
+          : '先记下第一条掉落后，这里就会开始形成热区榜。',
+      accent: '热区',
+      categoryLabel: '地图分布',
+      groupLabel: '路线图谱',
+      state: uniqueMapCount > 0 ? 'ready' : 'warming',
+      rarity: topMaps.length >= 3 ? 'artifact' : 'trophy',
+      sigil: 'Map',
+      storyTitle: '桌宠已经开始理解你的主刷路线',
+      storyLead: '同一张地图反复出现时，它会被提升到总览层，帮助你识别今天的热区节奏。',
+      chips: topMaps.length > 0 ? topMaps.map(([mapName]) => mapName) : ['等待样本'],
+      badges: ['路线图谱', uniqueMapCount > 0 ? '已形成热区' : '等待首条记录'],
+      facts:
+        topMaps.length > 0
+          ? topMaps.map(([mapName, count], index) => ({
+              label: `热区 ${index + 1}`,
+              value: `${mapName} · ${count}次`
+            }))
+          : [{ label: '当前状态', value: '还没有足够的地图记录' }],
+      searchableText: buildSearchableText([
+        '地图热区',
+        '路线图谱',
+        ...topMaps.map(([mapName]) => mapName)
+      ]),
+      illustration: buildIllustration('MP', 'Route Atlas', [
+        topMaps[0]?.[0] ?? 'No Route',
+        `${uniqueMapCount} Maps`,
+        `${input.drops.length} Drops`
+      ])
+    },
+    {
+      id: createPetCodexEntryId('atlas', 'rarity'),
+      chapterId: 'atlas',
+      title: '稀有层级',
+      subtitle: `神话 ${rarityBands[0].count} · 传奇 ${rarityBands[1].count} · 珍品 ${rarityBands[2].count}`,
+      detail: rarityBands.map((band) => `${band.label} ${band.count} 项`).join(' · '),
+      meta: rareLine,
+      accent: '层级',
+      categoryLabel: '稀有层级',
+      groupLabel: '稀有层级',
+      state: rareEntries.length > 0 ? 'glory' : 'ready',
+      rarity: rareEntries.length > 0 ? 'mythic' : 'artifact',
+      sigil: 'Rare',
+      storyTitle: '稀有度已经不再只是单条高亮',
+      storyLead: '总览层会把神话、传奇、珍品和基础条目拆开看，方便你判断今天的掉落质量。',
+      chips: rarityBands.map((band) => `${band.label} ${band.count}`),
+      badges: ['稀有层级', rareEntries.length > 0 ? '高阶条目已入列' : '等待高阶条目'],
+      facts: rarityBands.map((band) => ({
+        label: band.label,
+        value: `${band.count} 项`
+      })),
+      searchableText: buildSearchableText([
+        '稀有层级',
+        ...rarityBands.map((band) => `${band.label} ${band.count}`)
+      ]),
+      illustration: buildIllustration('RR', 'Rarity Ladder', [
+        `Mythic ${rarityBands[0].count}`,
+        `Legend ${rarityBands[1].count}`,
+        `Artifact ${rarityBands[2].count}`
+      ])
+    },
+    {
+      id: createPetCodexEntryId('atlas', 'completion'),
+      chapterId: 'atlas',
+      title: '完成度总表',
+      subtitle: `${chapterBoards.filter((item) => item.ready === item.total).length}/${chapterBoards.length} 条主线已收口`,
+      detail: chapterBoards.map((item) => `${item.label} ${item.ready}/${item.total}`).join(' · '),
+      meta: '这张总表会告诉你当前更该继续刷、去工坊补联调，还是回房间收陈列。',
+      accent: '总表',
+      categoryLabel: '完成度总表',
+      groupLabel: '完成度总表',
+      state: chapterBoards.every((item) => item.ready === item.total) ? 'glory' : 'ready',
+      rarity: chapterBoards.every((item) => item.ready === item.total) ? 'legend' : 'trophy',
+      sigil: 'Board',
+      storyTitle: '四条主线已经被压成一张完成度总表',
+      storyLead: '当你想快速决定下一步时，总表会比单条详情更快告诉你现在最缺哪一块。',
+      chips: chapterBoards.map((item) => `${item.label} ${item.ready}/${item.total}`),
+      badges: ['完成度总表', `${completionPercent}% 已点亮`],
+      facts: chapterBoards.map((item) => ({
+        label: item.label,
+        value: `${item.ready}/${item.total}`
+      })),
+      searchableText: buildSearchableText([
+        '完成度总表',
+        ...chapterBoards.map((item) => `${item.label} ${item.ready}/${item.total}`)
+      ]),
+      illustration: buildIllustration('BD', 'Completion Board', [
+        chapterBoards[0] ? `${chapterBoards[0].ready}/${chapterBoards[0].total}` : '0/0',
+        chapterBoards[1] ? `${chapterBoards[1].ready}/${chapterBoards[1].total}` : '0/0',
+        `${completionPercent}%`
+      ])
+    }
+  ];
+}
+
 function buildChapter(
   id: PetCodexChapterId,
   label: string,
@@ -562,10 +795,18 @@ export function buildPetCodex(input: PetCodexInput): PetCodex {
   const rewardEntries = buildRewardEntries(input.progression, input.rewards);
   const chamberEntries = buildChamberEntries(input.room);
   const chronicleEntries = buildChronicleEntries(input.drops);
+  const atlasEntries = buildAtlasEntries(
+    input,
+    relicEntries,
+    rewardEntries,
+    chamberEntries,
+    chronicleEntries
+  );
   const highlightedChronicle = chronicleEntries.find((entry) => entry.state === 'glory');
   const highlightedRelic = relicEntries.find((entry) => entry.state === 'glory');
   const activeReward = rewardEntries.find((entry) => entry.state === 'glory');
   const featuredEntryId =
+    atlasEntries[0]?.id ??
     highlightedChronicle?.id ??
     highlightedRelic?.id ??
     activeReward?.id ??
@@ -576,6 +817,13 @@ export function buildPetCodex(input: PetCodexInput): PetCodex {
     createPetCodexEntryId('relics', 'empty');
 
   const chapters = [
+    buildChapter(
+      'atlas',
+      '总览图谱',
+      '档案总览',
+      '先看地图热区、稀有层级和完成度总表，再决定往哪条线继续翻。',
+      atlasEntries
+    ),
     buildChapter(
       'relics',
       '收藏墙',
