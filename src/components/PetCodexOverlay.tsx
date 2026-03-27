@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PetCodex, PetCodexChapter, PetCodexEntry, PetCodexRarity } from '../lib/petCodex';
+import type {
+  PetCodex,
+  PetCodexChapter,
+  PetCodexEntry,
+  PetCodexRarity,
+  PetCodexVisualBlock,
+  PetCodexVisualItem,
+  PetCodexVisualTone
+} from '../lib/petCodex';
 import { playPetChime } from '../lib/petSound';
 
 interface PetCodexOverlayProps {
@@ -211,6 +219,52 @@ function buildOverviewCards(
       detail: latestEntry ? `当前焦点：${latestEntry.title}` : '还没有可展示的焦点条目'
     }
   ];
+}
+
+function getVisualToneClass(tone: PetCodexVisualTone | undefined): string {
+  return tone ? `tone-${tone}` : 'tone-gold';
+}
+
+function getVisualToneColor(tone: PetCodexVisualTone | undefined): string {
+  switch (tone) {
+    case 'mythic':
+      return '#b48cff';
+    case 'artifact':
+      return '#7abedc';
+    case 'ember':
+      return '#cf9154';
+    case 'gold':
+    default:
+      return '#f3b05b';
+  }
+}
+
+function getVisualValueText(visual: PetCodexVisualBlock): string {
+  if (typeof visual.value === 'number' && typeof visual.total === 'number') {
+    return `${visual.value}/${visual.total}`;
+  }
+
+  if (typeof visual.value === 'number') {
+    return String(visual.value);
+  }
+
+  return '--';
+}
+
+function getVisualProgress(visual: PetCodexVisualBlock): number {
+  if (typeof visual.value === 'number' && typeof visual.total === 'number' && visual.total > 0) {
+    return Math.max(0, Math.min(1, visual.value / visual.total));
+  }
+
+  return 0;
+}
+
+function getVisualMax(items: PetCodexVisualItem[] | undefined, fallback = 0): number {
+  return Math.max(
+    fallback,
+    ...(items?.map((item) => item.value) ?? [0]),
+    1
+  );
 }
 
 export function PetCodexOverlay(props: PetCodexOverlayProps) {
@@ -647,6 +701,118 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               <p>{visibleSelectedEntry.detail}</p>
               <p>{visibleSelectedEntry.meta}</p>
             </div>
+
+            {visibleSelectedEntry.visuals?.length ? (
+              <section className="pet-codex-visuals">
+                {visibleSelectedEntry.visuals.map((visual) => {
+                  const progress = getVisualProgress(visual);
+                  const degrees = Math.round(progress * 360);
+                  const toneClass = getVisualToneClass(visual.tone);
+                  const toneColor = getVisualToneColor(visual.tone);
+                  const maxValue = getVisualMax(visual.items, visual.total ?? 0);
+
+                  return (
+                    <article
+                      className={`pet-codex-visual ${toneClass} kind-${visual.kind}`}
+                      key={`${visibleSelectedEntry.id}-${visual.id}`}
+                    >
+                      <div className="pet-codex-visual-head">
+                        <div>
+                          <strong>{visual.title}</strong>
+                          <p>{visual.subtitle}</p>
+                        </div>
+                        {visual.kind === 'meter' ? (
+                          <span className="mini-pill">{Math.round(progress * 100)}%</span>
+                        ) : null}
+                      </div>
+
+                      {visual.kind === 'meter' ? (
+                        <div className="pet-codex-meter-panel">
+                          <div
+                            className="pet-codex-meter"
+                            style={{
+                              background: `conic-gradient(${toneColor} 0deg ${degrees}deg, rgba(255, 232, 183, 0.08) ${degrees}deg 360deg)`
+                            }}
+                          >
+                            <div className="pet-codex-meter-core">
+                              <strong>{Math.round(progress * 100)}%</strong>
+                              <span>{getVisualValueText(visual)}</span>
+                            </div>
+                          </div>
+
+                          {visual.footnote ? (
+                            <p className="pet-codex-visual-footnote">{visual.footnote}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {visual.kind === 'bars' && visual.items?.length ? (
+                        <div className="pet-codex-bar-list">
+                          {visual.items.map((item) => (
+                            <article
+                              className={`pet-codex-bar-row ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                              key={`${visual.id}-${item.label}`}
+                            >
+                              <div className="pet-codex-bar-copy">
+                                <strong>{item.label}</strong>
+                                <span>{item.detail ?? item.displayValue ?? `${item.value}`}</span>
+                              </div>
+                              <div className="pet-codex-bar-track">
+                                <span
+                                  className="pet-codex-bar-fill"
+                                  style={{ width: `${Math.round((item.value / maxValue) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="pet-codex-bar-value">
+                                {item.displayValue ?? item.value}
+                              </span>
+                            </article>
+                          ))}
+                          {visual.footnote ? (
+                            <p className="pet-codex-visual-footnote">{visual.footnote}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {visual.kind === 'segments' && visual.items?.length ? (
+                        <div className="pet-codex-segment-panel">
+                          <div className="pet-codex-segment-track" aria-hidden="true">
+                            {visual.items.map((item) => {
+                              const total = visual.items?.reduce((sum, current) => sum + current.value, 0) || 1;
+                              const width = item.value > 0 ? Math.max((item.value / total) * 100, 8) : 0;
+                              return (
+                                <span
+                                  className={`pet-codex-segment ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                  key={`${visual.id}-${item.label}`}
+                                  style={{ width: `${width}%` }}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          <div className="pet-codex-segment-grid">
+                            {visual.items.map((item) => (
+                              <article
+                                className={`pet-codex-segment-card ${getVisualToneClass(item.tone ?? visual.tone)}`}
+                                key={`${visual.id}-${item.label}`}
+                              >
+                                <span>{item.label}</span>
+                                <strong>{item.displayValue ?? item.value}</strong>
+                                {item.detail ? <p>{item.detail}</p> : null}
+                              </article>
+                            ))}
+                          </div>
+
+                          {visual.footnote ? (
+                            <p className="pet-codex-visual-footnote">{visual.footnote}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </section>
+            ) : null}
 
             <section className="pet-codex-evidence">
               <div className="pet-codex-evidence-head">

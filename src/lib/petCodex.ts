@@ -30,6 +30,28 @@ export interface PetCodexIllustration {
   orbitLabels: string[];
 }
 
+export type PetCodexVisualTone = 'gold' | 'mythic' | 'artifact' | 'ember';
+
+export interface PetCodexVisualItem {
+  label: string;
+  value: number;
+  displayValue?: string;
+  detail?: string;
+  tone?: PetCodexVisualTone;
+}
+
+export interface PetCodexVisualBlock {
+  id: string;
+  kind: 'meter' | 'bars' | 'segments';
+  title: string;
+  subtitle: string;
+  value?: number;
+  total?: number;
+  items?: PetCodexVisualItem[];
+  tone?: PetCodexVisualTone;
+  footnote?: string;
+}
+
 export interface PetCodexEntry {
   id: string;
   chapterId: PetCodexChapterId;
@@ -56,6 +78,7 @@ export interface PetCodexEntry {
   ocrText?: string;
   ocrEngine?: string;
   screenshotPath?: string;
+  visuals?: PetCodexVisualBlock[];
 }
 
 export interface PetCodexChapter {
@@ -668,7 +691,38 @@ function buildAtlasEntries(
         `Lv.${input.progression.level}`,
         `${completionPercent}%`,
         `${uniqueMapCount} Maps`
-      ])
+      ]),
+      visuals: [
+        {
+          id: 'overview-meter',
+          kind: 'meter',
+          title: '档案点亮率',
+          subtitle: `${readyCount}/${totalCount} 已点亮`,
+          value: readyCount,
+          total: totalCount,
+          tone: rareEntries.length > 0 ? 'gold' : 'artifact',
+          footnote: '总览会把所有长期收藏、成长奖励和战果编年压成一个总体完成度。'
+        },
+        {
+          id: 'overview-boards',
+          kind: 'bars',
+          title: '四条主线',
+          subtitle: '收藏墙、成长轨、房间陈列和战果编年的当前进度',
+          items: chapterBoards.map((item) => ({
+            label: item.label,
+            value: item.ready,
+            displayValue: `${item.ready}/${item.total}`,
+            detail: item.total > 0 ? `${Math.round((item.ready / item.total) * 100)}%` : '0%',
+            tone:
+              item.ready === item.total
+                ? 'gold'
+                : item.ready > 0
+                  ? 'artifact'
+                  : 'ember'
+          })),
+          footnote: '先看哪一条主线拖后腿，再决定继续刷、补联调还是回房间收陈列。'
+        }
+      ]
     },
     {
       id: createPetCodexEntryId('atlas', 'maps'),
@@ -706,7 +760,37 @@ function buildAtlasEntries(
         topMaps[0]?.[0] ?? 'No Route',
         `${uniqueMapCount} Maps`,
         `${input.drops.length} Drops`
-      ])
+      ]),
+      visuals: [
+        {
+          id: 'map-hotspots',
+          kind: 'bars',
+          title: '热区排行',
+          subtitle: uniqueMapCount > 0 ? '按掉落记录排序的当前热点地图' : '等待地图数据写入',
+          items:
+            topMaps.length > 0
+              ? topMaps.map(([mapName, count], index) => ({
+                  label: mapName,
+                  value: count,
+                  displayValue: `${count}次`,
+                  detail: index === 0 ? '当前最热路线' : `热区 ${index + 1}`,
+                  tone: index === 0 ? 'gold' : index === 1 ? 'artifact' : 'ember'
+                }))
+              : [
+                  {
+                    label: '暂无热区',
+                    value: 0,
+                    displayValue: '0次',
+                    detail: '写入第一条掉落后这里会开始形成地图脉络',
+                    tone: 'ember'
+                  }
+                ],
+          footnote:
+            uniqueMapCount > 0
+              ? `当前已经覆盖 ${uniqueMapCount} 张地图。`
+              : '还没有足够的样本形成地图热区。'
+        }
+      ]
     },
     {
       id: createPetCodexEntryId('atlas', 'rarity'),
@@ -737,7 +821,30 @@ function buildAtlasEntries(
         `Mythic ${rarityBands[0].count}`,
         `Legend ${rarityBands[1].count}`,
         `Artifact ${rarityBands[2].count}`
-      ])
+      ]),
+      visuals: [
+        {
+          id: 'rarity-ladder',
+          kind: 'segments',
+          title: '稀有分层',
+          subtitle: '按稀有度拆看当前档案馆的条目结构',
+          items: rarityBands.map((band, index) => ({
+            label: band.label,
+            value: band.count,
+            displayValue: `${band.count} 项`,
+            detail: index === 0 ? '最高阶条目' : index === 1 ? '高价值收藏' : undefined,
+            tone:
+              band.label === '神话'
+                ? 'mythic'
+                : band.label === '传奇'
+                  ? 'gold'
+                  : band.label === '珍品'
+                    ? 'artifact'
+                    : 'ember'
+          })),
+          footnote: '稀有层级越往上，越值得进入收藏墙和专属故事页。'
+        }
+      ]
     },
     {
       id: createPetCodexEntryId('atlas', 'completion'),
@@ -768,7 +875,38 @@ function buildAtlasEntries(
         chapterBoards[0] ? `${chapterBoards[0].ready}/${chapterBoards[0].total}` : '0/0',
         chapterBoards[1] ? `${chapterBoards[1].ready}/${chapterBoards[1].total}` : '0/0',
         `${completionPercent}%`
-      ])
+      ]),
+      visuals: [
+        {
+          id: 'completion-bars',
+          kind: 'bars',
+          title: '主线完成度',
+          subtitle: '四条主线当前的收口情况',
+          items: chapterBoards.map((item) => ({
+            label: item.label,
+            value: item.ready,
+            displayValue: `${item.ready}/${item.total}`,
+            detail: item.ready === item.total ? '已收口' : '仍可继续推进',
+            tone:
+              item.ready === item.total
+                ? 'gold'
+                : item.ready > 0
+                  ? 'artifact'
+                  : 'ember'
+          })),
+          footnote: '这张表更适合用来决定下一步做什么，而不是看单条故事。'
+        },
+        {
+          id: 'completion-meter',
+          kind: 'meter',
+          title: '全局收口率',
+          subtitle: `${completionPercent}% 已点亮`,
+          value: readyCount,
+          total: totalCount,
+          tone: chapterBoards.every((item) => item.ready === item.total) ? 'gold' : 'artifact',
+          footnote: '当全局收口率抬高时，桌宠房间和收藏墙也会越来越完整。'
+        }
+      ]
     }
   ];
 }
