@@ -742,6 +742,20 @@ select,
   gap: 10px;
 }
 
+.report-export-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-export-actions {
+  justify-content: flex-start;
+}
+
+.report-export-actions .ghost-button {
+  flex: 1 1 140px;
+}
+
 .report-summary-card {
   padding: 14px;
   border-radius: 16px;
@@ -1214,6 +1228,79 @@ select,
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.log-summary-grid,
+.log-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.log-section-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.log-stat-card,
+.log-insight-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(217, 164, 88, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 239, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.log-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.log-stat-card span {
+  color: #c7ae83;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.log-stat-card strong {
+  color: #fff1cf;
+  font-size: 18px;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.log-stat-card p,
+.log-insight-card p {
+  margin: 0;
+  color: #c8b08b;
+  line-height: 1.6;
+}
+
+.log-stat-card.success {
+  border-color: rgba(117, 194, 127, 0.22);
+  background:
+    linear-gradient(180deg, rgba(61, 118, 67, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.log-stat-card.error {
+  border-color: rgba(230, 116, 97, 0.28);
+  background:
+    linear-gradient(180deg, rgba(173, 52, 38, 0.18), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.log-stat-card.attention {
+  border-color: rgba(244, 174, 85, 0.22);
+  background:
+    linear-gradient(180deg, rgba(214, 118, 47, 0.14), rgba(255, 255, 255, 0.02)),
+    rgba(18, 10, 9, 0.72);
+}
+
+.compact-code {
+  max-height: none;
+  padding: 12px 14px;
 }
 
 .code-view {
@@ -1995,6 +2082,8 @@ body {
   .report-summary-grid,
   .report-trend-grid,
   .preflight-grid,
+  .log-summary-grid,
+  .log-section-grid,
   .filter-grid,
   .quick-grid,
   .split-grid,

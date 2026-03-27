@@ -142,6 +142,17 @@ export interface AutomationLogDocument {
   content: string;
 }
 
+export interface ExportTextFileInput {
+  suggestedName: string;
+  defaultExtension: 'md' | 'json' | 'txt';
+  content: string;
+}
+
+export interface ExportTextFileResult {
+  canceled: boolean;
+  path?: string;
+}
+
 export interface IntegrationRunResult {
   success: boolean;
   code: number | string | null;

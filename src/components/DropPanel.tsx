@@ -7,6 +7,11 @@ import {
 } from 'react';
 import { formatCompactDateTime } from '../lib/date';
 import {
+  buildDropHotspots,
+  buildDropReportJson,
+  buildDropReportMarkdown
+} from '../lib/dropExports';
+import {
   buildDailyDropSummary,
   buildDailySummaryLine,
   classifyDropRecord,
@@ -16,7 +21,12 @@ import {
   type DropCategory,
   type PreparedDropRecord
 } from '../lib/dropReport';
-import type { DropOcrResult, DropRecord } from '../types';
+import type {
+  DropOcrResult,
+  DropRecord,
+  ExportTextFileInput,
+  ExportTextFileResult
+} from '../types';
 
 interface DropPanelProps {
   drops: DropRecord[];
@@ -32,6 +42,7 @@ interface DropPanelProps {
     ocrEngine?: string;
     ocrItemName?: string;
   }) => Promise<void>;
+  onExportText: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
   onPreviewOcr: (payload: {
     dataUrl: string;
     suggestedName: string;
@@ -55,36 +66,8 @@ function getRecentDayKeys(todayKey: string, count: number): string[] {
   });
 }
 
-function buildMapHotspots(drops: PreparedDropRecord[]) {
-  const mapCounts = new Map<
-    string,
-    { count: number; highlightedCount: number }
-  >();
-
-  for (const drop of drops) {
-    const mapName = drop.mapName.trim() || '未填写场景';
-    const current = mapCounts.get(mapName) ?? { count: 0, highlightedCount: 0 };
-    current.count += 1;
-    if (drop.highlighted) {
-      current.highlightedCount += 1;
-    }
-    mapCounts.set(mapName, current);
-  }
-
-  return Array.from(mapCounts.entries())
-    .map(([mapName, value]) => ({
-      mapName,
-      totalCount: value.count,
-      highlightedCount: value.highlightedCount
-    }))
-    .sort((left, right) => {
-      if (right.highlightedCount !== left.highlightedCount) {
-        return right.highlightedCount - left.highlightedCount;
-      }
-
-      return right.totalCount - left.totalCount;
-    })
-    .slice(0, 3);
+function getMonthKey(dayKey: string): string {
+  return dayKey.slice(0, 7);
 }
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
@@ -130,6 +113,10 @@ export function DropPanel(props: DropPanelProps) {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [mapFilter, setMapFilter] = useState('all');
   const [highlightOnly, setHighlightOnly] = useState(false);
+  const [exportBusyKey, setExportBusyKey] = useState('');
+  const [exportNote, setExportNote] = useState(
+    '周报会导出最近 7 天，月报会导出当前自然月，适合直接归档或发给队友。'
+  );
 
   const preparedDrops = useMemo(() => prepareDropRecords(props.drops), [props.drops]);
   const todayDrops = useMemo(
@@ -137,13 +124,20 @@ export function DropPanel(props: DropPanelProps) {
     [preparedDrops, props.todayKey]
   );
   const weeklyDayKeys = useMemo(() => new Set(getRecentDayKeys(props.todayKey, 7)), [props.todayKey]);
+  const monthKey = useMemo(() => getMonthKey(props.todayKey), [props.todayKey]);
   const weeklyDrops = useMemo(
     () => preparedDrops.filter((drop) => weeklyDayKeys.has(drop.dayKey)),
     [preparedDrops, weeklyDayKeys]
   );
+  const monthlyDrops = useMemo(
+    () => preparedDrops.filter((drop) => drop.dayKey.startsWith(monthKey)),
+    [monthKey, preparedDrops]
+  );
   const dailySummary = useMemo(() => buildDailyDropSummary(todayDrops), [todayDrops]);
   const weeklySummary = useMemo(() => buildDailyDropSummary(weeklyDrops), [weeklyDrops]);
-  const weeklyHotspots = useMemo(() => buildMapHotspots(weeklyDrops), [weeklyDrops]);
+  const monthlySummary = useMemo(() => buildDailyDropSummary(monthlyDrops), [monthlyDrops]);
+  const weeklyHotspots = useMemo(() => buildDropHotspots(weeklyDrops), [weeklyDrops]);
+  const monthlyHotspots = useMemo(() => buildDropHotspots(monthlyDrops), [monthlyDrops]);
   const categoryOptions = useMemo(() => getCategoryOptions(todayDrops), [todayDrops]);
   const mapOptions = useMemo(() => {
     return Array.from(
@@ -342,6 +336,70 @@ export function DropPanel(props: DropPanelProps) {
     }
   }
 
+  async function exportReport(
+    mode: 'weekly-markdown' | 'monthly-markdown' | 'monthly-json'
+  ) {
+    const isWeekly = mode === 'weekly-markdown';
+    const isJson = mode === 'monthly-json';
+    const title = isWeekly ? '暗黑 2 桌宠助手周报' : '暗黑 2 桌宠助手月报';
+    const items = isWeekly ? weeklyDrops : monthlyDrops;
+    const summary = isWeekly ? weeklySummary : monthlySummary;
+    const hotspots = isWeekly ? weeklyHotspots : monthlyHotspots;
+    const weeklyDayRange = getRecentDayKeys(props.todayKey, 7);
+    const periodLabel = isWeekly
+      ? `${weeklyDayRange[weeklyDayRange.length - 1]} 至 ${props.todayKey}`
+      : `${monthKey} 月`;
+
+    setExportBusyKey(mode);
+    setExportNote(
+      isWeekly ? '正在整理最近 7 天的战报...' : '正在整理本月战报，明细会一并带出去。'
+    );
+
+    try {
+      const content = isJson
+        ? buildDropReportJson({
+            title,
+            periodLabel,
+            generatedAt: new Date().toISOString(),
+            items,
+            summary,
+            hotspots
+          })
+        : buildDropReportMarkdown({
+            title,
+            periodLabel,
+            generatedAt: new Date().toISOString(),
+            items,
+            summary,
+            hotspots
+          });
+
+      const result = await props.onExportText({
+        suggestedName: isWeekly
+          ? `d2-weekly-report-${props.todayKey}`
+          : `d2-monthly-report-${monthKey}`,
+        defaultExtension: isJson ? 'json' : 'md',
+        content
+      });
+
+      if (result.canceled) {
+        setExportNote('这次取消了导出，报表内容还在这里，随时可以再导一次。');
+      } else {
+        setExportNote(
+          isWeekly
+            ? '周报已经导出完成，可以直接发给队友或留档。'
+            : isJson
+              ? '本月 JSON 已导出，适合后续统计或二次分析。'
+              : '月报已经导出完成，适合做本月复盘。'
+        );
+      }
+    } catch (error) {
+      setExportNote(`导出失败：${getErrorMessage(error)}`);
+    } finally {
+      setExportBusyKey('');
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -476,6 +534,55 @@ export function DropPanel(props: DropPanelProps) {
                   ))}
                 </div>
               )}
+            </article>
+
+            <article className="report-summary-card report-export-card">
+              <div className="card-title small">本月归档</div>
+              <div className="stack compact">
+                <div className="summary-row compact">
+                  <span>本月掉落</span>
+                  <strong>{monthlySummary.totalCount || 0} 条</strong>
+                </div>
+                <div className="summary-row compact">
+                  <span>本月高亮</span>
+                  <strong>{monthlySummary.highlightedCount || 0} 条</strong>
+                </div>
+                <div className="summary-row compact">
+                  <span>主类目</span>
+                  <strong>
+                    {monthlySummary.topCategory
+                      ? `${getDropCategoryLabel(monthlySummary.topCategory)} ${monthlySummary.topCategoryCount}`
+                      : '尚未形成'}
+                  </strong>
+                </div>
+              </div>
+              <p className="helper-text">{exportNote}</p>
+              <div className="inline-actions report-export-actions">
+                <button
+                  className="ghost-button"
+                  disabled={exportBusyKey !== ''}
+                  onClick={() => void exportReport('weekly-markdown')}
+                  type="button"
+                >
+                  {exportBusyKey === 'weekly-markdown' ? '导出中...' : '导出周报'}
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={exportBusyKey !== ''}
+                  onClick={() => void exportReport('monthly-markdown')}
+                  type="button"
+                >
+                  {exportBusyKey === 'monthly-markdown' ? '导出中...' : '导出月报'}
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={exportBusyKey !== ''}
+                  onClick={() => void exportReport('monthly-json')}
+                  type="button"
+                >
+                  {exportBusyKey === 'monthly-json' ? '导出中...' : '导出 JSON'}
+                </button>
+              </div>
             </article>
           </div>
         </article>

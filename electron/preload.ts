@@ -7,6 +7,8 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  ExportTextFileInput,
+  ExportTextFileResult,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -41,6 +43,8 @@ const api = {
     ipcRenderer.invoke('automation:get-preflight', payload) as Promise<AutomationPreflightResponse>,
   getAutomationLog: (id: IntegrationId) =>
     ipcRenderer.invoke('automation:get-log', id) as Promise<AutomationLogDocument>,
+  exportTextFile: (payload: ExportTextFileInput) =>
+    ipcRenderer.invoke('file:export-text', payload) as Promise<ExportTextFileResult>,
   onDataChanged: (listener: (data: AppData) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: AppData) => {
       listener(data);

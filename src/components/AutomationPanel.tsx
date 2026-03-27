@@ -5,6 +5,7 @@ import {
   type ClipboardEvent as ReactClipboardEvent
 } from 'react';
 import { formatCompactDateTime } from '../lib/date';
+import { parseAutomationLog } from '../lib/automationLog';
 import type {
   AutomationAdminAction,
   AutomationCheckItem,
@@ -207,6 +208,55 @@ function getTaskHint(message?: string): string {
   return '如果这条结果不符合预期，优先看预检和日志。';
 }
 
+function getParsedTaskLabel(task: string): string {
+  if (task === 'rune-cube' || task === 'gem-cube' || task === 'drop-shared-gold') {
+    return getTaskMeta(task).title;
+  }
+
+  return task || '未知任务';
+}
+
+function getActionSummaryLabel(action: string): string {
+  switch (action) {
+    case 'dry-run':
+      return '试运行';
+    case 'execute':
+      return '立即执行';
+    case 'record-profile':
+      return '录 Profile';
+    case 'print-profile':
+      return '看 Profile';
+    case 'import-legacy-config':
+      return '导旧配置';
+    default:
+      return action || '未命名动作';
+  }
+}
+
+function getLogToneClass(success: boolean | null): string {
+  if (success === true) {
+    return 'success';
+  }
+
+  if (success === false) {
+    return 'error';
+  }
+
+  return 'attention';
+}
+
+function getLogResultLabel(success: boolean | null): string {
+  if (success === true) {
+    return '执行成功';
+  }
+
+  if (success === false) {
+    return '执行失败';
+  }
+
+  return '结果未知';
+}
+
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -283,6 +333,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const preflightMap = useMemo(() => {
     return new Map((preflight?.tasks ?? []).map((task) => [task.id, task]));
   }, [preflight]);
+  const parsedViewerLog = useMemo(() => {
+    return viewer ? parseAutomationLog(viewer.content) : null;
+  }, [viewer]);
 
   function updateDraft<Key extends keyof AutomationDrafts>(
     key: Key,
@@ -886,7 +939,103 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </div>
           </div>
 
-          <pre className="code-view">{viewer.content}</pre>
+          {parsedViewerLog ? (
+            <>
+              <div className="log-summary-grid">
+                <article className={`log-stat-card ${getLogToneClass(parsedViewerLog.success)}`}>
+                  <span>结果</span>
+                  <strong>{getLogResultLabel(parsedViewerLog.success)}</strong>
+                  <p>{parsedViewerLog.headline}</p>
+                </article>
+                <article className="log-stat-card">
+                  <span>任务</span>
+                  <strong>{getParsedTaskLabel(parsedViewerLog.task)}</strong>
+                  <p>{getActionSummaryLabel(parsedViewerLog.action)}</p>
+                </article>
+                <article className="log-stat-card">
+                  <span>退出码</span>
+                  <strong>{parsedViewerLog.exitCode || '无'}</strong>
+                  <p>
+                    {parsedViewerLog.time
+                      ? `执行于 ${formatCompactDateTime(parsedViewerLog.time)}`
+                      : '日志里没有时间戳'}
+                  </p>
+                </article>
+              </div>
+
+              <article className="report-summary-card log-insight-card">
+                <div className="card-title small">这次怎么看</div>
+                <p>{parsedViewerLog.guidance}</p>
+                <div className="tag-row">
+                  {parsedViewerLog.command ? (
+                    <span className="mini-pill">命令已记录</span>
+                  ) : null}
+                  {parsedViewerLog.stdoutPreview.length > 0 ? (
+                    <span className="mini-pill">stdout {parsedViewerLog.stdoutPreview.length} 条摘要</span>
+                  ) : null}
+                  {parsedViewerLog.stderrPreview.length > 0 ? (
+                    <span className="mini-pill">stderr {parsedViewerLog.stderrPreview.length} 条摘要</span>
+                  ) : null}
+                </div>
+              </article>
+
+              <div className="log-section-grid">
+                <article className="report-summary-card">
+                  <div className="card-title small">stdout 摘要</div>
+                  {parsedViewerLog.stdoutPreview.length === 0 ? (
+                    <div className="empty-state compact-empty">
+                      <strong>没有关键 stdout</strong>
+                      <p>这次标准输出没有留下有效摘要。</p>
+                    </div>
+                  ) : (
+                    <div className="stack compact">
+                      {parsedViewerLog.stdoutPreview.map((line, index) => (
+                        <div className="highlight-row" key={`${index}-${line}`}>
+                          <strong>{index + 1}. 输出片段</strong>
+                          <span>{line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className="report-summary-card">
+                  <div className="card-title small">stderr 摘要</div>
+                  {parsedViewerLog.stderrPreview.length === 0 ? (
+                    <div className="empty-state compact-empty">
+                      <strong>没有 stderr 提醒</strong>
+                      <p>这次标准错误里没有发现关键报错。</p>
+                    </div>
+                  ) : (
+                    <div className="stack compact">
+                      {parsedViewerLog.stderrPreview.map((line, index) => (
+                        <div className="highlight-row" key={`${index}-${line}`}>
+                          <strong>{index + 1}. 错误片段</strong>
+                          <span>{line}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </div>
+
+              {parsedViewerLog.command ? (
+                <article className="report-summary-card">
+                  <div className="card-title small">执行命令</div>
+                  <pre className="code-view compact-code">{parsedViewerLog.command}</pre>
+                </article>
+              ) : null}
+
+              <details className="tool-details" open>
+                <summary>原始日志</summary>
+                <div className="tool-details-content">
+                  <pre className="code-view">{viewer.content}</pre>
+                </div>
+              </details>
+            </>
+          ) : (
+            <pre className="code-view">{viewer.content}</pre>
+          )}
         </article>
       ) : null}
     </section>

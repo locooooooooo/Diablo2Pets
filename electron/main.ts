@@ -9,6 +9,7 @@ import {
   Notification,
   Tray,
   app,
+  dialog,
   globalShortcut,
   ipcMain,
   nativeImage,
@@ -27,6 +28,8 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  ExportTextFileInput,
+  ExportTextFileResult,
   IntegrationConfig,
   IntegrationId,
   IntegrationRunResult,
@@ -1587,6 +1590,44 @@ ipcMain.handle(
     return {
       path: logPath,
       content: await readFile(logPath, 'utf8')
+    };
+  }
+);
+
+ipcMain.handle(
+  'file:export-text',
+  async (_event, payload: ExportTextFileInput): Promise<ExportTextFileResult> => {
+    const extension = payload.defaultExtension.replace(/^\./, '');
+    const suggestedBase = sanitizeFileName(payload.suggestedName.replace(/\.[^.]+$/, ''));
+    const suggestedFileName = `${suggestedBase}.${extension}`;
+    const saveDialogOptions = {
+      title: '导出战报',
+      defaultPath: join(app.getPath('documents'), suggestedFileName),
+      filters: [
+        {
+          name:
+            extension === 'md'
+              ? 'Markdown 文件'
+              : extension === 'json'
+                ? 'JSON 文件'
+                : '文本文件',
+          extensions: [extension]
+        }
+      ]
+    };
+    const saveResult = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, saveDialogOptions)
+      : await dialog.showSaveDialog(saveDialogOptions);
+
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { canceled: true };
+    }
+
+    await mkdir(dirname(saveResult.filePath), { recursive: true });
+    await writeFile(saveResult.filePath, payload.content, 'utf8');
+    return {
+      canceled: false,
+      path: saveResult.filePath
     };
   }
 );

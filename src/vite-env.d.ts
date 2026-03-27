@@ -8,6 +8,8 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  ExportTextFileInput,
+  ExportTextFileResult,
   IntegrationId,
   IntegrationRunResponse,
   RunAutomationAdminInput,
@@ -36,6 +38,7 @@ declare global {
         payload: AutomationPreflightInput
       ) => Promise<AutomationPreflightResponse>;
       getAutomationLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
+      exportTextFile: (payload: ExportTextFileInput) => Promise<ExportTextFileResult>;
       onDataChanged: (listener: (data: AppData) => void) => () => void;
       saveImage: (payload: SaveImageInput) => Promise<SaveImageResult>;
       openPath: (targetPath: string) => Promise<string>;

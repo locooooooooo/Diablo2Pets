@@ -14,6 +14,8 @@ import type {
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
+  ExportTextFileInput,
+  ExportTextFileResult,
   IntegrationRunResponse,
   RunAutomationAdminInput,
   RunAutomationTaskInput,
@@ -292,6 +294,22 @@ export default function App() {
     }
   }
 
+  async function handleExportTextFile(
+    payload: ExportTextFileInput
+  ): Promise<ExportTextFileResult> {
+    try {
+      const result = await window.d2Pet.exportTextFile(payload);
+      if (!result.canceled && result.path) {
+        setMessage({ kind: 'success', text: `战报已导出到 ${result.path}` });
+      }
+      return result;
+    } catch (error) {
+      const text = getErrorMessage(error);
+      setMessage({ kind: 'error', text });
+      throw new Error(text);
+    }
+  }
+
   async function handleUpdateSettings(patch: Partial<AppData['settings']>) {
     setBusyKey('settings');
     setMessage(null);
@@ -450,6 +468,7 @@ export default function App() {
               busy={busyKey === 'create-drop'}
               drops={data.drops}
               onCreateDrop={handleCreateDrop}
+              onExportText={handleExportTextFile}
               onOpenPath={handleOpenPath}
               onPreviewOcr={handlePreviewDropOcr}
               todayKey={todayKey}
