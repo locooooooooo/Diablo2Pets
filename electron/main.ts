@@ -57,6 +57,14 @@ const __dirname = dirname(__filename);
 const workspaceRoot = resolve(__dirname, '../..');
 const toggleWindowShortcut = 'Alt+Shift+D';
 
+function getBuildAssetPath(...segments: string[]): string {
+  return join(workspaceRoot, 'build', ...segments);
+}
+
+function getWindowIconPath(): string {
+  return getBuildAssetPath(process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+}
+
 function getPythonRuntimeRoot(): string {
   if (app.isPackaged) {
     const unpackedRuntimeRoot = join(
@@ -1138,28 +1146,19 @@ async function ensureFolderAndOpen(targetPath: string): Promise<string> {
 }
 
 function createTrayImage() {
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-      <defs>
-        <radialGradient id="core" cx="35%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#ffe9b2"/>
-          <stop offset="22%" stop-color="#ffb866"/>
-          <stop offset="55%" stop-color="#bf451f"/>
-          <stop offset="100%" stop-color="#2d0805"/>
-        </radialGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="#170a08"/>
-      <circle cx="32" cy="32" r="21" fill="url(#core)"/>
-      <circle cx="32" cy="32" r="26" fill="none" stroke="#f3c575" stroke-width="2.5" opacity="0.9"/>
-      <circle cx="32" cy="32" r="29" fill="none" stroke="#7a2b18" stroke-width="2" opacity="0.7"/>
-      <circle cx="24" cy="28" r="3.3" fill="#fff2c7"/>
-      <circle cx="40" cy="28" r="3.3" fill="#fff2c7"/>
-    </svg>
-  `.trim();
+  const trayIconPath = getBuildAssetPath('tray-icon.png');
+  const trayImage = nativeImage.createFromPath(trayIconPath);
 
-  return nativeImage
-    .createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
-    .resize({ width: 16, height: 16 });
+  if (!trayImage.isEmpty()) {
+    return trayImage.resize({ width: 16, height: 16 });
+  }
+
+  const fallbackImage = nativeImage.createFromPath(getWindowIconPath());
+  if (!fallbackImage.isEmpty()) {
+    return fallbackImage.resize({ width: 16, height: 16 });
+  }
+
+  return nativeImage.createEmpty();
 }
 
 function showMainWindow(): void {
@@ -2160,6 +2159,7 @@ async function createMainWindow(): Promise<void> {
     titleBarStyle: 'hidden',
     titleBarOverlay: false,
     backgroundColor: '#00000000',
+    icon: existsSync(getWindowIconPath()) ? getWindowIconPath() : undefined,
     title: '暗黑 2 桌宠助手',
     alwaysOnTop: data.settings.alwaysOnTop,
     webPreferences: {
