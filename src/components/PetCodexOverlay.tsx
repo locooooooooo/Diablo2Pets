@@ -88,6 +88,106 @@ function groupEntries(entries: PetCodexEntry[]) {
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
+function formatCompletion(readyCount: number, totalCount: number): string {
+  if (totalCount === 0) {
+    return '0%';
+  }
+
+  return `${Math.round((readyCount / totalCount) * 100)}%`;
+}
+
+function buildOverviewCards(
+  chapter: PetCodexChapter,
+  visibleEntries: PetCodexEntry[]
+): Array<{ label: string; value: string; detail: string }> {
+  const totalCount = chapter.entries.length;
+  const rareCount = chapter.entries.filter(
+    (entry) => entry.rarity === 'mythic' || entry.rarity === 'legend'
+  ).length;
+  const gloryCount = chapter.entries.filter((entry) => entry.state === 'glory').length;
+  const visibleGroupCount = new Set(visibleEntries.map((entry) => entry.groupLabel)).size;
+  const uniqueMapCount = new Set(
+    chapter.entries.map((entry) => entry.mapName).filter(Boolean)
+  ).size;
+  const latestEntry = chapter.entries[0];
+  const nextEntry = chapter.entries.find(
+    (entry) => entry.state === 'warming' || entry.state === 'locked'
+  );
+
+  if (chapter.id === 'chronicle') {
+    return [
+      {
+        label: '收录条目',
+        value: `${visibleEntries.length}/${totalCount}`,
+        detail: '当前筛选下可翻看的战果数量'
+      },
+      {
+        label: '稀有战果',
+        value: `${rareCount} 条`,
+        detail: rareCount > 0 ? '神话与传奇掉落会长期留档' : '还在等下一条高亮掉落'
+      },
+      {
+        label: '涉及地图',
+        value: `${uniqueMapCount} 张`,
+        detail: uniqueMapCount > 0 ? '不同场景会被拆成独立证据脉络' : '等第一张地图写入'
+      },
+      {
+        label: '最新波段',
+        value: latestEntry?.groupLabel ?? '待记录',
+        detail: latestEntry ? latestEntry.title : '第一条战利品会从这里开始编年'
+      }
+    ];
+  }
+
+  if (chapter.id === 'rewards') {
+    return [
+      {
+        label: '解锁进度',
+        value: formatCompletion(chapter.readyCount, totalCount),
+        detail: `${chapter.readyCount}/${totalCount} 项奖励已经亮起`
+      },
+      {
+        label: '当前高亮',
+        value: gloryCount > 0 ? `${gloryCount} 项` : '待点亮',
+        detail: gloryCount > 0 ? '本轮成长演出正在聚焦这些奖励' : '等下一个等级节点触发演出'
+      },
+      {
+        label: '分组浏览',
+        value: `${visibleGroupCount} 组`,
+        detail: '按状态拆看已解锁、下一件与未解锁轨道'
+      },
+      {
+        label: '下一里程碑',
+        value: nextEntry?.title ?? '全部解锁',
+        detail: nextEntry ? nextEntry.subtitle : '这条成长轨已经全部点亮'
+      }
+    ];
+  }
+
+  return [
+    {
+      label: '点亮进度',
+      value: formatCompletion(chapter.readyCount, totalCount),
+      detail: `${chapter.readyCount}/${totalCount} 项已经进入可陈列状态`
+    },
+    {
+      label: '高亮陈列',
+      value: gloryCount > 0 ? `${gloryCount} 项` : '待点亮',
+      detail: gloryCount > 0 ? '这些条目正位于当前舞台中心' : '继续陪刷后会点亮新的主陈列'
+    },
+    {
+      label: '稀有条目',
+      value: `${rareCount} 项`,
+      detail: rareCount > 0 ? '神话与传奇条目会被优先展示' : '目前以基础陈列为主'
+    },
+    {
+      label: '分组视图',
+      value: `${visibleGroupCount} 组`,
+      detail: latestEntry ? `当前焦点：${latestEntry.title}` : '还没有可展示的焦点条目'
+    }
+  ];
+}
+
 export function PetCodexOverlay(props: PetCodexOverlayProps) {
   const [searchText, setSearchText] = useState('');
   const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all');
@@ -176,13 +276,17 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     }
 
     props.onSelectEntry(visibleSelectedEntry.id);
-  }, [props, visibleSelectedEntry]);
+  }, [props.onSelectEntry, props.selectedEntryId, visibleSelectedEntry]);
 
   useEffect(() => {
     setImageFailed(false);
   }, [visibleSelectedEntry?.screenshotPath]);
 
   const groupedEntries = useMemo(() => groupEntries(filteredEntries), [filteredEntries]);
+  const overviewCards = useMemo(
+    () => (selected ? buildOverviewCards(selected.chapter, filteredEntries) : []),
+    [filteredEntries, selected]
+  );
 
   const action = useMemo(
     () =>
@@ -333,6 +437,23 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                   <span className="pet-codex-chapter-kicker">{chapter.label}</span>
                   <strong>{chapter.title}</strong>
                   <p>{chapter.summary}</p>
+                  <div className="pet-codex-progress">
+                    <span className="pet-codex-progress-bar" aria-hidden="true">
+                      <span
+                        className="pet-codex-progress-fill"
+                        style={{
+                          width: `${
+                            chapter.entries.length > 0
+                              ? Math.round((chapter.readyCount / chapter.entries.length) * 100)
+                              : 0
+                          }%`
+                        }}
+                      />
+                    </span>
+                    <span className="pet-codex-progress-text">
+                      {chapter.readyCount}/{chapter.entries.length} 已点亮
+                    </span>
+                  </div>
                   <span className="mini-pill">
                     {chapter.readyCount}/{chapter.entries.length} 已亮
                   </span>
@@ -349,6 +470,16 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
               </div>
               <span className="mini-pill">{filteredEntries.length} 条可见</span>
             </div>
+
+            <section className="pet-codex-overview">
+              {overviewCards.map((card) => (
+                <article className="pet-codex-overview-card" key={card.label}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <p>{card.detail}</p>
+                </article>
+              ))}
+            </section>
 
             <div className="pet-codex-toolbar">
               <label className="pet-codex-search">
