@@ -11,6 +11,8 @@ export type PetEventAction =
   | 'start-latest'
   | 'start-default';
 
+export type PetRoomItemState = 'locked' | 'warming' | 'ready' | 'glory';
+
 export interface PetScene {
   id: PetSceneId;
   label: string;
@@ -27,11 +29,88 @@ export interface PetEvent {
   detail: string;
   ctaLabel: string;
   action: PetEventAction;
+  storyLabel?: string;
+}
+
+export interface PetRoomItem {
+  id: string;
+  label: string;
+  shortLabel: string;
+  state: PetRoomItemState;
+  detail: string;
+}
+
+export interface PetRoom {
+  title: string;
+  subtitle: string;
+  items: PetRoomItem[];
 }
 
 export interface PetWorldInput extends PetPersonaInput {
   now: number;
 }
+
+interface RareStory {
+  storyLabel: string;
+  title: string;
+  detail: string;
+  propLabel: string;
+  dropName: string;
+}
+
+interface RareStoryTemplate {
+  storyLabel: string;
+  propLabel: string;
+  keywords: string[];
+  title: (dropName: string) => string;
+  detail: (dropName: string) => string;
+}
+
+const RARE_STORY_TEMPLATES: RareStoryTemplate[] = [
+  {
+    storyLabel: '高阶符文',
+    propLabel: '符文星盘',
+    keywords: ['jah', 'ber', 'sur', 'cham', 'zod', 'lo rune', '贝', '乔', '萨德', '查姆', '罗'],
+    title: (dropName) => `${dropName} 点亮了星盘`,
+    detail: (dropName) =>
+      `${dropName} 这种级别的掉落，会被我写进桌宠房间里的“符文星盘”故事卷轴。`
+  },
+  {
+    storyLabel: '传奇暗金',
+    propLabel: '传奇陈列柜',
+    keywords: [
+      'griffon',
+      '格利风',
+      'death\'s web',
+      '死亡之网',
+      'death fathom',
+      '死亡深度',
+      'tyrael',
+      '泰瑞尔',
+      'coa',
+      '年纪之冠'
+    ],
+    title: (dropName) => `${dropName} 被送进传奇柜`,
+    detail: (dropName) =>
+      `${dropName} 已经不只是普通战果了，它会触发一段专属剧情并长期挂在陈列柜里。`
+  },
+  {
+    storyLabel: '底材奇遇',
+    propLabel: '底材架',
+    keywords: [
+      '统治者大盾',
+      '君主盾',
+      'monarch',
+      'archon plate',
+      '执政官铠甲',
+      '神圣盔甲',
+      'sacred armor'
+    ],
+    title: (dropName) => `${dropName} 被挂上底材架`,
+    detail: (dropName) =>
+      `${dropName} 这种底材会被单独摆进房间一角，提醒你它值得后续处理。`
+  }
+];
 
 function getLatestRunNeedingWrapUp(
   recentRuns: RunRecord[],
@@ -82,20 +161,61 @@ function getWarningTask(preflight: AutomationPreflightResponse | null) {
   return preflight?.tasks.find((task) => task.status === 'warning') ?? null;
 }
 
+function normalizeText(value: string) {
+  return value.toLowerCase().trim();
+}
+
+function findRareStory(dropName: string): RareStory | null {
+  const normalized = normalizeText(dropName);
+  const template = RARE_STORY_TEMPLATES.find((candidate) =>
+    candidate.keywords.some((keyword) => normalized.includes(normalizeText(keyword)))
+  );
+
+  if (!template) {
+    return null;
+  }
+
+  return {
+    storyLabel: template.storyLabel,
+    propLabel: template.propLabel,
+    title: template.title(dropName),
+    detail: template.detail(dropName),
+    dropName
+  };
+}
+
+function getBestRareStory(input: PetWorldInput): RareStory | null {
+  if (input.highlightDropName) {
+    return findRareStory(input.highlightDropName);
+  }
+
+  for (const drop of input.recentDrops) {
+    const match = findRareStory(drop.itemName);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
 export function buildPetScene(input: PetWorldInput): PetScene {
   const hour = new Date(input.now).getHours();
   const ambientPrefix = getAmbientPrefix(hour);
   const blockingTask = getBlockingTask(input.preflight);
   const warningTask = getWarningTask(input.preflight);
+  const rareStory = getBestRareStory(input);
 
   if (input.highlightDropName) {
     return {
       id: 'altar',
-      label: '凯旋祭台',
-      propLabel: '高亮战利品',
-      auraLabel: '庆祝中',
-      ambientLine: `${ambientPrefix}，这条高亮战果正被摆在最醒目的位置。`,
-      detail: '最适合收口、截图、记战报的高光时刻。'
+      label: rareStory ? '传奇陈列室' : '凯旋祭台',
+      propLabel: rareStory?.propLabel ?? '高亮战利品',
+      auraLabel: rareStory ? '剧情触发' : '庆祝中',
+      ambientLine: rareStory
+        ? `${ambientPrefix}，一段只属于 ${rareStory.dropName} 的剧情已经在桌边亮起来了。`
+        : `${ambientPrefix}，这条高亮战果正被摆在最醒目的位置。`,
+      detail: rareStory?.detail ?? '最适合收口、截图、记战报的高光时刻。'
     };
   }
 
@@ -134,6 +254,17 @@ export function buildPetScene(input: PetWorldInput): PetScene {
     };
   }
 
+  if (rareStory) {
+    return {
+      id: 'altar',
+      label: '传奇陈列室',
+      propLabel: rareStory.propLabel,
+      auraLabel: '故事常驻',
+      ambientLine: `${ambientPrefix}，${rareStory.dropName} 还留在桌宠房间的荣誉位上。`,
+      detail: rareStory.detail
+    };
+  }
+
   if (input.todayDropCount > 0) {
     return {
       id: 'ledger',
@@ -166,12 +297,96 @@ export function buildPetScene(input: PetWorldInput): PetScene {
   };
 }
 
+export function buildPetRoom(input: PetWorldInput): PetRoom {
+  const blockingTask = getBlockingTask(input.preflight);
+  const rareStory = getBestRareStory(input);
+  const todayMomentum = input.todayCount > 0;
+  const todayLooted = input.todayDropCount > 0;
+
+  const items: PetRoomItem[] = [
+    {
+      id: 'hearth',
+      label: '营地炉火',
+      shortLabel: '炉火',
+      state: input.setupGuideCompleted ? 'ready' : 'warming',
+      detail: input.setupGuideCompleted
+        ? '首启安家已经完成，桌边的基础氛围稳定点亮了。'
+        : '把环境和引导补齐后，这盏炉火会从微光变成常亮。'
+    },
+    {
+      id: 'route-map',
+      label: '路线挂图',
+      shortLabel: '挂图',
+      state: todayMomentum ? 'ready' : input.setupGuideCompleted ? 'warming' : 'locked',
+      detail: todayMomentum
+        ? '今天的主刷路线已经挂到墙面上，回来时能直接续刷。'
+        : '先开一轮，房间里才会出现今天的路线挂图。'
+    },
+    {
+      id: 'ledger-rack',
+      label: '战果陈列架',
+      shortLabel: '账架',
+      state: todayLooted ? 'ready' : input.todayCount > 0 ? 'warming' : 'locked',
+      detail: todayLooted
+        ? `今天的 ${input.todayDropCount} 条战果已经挂上陈列架了。`
+        : '等第一条掉落出现之后，账架会开始被填满。'
+    },
+    {
+      id: 'cube-plinth',
+      label: '方块底座',
+      shortLabel: '方块',
+      state: blockingTask ? 'warming' : input.setupGuideCompleted ? 'ready' : 'locked',
+      detail: blockingTask
+        ? `${blockingTask.summary}，修好之后工坊底座会完整点亮。`
+        : '工坊联调条件已经基本就绪，方块底座处于可用状态。'
+    },
+    {
+      id: 'trophy',
+      label: rareStory ? rareStory.storyLabel : '凯旋奖杯',
+      shortLabel: rareStory ? '剧情' : '奖杯',
+      state: rareStory
+        ? 'glory'
+        : input.highlightDropName || input.todayDropCount >= 2
+          ? 'ready'
+          : 'locked',
+      detail: rareStory
+        ? `${rareStory.dropName} 已经被收藏进房间的荣耀位。`
+        : input.highlightDropName || input.todayDropCount >= 2
+          ? '今天已经有足够亮眼的战果，奖杯位开始有存在感了。'
+          : '等更亮眼的掉落出现，房间里的荣耀位就会被真正点亮。'
+    }
+  ];
+
+  return {
+    title: rareStory ? '传奇陈列室已点亮' : '桌宠房间正在生长',
+    subtitle: rareStory
+      ? `${rareStory.dropName} 触发了一段专属剧情，它已经成了房间里的常驻收藏。`
+      : input.todayDropCount > 0
+        ? '今天的掉落和路线会慢慢把这间房填满。'
+        : '随着引导、刷图和战报推进，房间里的家具会一件件亮起来。',
+    items
+  };
+}
+
 export function createPetEvent(input: PetWorldInput): PetEvent {
   const blockingTask = getBlockingTask(input.preflight);
   const latestRunNeedingWrapUp = getLatestRunNeedingWrapUp(
     input.recentRuns,
     input.recentDrops
   );
+  const rareStory = getBestRareStory(input);
+
+  if (input.highlightDropName && rareStory) {
+    return {
+      id: Date.now(),
+      tone: 'bright',
+      title: rareStory.title,
+      detail: rareStory.detail,
+      ctaLabel: '去写战报',
+      action: 'open-drops',
+      storyLabel: rareStory.storyLabel
+    };
+  }
 
   if (input.highlightDropName) {
     return {
@@ -182,6 +397,29 @@ export function createPetEvent(input: PetWorldInput): PetEvent {
       ctaLabel: '去记战报',
       action: 'open-drops'
     };
+  }
+
+  if (rareStory) {
+    return pickRandom([
+      {
+        id: Date.now(),
+        tone: 'bright',
+        title: `${rareStory.dropName} 的故事还在发光`,
+        detail: '这类掉落不会马上退场，它会长期停留在桌宠房间的荣耀位上。',
+        ctaLabel: '去看账本',
+        action: 'open-drops',
+        storyLabel: rareStory.storyLabel
+      },
+      {
+        id: Date.now() + 1,
+        tone: 'bright',
+        title: '房间里新增了一件传奇收藏',
+        detail: `${rareStory.dropName} 已经触发专属剧情，你现在回账本会看到它更像一段完整战报。`,
+        ctaLabel: '查看剧情',
+        action: 'open-drops',
+        storyLabel: rareStory.storyLabel
+      }
+    ]);
   }
 
   if (!input.setupGuideCompleted) {
@@ -198,7 +436,7 @@ export function createPetEvent(input: PetWorldInput): PetEvent {
         id: Date.now() + 1,
         tone: 'warm',
         title: '先安家再开刷',
-        detail: '现在补掉 Python、Profile 和悬浮态配置，后面每天上线都能更顺。',
+        detail: '现在补掉 Python、Profile 和悬浮态配置，后面每天上线都会更顺。',
         ctaLabel: '打开引导',
         action: 'open-setup'
       }
@@ -241,7 +479,7 @@ export function createPetEvent(input: PetWorldInput): PetEvent {
         id: Date.now() + 1,
         tone: 'bright',
         title: '海报素材已更新',
-        detail: '账本现在已经有内容感了，再看一眼今天的高亮和场景热区，会很像成品战报。',
+        detail: '账本现在已经有内容感了，再看一眼今天的高亮和热区，会很像成品战报。',
         ctaLabel: '打开账本',
         action: 'open-drops'
       }

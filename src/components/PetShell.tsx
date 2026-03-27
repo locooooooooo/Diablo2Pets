@@ -3,7 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
-import type { PetEvent, PetScene } from '../lib/petWorld';
+import type { PetEvent, PetRoom, PetScene } from '../lib/petWorld';
 import type {
   ActiveRun,
   AutomationPreflightResponse,
@@ -22,6 +22,7 @@ interface PetShellProps {
   highlightDropName: string;
   preflight: AutomationPreflightResponse | null;
   interactionCue: PetInteractionCue | null;
+  room: PetRoom;
   scene: PetScene;
   event: PetEvent | null;
   eventBusy: boolean;
@@ -190,6 +191,24 @@ export function PetShell(props: PetShellProps) {
         <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
       </div>
 
+      <article className="pet-room-card no-drag">
+        <div className="pet-room-copy">
+          <p className="eyebrow">Pet Room</p>
+          <strong>{props.room.title}</strong>
+          <p>{props.room.subtitle}</p>
+        </div>
+
+        <div className="pet-room-grid">
+          {props.room.items.map((item) => (
+            <article className={`pet-room-item state-${item.state}`} key={item.id}>
+              <span className="pet-room-kicker">{item.shortLabel}</span>
+              <strong>{item.label}</strong>
+              <p>{item.detail}</p>
+            </article>
+          ))}
+        </div>
+      </article>
+
       <div className="compact-script-strip no-drag">
         <div className="compact-thought">
           <strong>{persona.headline}</strong>
@@ -210,7 +229,12 @@ export function PetShell(props: PetShellProps) {
       {props.event ? (
         <article className={`pet-event-card event-${props.event.tone} no-drag`}>
           <div className="pet-event-copy">
-            <p className="eyebrow">Random Event</p>
+            <div className="pet-event-head">
+              <p className="eyebrow">Random Event</p>
+              {props.event.storyLabel ? (
+                <span className="mini-pill story-pill">{props.event.storyLabel}</span>
+              ) : null}
+            </div>
             <strong>{props.event.title}</strong>
             <p>{props.event.detail}</p>
           </div>
