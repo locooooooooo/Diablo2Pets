@@ -630,6 +630,10 @@ select,
   color: #e7d5b0;
 }
 
+.summary-row.compact {
+  grid-template-columns: 72px 1fr;
+}
+
 .summary-row span {
   color: #bda57a;
   font-size: 13px;
@@ -732,6 +736,12 @@ select,
   gap: 10px;
 }
 
+.report-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .report-summary-card {
   padding: 14px;
   border-radius: 16px;
@@ -762,6 +772,91 @@ select,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.preflight-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preflight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.check-chip,
+.check-item {
+  border-radius: 16px;
+  border: 1px solid rgba(217, 164, 88, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.28);
+}
+
+.check-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.check-chip strong,
+.check-item strong {
+  color: #fff0ce;
+}
+
+.check-chip span,
+.check-item span,
+.check-item p {
+  color: #c3ab84;
+  line-height: 1.6;
+}
+
+.check-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.check-item p {
+  margin: 0;
+}
+
+.check-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.preflight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.check-ok {
+  border-color: rgba(117, 194, 127, 0.24);
+  background:
+    linear-gradient(180deg, rgba(61, 118, 67, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.28);
+}
+
+.check-warning {
+  border-color: rgba(244, 174, 85, 0.26);
+  background:
+    linear-gradient(180deg, rgba(214, 118, 47, 0.16), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.28);
+}
+
+.check-error {
+  border-color: rgba(230, 116, 97, 0.3);
+  background:
+    linear-gradient(180deg, rgba(173, 52, 38, 0.18), rgba(255, 255, 255, 0.02)),
+    rgba(11, 6, 4, 0.28);
 }
 
 .filter-grid {
@@ -1568,6 +1663,12 @@ body {
   border-color: rgba(255, 133, 84, 0.28);
 }
 
+.status-pill.error {
+  color: #ffd8cf;
+  background: rgba(173, 52, 38, 0.24);
+  border-color: rgba(230, 116, 97, 0.32);
+}
+
 .panel-stack {
   position: relative;
   z-index: 1;
@@ -1892,6 +1993,8 @@ body {
   .overview-grid,
   .report-hero,
   .report-summary-grid,
+  .report-trend-grid,
+  .preflight-grid,
   .filter-grid,
   .quick-grid,
   .split-grid,

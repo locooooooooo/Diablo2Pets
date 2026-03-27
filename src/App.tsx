@@ -9,6 +9,8 @@ import { buildTodayStats } from './lib/stats';
 import type {
   AppData,
   AutomationLogDocument,
+  AutomationPreflightInput,
+  AutomationPreflightResponse,
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
@@ -273,6 +275,12 @@ export default function App() {
     return window.d2Pet.getAutomationLog(id);
   }
 
+  async function handleGetAutomationPreflight(
+    payload: AutomationPreflightInput
+  ): Promise<AutomationPreflightResponse> {
+    return window.d2Pet.getAutomationPreflight(payload);
+  }
+
   async function handleOpenPath(targetPath: string) {
     try {
       const result = await window.d2Pet.openPath(targetPath);
@@ -440,10 +448,11 @@ export default function App() {
           {activeTab === 'drops' ? (
             <DropPanel
               busy={busyKey === 'create-drop'}
-              drops={todayDrops}
+              drops={data.drops}
               onCreateDrop={handleCreateDrop}
               onOpenPath={handleOpenPath}
               onPreviewOcr={handlePreviewDropOcr}
+              todayKey={todayKey}
             />
           ) : null}
 
@@ -452,6 +461,7 @@ export default function App() {
               busyKey={busyKey}
               initialDrafts={data.automationDrafts}
               integrations={data.integrations}
+              onGetPreflight={handleGetAutomationPreflight}
               onGetLog={handleGetAutomationLog}
               onOpenPath={handleOpenPath}
               onRunAdmin={handleRunAutomationAdmin}

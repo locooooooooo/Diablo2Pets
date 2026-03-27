@@ -1,13 +1,18 @@
 import {
   useEffect,
+  useMemo,
   useState,
   type ClipboardEvent as ReactClipboardEvent
 } from 'react';
 import { formatCompactDateTime } from '../lib/date';
 import type {
   AutomationAdminAction,
+  AutomationCheckItem,
   AutomationDrafts,
   AutomationLogDocument,
+  AutomationPreflightInput,
+  AutomationPreflightResponse,
+  AutomationPreflightTask,
   AutomationRunMode,
   GemInputMode,
   IntegrationConfig,
@@ -23,6 +28,7 @@ interface AutomationPanelProps {
   busyKey: string | null;
   onRunTask: (payload: RunAutomationTaskInput) => Promise<IntegrationRunResponse>;
   onRunAdmin: (payload: RunAutomationAdminInput) => Promise<IntegrationRunResponse>;
+  onGetPreflight: (payload: AutomationPreflightInput) => Promise<AutomationPreflightResponse>;
   onGetLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
   onOpenPath: (targetPath: string) => Promise<void>;
 }
@@ -31,13 +37,6 @@ interface ViewerState {
   title: string;
   path?: string;
   content: string;
-}
-
-interface TaskReadiness {
-  tone: 'ready' | 'attention';
-  label: string;
-  summary: string;
-  chips: string[];
 }
 
 function getIntegration(
@@ -57,20 +56,17 @@ function getTaskMeta(id: IntegrationId): { title: string; description: string } 
     case 'rune-cube':
       return {
         title: '自动合成低级符文',
-        description:
-          '读取符文数量后直接生成合成计划，适合先试运行再切回游戏执行。'
+        description: '读取符文数量后生成合成计划，适合先试运行再切回游戏执行。'
       };
     case 'gem-cube':
       return {
         title: '自动合成宝石',
-        description:
-          '支持矩阵输入和截图识别两种方式，适合共享仓库联调。'
+        description: '支持矩阵输入和截图识别两种方式，适合共享仓库联调。'
       };
     case 'drop-shared-gold':
       return {
         title: '共享仓库丢金币',
-        description:
-          '根据总额和角色等级计算分批方案，降低手工重复操作。'
+        description: '根据总额和角色等级计算分批方案，降低手工重复操作。'
       };
   }
 }
@@ -135,95 +131,6 @@ function getProfileNote(item: IntegrationConfig): string {
   return '这条任务线没有独立旧配置，建议直接录新的 profile。';
 }
 
-function getTaskReadiness(
-  id: IntegrationId,
-  drafts: AutomationDrafts,
-  hasGemScreenshot: boolean
-): TaskReadiness {
-  switch (id) {
-    case 'rune-cube': {
-      const counts = drafts.runeCounts
-        .split(/\s+/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-      if (counts.length === 0) {
-        return {
-          tone: 'attention',
-          label: '等待输入',
-          summary: '先填一组符文数量，再决定是试运行还是正式执行。',
-          chips: ['缺少符文数量', `等待 ${drafts.runeWaitSeconds}s`]
-        };
-      }
-
-      return {
-        tone: 'ready',
-        label: '可直接试运行',
-        summary: `已填 ${counts.length} 个槽位，建议先看合成计划再切回游戏。`,
-        chips: [`${counts.length} 个槽位`, `等待 ${drafts.runeWaitSeconds}s`]
-      };
-    }
-    case 'gem-cube': {
-      if (drafts.gemInputMode === 'scan-image') {
-        if (!hasGemScreenshot && !drafts.gemImagePath.trim()) {
-          return {
-            tone: 'attention',
-            label: '等待截图',
-            summary: '切到截图识别后先 Ctrl+V 粘贴，或者填一个现有截图路径。',
-            chips: ['截图识别', `等待 ${drafts.gemWaitSeconds}s`]
-          };
-        }
-
-        return {
-          tone: 'ready',
-          label: '截图已就绪',
-          summary: '可以先跑识别计划，确认后再执行宝石合成。',
-          chips: [
-            hasGemScreenshot ? '剪贴板截图' : '本地截图路径',
-            `等待 ${drafts.gemWaitSeconds}s`
-          ]
-        };
-      }
-
-      if (!drafts.gemMatrix.trim()) {
-        return {
-          tone: 'attention',
-          label: '等待矩阵',
-          summary: '矩阵模式下先填库存分布，再开始试运行。',
-          chips: ['矩阵模式', `等待 ${drafts.gemWaitSeconds}s`]
-        };
-      }
-
-      return {
-        tone: 'ready',
-        label: '矩阵已就绪',
-        summary: '库存矩阵已填，可以直接生成合成计划。',
-        chips: ['矩阵模式', `等待 ${drafts.gemWaitSeconds}s`]
-      };
-    }
-    case 'drop-shared-gold': {
-      const amountReady = /^\d+$/.test(drafts.goldAmount.trim());
-      const levelReady = /^\d+$/.test(drafts.goldLevel.trim());
-
-      if (!amountReady || !levelReady) {
-        return {
-          tone: 'attention',
-          label: '等待参数',
-          summary: '总金额和角色等级都需要是整数，试运行才会生成分批方案。',
-          chips: ['缺少数值参数', `等待 ${drafts.goldWaitSeconds}s`]
-        };
-      }
-
-      return {
-        tone: 'ready',
-        label: '方案可生成',
-        summary: '金额和等级都齐了，先试运行看批次数和风险提示。',
-        chips: [`金额 ${drafts.goldAmount.trim()}`, `等级 ${drafts.goldLevel.trim()}`]
-      };
-    }
-  }
-}
-
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
   const imageItem = Array.from(items).find((item) => item.type.startsWith('image/'));
   const imageFile = imageItem?.getAsFile();
@@ -248,6 +155,58 @@ function getErrorMessage(error: unknown): string {
   return '发生了未知错误。';
 }
 
+function getCheckToneClass(level: AutomationCheckItem['level']): string {
+  switch (level) {
+    case 'ok':
+      return 'check-ok';
+    case 'warning':
+      return 'check-warning';
+    case 'error':
+      return 'check-error';
+  }
+}
+
+function getTaskToneClass(task: AutomationPreflightTask | null): string {
+  switch (task?.status) {
+    case 'ready':
+      return 'success';
+    case 'warning':
+      return 'attention';
+    case 'error':
+      return 'error';
+    default:
+      return 'attention';
+  }
+}
+
+function getTaskHint(message?: string): string {
+  if (!message) {
+    return '先看预检，再决定是试运行还是正式执行。';
+  }
+
+  if (message.includes('未找到')) {
+    return '通常是脚本、profile、旧配置或截图路径不存在，先看预检项里哪一条红了。';
+  }
+
+  if (message.includes('整数')) {
+    return '检查数量、金额、等级这些输入是否都是整数。';
+  }
+
+  if (message.includes('截图')) {
+    return '先粘贴截图，或者把现有截图路径填完整。';
+  }
+
+  if (message.includes('停用')) {
+    return '任务当前被禁用了，先确认任务状态。';
+  }
+
+  if (message.includes('执行失败')) {
+    return '先点“看日志”，再对照预检看是环境问题还是输入问题。';
+  }
+
+  return '如果这条结果不符合预期，优先看预检和日志。';
+}
+
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -256,6 +215,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   );
   const [viewer, setViewer] = useState<ViewerState | null>(null);
   const [logBusyId, setLogBusyId] = useState<IntegrationId | null>(null);
+  const [preflight, setPreflight] = useState<AutomationPreflightResponse | null>(null);
+  const [preflightBusy, setPreflightBusy] = useState(false);
+  const [preflightError, setPreflightError] = useState('');
 
   useEffect(() => {
     setDrafts(props.initialDrafts);
@@ -297,14 +259,30 @@ export function AutomationPanel(props: AutomationPanelProps) {
     return () => window.removeEventListener('paste', handlePaste);
   }, [drafts.gemInputMode]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPreflightBusy(true);
+      setPreflightError('');
+      void props.onGetPreflight({
+        drafts,
+        hasGemClipboardImage: Boolean(gemImageDataUrl)
+      })
+        .then((value) => setPreflight(value))
+        .catch((error) => {
+          setPreflightError(getErrorMessage(error));
+        })
+        .finally(() => setPreflightBusy(false));
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [drafts, gemImageDataUrl]);
+
   const runeTask = getIntegration(props.integrations, 'rune-cube');
   const gemTask = getIntegration(props.integrations, 'gem-cube');
   const goldTask = getIntegration(props.integrations, 'drop-shared-gold');
-  const taskReadiness = {
-    'rune-cube': getTaskReadiness('rune-cube', drafts, false),
-    'gem-cube': getTaskReadiness('gem-cube', drafts, Boolean(gemImageDataUrl)),
-    'drop-shared-gold': getTaskReadiness('drop-shared-gold', drafts, false)
-  } as const;
+  const preflightMap = useMemo(() => {
+    return new Map((preflight?.tasks ?? []).map((task) => [task.id, task]));
+  }, [preflight]);
 
   function updateDraft<Key extends keyof AutomationDrafts>(
     key: Key,
@@ -365,7 +343,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
   async function runTask(id: IntegrationId, mode: AutomationRunMode) {
     try {
-      const taskMeta = getTaskMeta(id);
       const response = await props.onRunTask({
         id,
         mode,
@@ -380,10 +357,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         if (id === 'gem-cube' && gemImageDataUrl) {
           clearGemImage();
         }
-        await openLogViewer(
-          id,
-          `${taskMeta.title} / ${getModeLabel(mode)}日志`
-        );
+        await openLogViewer(id, `${getTaskMeta(id).title} / ${getModeLabel(mode)}日志`);
       }
     } catch {
       return;
@@ -474,33 +448,68 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderGlobalChecks() {
+    return (
+      <article className="card preflight-banner">
+        <div className="integration-head">
+          <div>
+            <div className="card-title">工坊预检</div>
+            <p className="secondary-text">
+              这里会实时检查 Python、runtime、profile 和当前输入条件，先扫雷再执行。
+            </p>
+          </div>
+          <span className="status-pill">{preflightBusy ? '预检更新中' : '实时联调'}</span>
+        </div>
+
+        {preflightError ? (
+          <div className="empty-state compact-empty">
+            <strong>预检暂时失败</strong>
+            <p>{preflightError}</p>
+          </div>
+        ) : (
+          <div className="preflight-grid">
+            {(preflight?.globalChecks ?? []).map((check) => (
+              <div className={`check-chip ${getCheckToneClass(check.level)}`} key={check.key}>
+                <strong>{check.label}</strong>
+                <span>{check.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+    );
+  }
+
   function renderTaskOverviewCard(item: IntegrationConfig) {
-    const readiness = taskReadiness[item.id];
+    const task = preflightMap.get(item.id) ?? null;
+    const topChecks = task?.checks.slice(0, 3) ?? [];
 
     return (
-      <article className={`overview-card overview-card-${readiness.tone}`} key={item.id}>
+      <article className={`overview-card overview-card-${getTaskToneClass(task)}`} key={item.id}>
         <div className="overview-head">
           <div>
             <span className="eyebrow">Task</span>
             <strong>{getTaskMeta(item.id).title}</strong>
           </div>
-          <span
-            className={
-              readiness.tone === 'ready'
-                ? 'status-pill success'
-                : 'status-pill attention'
-            }
-          >
-            {readiness.label}
+          <span className={`status-pill ${getTaskToneClass(task)}`}>
+            {task?.status === 'ready'
+              ? '可以开跑'
+              : task?.status === 'warning'
+                ? '先看提醒'
+                : task?.status === 'error'
+                  ? '先补条件'
+                  : '等待预检'}
           </span>
         </div>
-        <p>{readiness.summary}</p>
+        <p>{task?.summary ?? getTaskMeta(item.id).description}</p>
         <div className="tag-row">
-          {readiness.chips.map((chip) => (
-            <span className="mini-pill" key={chip}>
-              {chip}
-            </span>
-          ))}
+          {topChecks.length > 0
+            ? topChecks.map((check) => (
+                <span className={`mini-pill ${getCheckToneClass(check.level)}`} key={check.key}>
+                  {check.label}
+                </span>
+              ))
+            : <span className="mini-pill">正在准备预检结果</span>}
         </div>
       </article>
     );
@@ -544,6 +553,33 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderTaskChecks(id: IntegrationId) {
+    const task = preflightMap.get(id);
+
+    if (!task) {
+      return (
+        <div className="empty-state compact-empty">
+          <strong>正在等待预检结果</strong>
+          <p>输入变化后会自动刷新，不需要手动点检测。</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="preflight-list">
+        {task.checks.map((check) => (
+          <div className={`check-item ${getCheckToneClass(check.level)}`} key={check.key}>
+            <div className="check-item-head">
+              <strong>{check.label}</strong>
+              <span>{check.level === 'ok' ? '正常' : check.level === 'warning' ? '提醒' : '阻塞'}</span>
+            </div>
+            <p>{check.detail}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderTaskFooter(item: IntegrationConfig) {
     return (
       <>
@@ -551,9 +587,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <span className={`status-dot status-${item.lastStatus ?? 'idle'}`} />
           <span>{getStatusText(item)}</span>
         </div>
-        <p className="secondary-text">
-          {item.lastMessage || '执行结果摘要会显示在这里。'}
-        </p>
+        <p className="secondary-text">{item.lastMessage || '执行结果摘要会显示在这里。'}</p>
+        <p className="helper-text">{getTaskHint(item.lastMessage)}</p>
       </>
     );
   }
@@ -565,7 +600,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <p className="eyebrow">Workshop</p>
           <h3>赫拉迪姆工坊</h3>
         </div>
-        <span className="status-pill">试运行、执行、Profile 和日志同屏闭环</span>
+        <span className="status-pill">预检、执行、维护和日志同屏闭环</span>
       </div>
 
       <article className="card safety-card">
@@ -587,6 +622,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </label>
       </article>
 
+      {renderGlobalChecks()}
+
       <div className="overview-grid">
         {[runeTask, gemTask, goldTask].map((item) => renderTaskOverviewCard(item))}
       </div>
@@ -599,14 +636,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
               <div className="card-title">{getTaskMeta(runeTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(runeTask.id).description}</p>
             </div>
-            <span
-              className={
-                taskReadiness['rune-cube'].tone === 'ready'
-                  ? 'status-pill success'
-                  : 'status-pill attention'
-              }
-            >
-              {taskReadiness['rune-cube'].label}
+            <span className={`status-pill ${getTaskToneClass(preflightMap.get(runeTask.id) ?? null)}`}>
+              {preflightMap.get(runeTask.id)?.status === 'ready'
+                ? '可以开跑'
+                : preflightMap.get(runeTask.id)?.status === 'warning'
+                  ? '先看提醒'
+                  : preflightMap.get(runeTask.id)?.status === 'error'
+                    ? '先补条件'
+                    : '等待预检'}
             </span>
           </div>
 
@@ -617,13 +654,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="task-section">
             <span className="task-section-label">维护</span>
             <div className="task-toolbar secondary">{renderAdminButtons(runeTask)}</div>
-          </div>
-          <div className="tag-row">
-            {taskReadiness['rune-cube'].chips.map((chip) => (
-              <span className="mini-pill" key={chip}>
-                {chip}
-              </span>
-            ))}
           </div>
 
           <label className="field">
@@ -649,6 +679,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">空格分隔即可，执行前会先等几秒让你切回游戏。</p>
+          {renderTaskChecks('rune-cube')}
           {renderAdvancedDetails(runeTask)}
           {renderTaskFooter(runeTask)}
         </article>
@@ -660,14 +691,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
               <div className="card-title">{getTaskMeta(gemTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(gemTask.id).description}</p>
             </div>
-            <span
-              className={
-                taskReadiness['gem-cube'].tone === 'ready'
-                  ? 'status-pill success'
-                  : 'status-pill attention'
-              }
-            >
-              {taskReadiness['gem-cube'].label}
+            <span className={`status-pill ${getTaskToneClass(preflightMap.get(gemTask.id) ?? null)}`}>
+              {preflightMap.get(gemTask.id)?.status === 'ready'
+                ? '可以开跑'
+                : preflightMap.get(gemTask.id)?.status === 'warning'
+                  ? '先看提醒'
+                  : preflightMap.get(gemTask.id)?.status === 'error'
+                    ? '先补条件'
+                    : '等待预检'}
             </span>
           </div>
 
@@ -678,13 +709,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="task-section">
             <span className="task-section-label">维护</span>
             <div className="task-toolbar secondary">{renderAdminButtons(gemTask)}</div>
-          </div>
-          <div className="tag-row">
-            {taskReadiness['gem-cube'].chips.map((chip) => (
-              <span className="mini-pill" key={chip}>
-                {chip}
-              </span>
-            ))}
           </div>
 
           <div className="mode-switch">
@@ -768,6 +792,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">矩阵适合手填库存，截图识别适合直接粘贴共享仓库截图。</p>
+          {renderTaskChecks('gem-cube')}
           {renderAdvancedDetails(gemTask)}
           {renderTaskFooter(gemTask)}
         </article>
@@ -779,14 +804,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
               <div className="card-title">{getTaskMeta(goldTask.id).title}</div>
               <p className="secondary-text">{getTaskMeta(goldTask.id).description}</p>
             </div>
-            <span
-              className={
-                taskReadiness['drop-shared-gold'].tone === 'ready'
-                  ? 'status-pill success'
-                  : 'status-pill attention'
-              }
-            >
-              {taskReadiness['drop-shared-gold'].label}
+            <span className={`status-pill ${getTaskToneClass(preflightMap.get(goldTask.id) ?? null)}`}>
+              {preflightMap.get(goldTask.id)?.status === 'ready'
+                ? '可以开跑'
+                : preflightMap.get(goldTask.id)?.status === 'warning'
+                  ? '先看提醒'
+                  : preflightMap.get(goldTask.id)?.status === 'error'
+                    ? '先补条件'
+                    : '等待预检'}
             </span>
           </div>
 
@@ -797,13 +822,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="task-section">
             <span className="task-section-label">维护</span>
             <div className="task-toolbar secondary">{renderAdminButtons(goldTask)}</div>
-          </div>
-          <div className="tag-row">
-            {taskReadiness['drop-shared-gold'].chips.map((chip) => (
-              <span className="mini-pill" key={chip}>
-                {chip}
-              </span>
-            ))}
           </div>
 
           <div className="task-grid">
@@ -839,6 +857,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           <p className="helper-text">先输入总额和等级，试运行会先给你分批方案。</p>
+          {renderTaskChecks('drop-shared-gold')}
           {renderAdvancedDetails(goldTask)}
           {renderTaskFooter(goldTask)}
         </article>

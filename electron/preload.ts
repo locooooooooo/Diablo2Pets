@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppData,
+  AutomationPreflightInput,
+  AutomationPreflightResponse,
   AutomationLogDocument,
   CreateDropInput,
   DropOcrPreviewInput,
@@ -35,6 +37,8 @@ const api = {
     ipcRenderer.invoke('automation:run-task', payload) as Promise<IntegrationRunResponse>,
   runAutomationAdmin: (payload: RunAutomationAdminInput) =>
     ipcRenderer.invoke('automation:run-admin', payload) as Promise<IntegrationRunResponse>,
+  getAutomationPreflight: (payload: AutomationPreflightInput) =>
+    ipcRenderer.invoke('automation:get-preflight', payload) as Promise<AutomationPreflightResponse>,
   getAutomationLog: (id: IntegrationId) =>
     ipcRenderer.invoke('automation:get-log', id) as Promise<AutomationLogDocument>,
   onDataChanged: (listener: (data: AppData) => void) => {

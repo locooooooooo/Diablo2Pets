@@ -18,8 +18,12 @@ import {
 import type {
   AppData,
   AutomationAdminAction,
+  AutomationCheckItem,
   AutomationDrafts,
   AutomationLogDocument,
+  AutomationPreflightInput,
+  AutomationPreflightResponse,
+  AutomationPreflightStatus,
   CreateDropInput,
   DropOcrPreviewInput,
   DropOcrResult,
@@ -767,6 +771,322 @@ function summarizeActionResult(
   }
 }
 
+function createCheck(
+  key: string,
+  level: AutomationCheckItem['level'],
+  label: string,
+  detail: string
+): AutomationCheckItem {
+  return { key, level, label, detail };
+}
+
+function resolvePreflightStatus(checks: AutomationCheckItem[]): AutomationPreflightStatus {
+  if (checks.some((check) => check.level === 'error')) {
+    return 'error';
+  }
+
+  if (checks.some((check) => check.level === 'warning')) {
+    return 'warning';
+  }
+
+  return 'ready';
+}
+
+function buildPreflightSummary(
+  taskTitle: string,
+  status: AutomationPreflightStatus,
+  checks: AutomationCheckItem[]
+): string {
+  const firstProblem = checks.find((check) => check.level !== 'ok');
+  if (!firstProblem) {
+    return `${taskTitle} 已通过预检，可以先试运行再决定是否正式执行。`;
+  }
+
+  if (status === 'error') {
+    return `${taskTitle} 还有阻塞项：${firstProblem.detail}`;
+  }
+
+  return `${taskTitle} 可以继续，但建议先处理：${firstProblem.detail}`;
+}
+
+function parseNumberDraft(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  return Number(trimmed);
+}
+
+function buildRuneInputChecks(drafts: AutomationDrafts): AutomationCheckItem[] {
+  const tokens = drafts.runeCounts
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return [createCheck('rune-counts', 'error', '符文数量', '还没有填写符文数量。')];
+  }
+
+  if (tokens.some((item) => !/^\d+$/.test(item))) {
+    return [
+      createCheck('rune-counts', 'error', '符文数量', '符文数量里包含了非整数内容。')
+    ];
+  }
+
+  return [
+    createCheck(
+      'rune-counts',
+      tokens.length === 9 ? 'ok' : 'warning',
+      '符文数量',
+      tokens.length === 9
+        ? '已填写 9 个槽位。'
+        : `当前填写了 ${tokens.length} 个槽位，建议按 9 个槽位填写。`
+    ),
+    createCheck(
+      'rune-wait',
+      drafts.runeWaitSeconds <= 10 ? 'ok' : 'warning',
+      '等待秒数',
+      `执行前会等待 ${drafts.runeWaitSeconds} 秒。`
+    )
+  ];
+}
+
+function buildGemInputChecks(
+  drafts: AutomationDrafts,
+  hasGemClipboardImage: boolean
+): AutomationCheckItem[] {
+  const checks: AutomationCheckItem[] = [
+    createCheck(
+      'gem-mode',
+      'ok',
+      '识别模式',
+      drafts.gemInputMode === 'matrix' ? '当前使用矩阵输入。' : '当前使用截图识别。'
+    )
+  ];
+
+  if (drafts.gemInputMode === 'matrix') {
+    const matrix = drafts.gemMatrix.trim();
+    if (!matrix) {
+      checks.push(createCheck('gem-matrix', 'error', '宝石矩阵', '还没有填写宝石矩阵。'));
+    } else {
+      const rows = matrix.split(';').map((item) => item.trim()).filter(Boolean);
+      checks.push(
+        createCheck(
+          'gem-matrix',
+          rows.length > 0 ? 'ok' : 'warning',
+          '宝石矩阵',
+          `已提供 ${rows.length} 行库存矩阵。`
+        )
+      );
+    }
+  } else {
+    const imagePath = drafts.gemImagePath.trim();
+    if (hasGemClipboardImage) {
+      checks.push(
+        createCheck(
+          'gem-screenshot',
+          'ok',
+          '截图来源',
+          '已检测到剪贴板截图，运行前会自动保存到本地。'
+        )
+      );
+    } else if (!imagePath) {
+      checks.push(
+        createCheck(
+          'gem-screenshot',
+          'error',
+          '截图来源',
+          '请先粘贴宝石截图，或填写一个现有截图路径。'
+        )
+      );
+    } else {
+      const resolvedPath = resolveMaybeAbsolutePath(imagePath);
+      checks.push(
+        createCheck(
+          'gem-screenshot',
+          existsSync(resolvedPath) ? 'ok' : 'error',
+          '截图来源',
+          existsSync(resolvedPath)
+            ? `已找到截图：${resolvedPath}`
+            : `未找到截图：${resolvedPath}`
+        )
+      );
+    }
+  }
+
+  checks.push(
+    createCheck(
+      'gem-wait',
+      drafts.gemWaitSeconds <= 10 ? 'ok' : 'warning',
+      '等待秒数',
+      `执行前会等待 ${drafts.gemWaitSeconds} 秒。`
+    )
+  );
+
+  return checks;
+}
+
+function buildGoldInputChecks(drafts: AutomationDrafts): AutomationCheckItem[] {
+  const amount = parseNumberDraft(drafts.goldAmount);
+  const level = parseNumberDraft(drafts.goldLevel);
+
+  return [
+    createCheck(
+      'gold-amount',
+      amount === null ? 'error' : 'ok',
+      '总金额',
+      amount === null ? '总金额必须是整数。' : `当前计划处理 ${drafts.goldAmount.trim()} 金币。`
+    ),
+    createCheck(
+      'gold-level',
+      level === null ? 'error' : level < 75 ? 'warning' : 'ok',
+      '角色等级',
+      level === null
+        ? '角色等级必须是整数。'
+        : level < 75
+          ? `当前等级 ${level}，建议确认角色能承受预期批次。`
+          : `当前等级 ${level}。`
+    ),
+    createCheck(
+      'gold-wait',
+      drafts.goldWaitSeconds <= 10 ? 'ok' : 'warning',
+      '等待秒数',
+      `执行前会等待 ${drafts.goldWaitSeconds} 秒。`
+    )
+  ];
+}
+
+async function buildAutomationPreflight(
+  payload: AutomationPreflightInput
+): Promise<AutomationPreflightResponse> {
+  const data = await readDataStore();
+  const drafts: AutomationDrafts = {
+    ...defaultAutomationDrafts(),
+    ...payload.drafts
+  };
+  const pythonCommand = resolvePythonCommand();
+  const pythonVersion = await executeFileCommand(
+    pythonCommand,
+    ['--version'],
+    pythonRuntimeRoot
+  );
+
+  const globalChecks: AutomationCheckItem[] = [
+    createCheck(
+      'runtime-root',
+      existsSync(pythonRuntimeRoot) ? 'ok' : 'error',
+      'Python Runtime',
+      existsSync(pythonRuntimeRoot)
+        ? `已找到 runtime：${pythonRuntimeRoot}`
+        : `未找到 runtime：${pythonRuntimeRoot}`
+    ),
+    createCheck(
+      'python-command',
+      pythonVersion.success ? 'ok' : 'error',
+      'Python 解释器',
+      pythonVersion.success
+        ? `${pythonCommand} 可用：${(pythonVersion.stdout || pythonVersion.stderr).trim()}`
+        : `无法运行 ${pythonCommand}，请先安装 Python 或补齐打包运行时。`
+    )
+  ];
+
+  const tasks = data.integrations.map((integration) => {
+    const taskChecks: AutomationCheckItem[] = [
+      createCheck(
+        'task-enabled',
+        integration.enabled ? 'ok' : 'error',
+        '任务状态',
+        integration.enabled ? '当前任务已启用。' : '当前任务处于停用状态。'
+      ),
+      createCheck(
+        'script-path',
+        existsSync(getRuntimeScriptPath(integration.id)) ? 'ok' : 'error',
+        '运行脚本',
+        existsSync(getRuntimeScriptPath(integration.id))
+          ? `已找到脚本：${getRuntimeScriptPath(integration.id)}`
+          : `未找到脚本：${getRuntimeScriptPath(integration.id)}`
+      ),
+      createCheck(
+        'profile-path',
+        existsSync(resolveMaybeAbsolutePath(integration.profilePath)) ? 'ok' : 'error',
+        'Profile',
+        existsSync(resolveMaybeAbsolutePath(integration.profilePath))
+          ? `已找到 profile：${resolveMaybeAbsolutePath(integration.profilePath)}`
+          : `未找到 profile：${resolveMaybeAbsolutePath(integration.profilePath)}`
+      )
+    ];
+
+    if (integration.supportsLegacyImport) {
+      const legacyPath = integration.legacyConfigPath?.trim();
+      const resolvedLegacyPath = legacyPath ? resolveMaybeAbsolutePath(legacyPath) : '';
+      taskChecks.push(
+        createCheck(
+          'legacy-config',
+          legacyPath && existsSync(resolvedLegacyPath) ? 'ok' : 'warning',
+          '旧配置',
+          legacyPath && existsSync(resolvedLegacyPath)
+            ? `已找到旧配置：${resolvedLegacyPath}`
+            : '当前没有可直接导入的旧配置文件。'
+        )
+      );
+    }
+
+    if (drafts.allowInactiveWindow) {
+      taskChecks.push(
+        createCheck(
+          'inactive-window',
+          'warning',
+          '窗口焦点',
+          '已允许窗口未置顶时继续点击，请确认不会误点到其他窗口。'
+        )
+      );
+    } else {
+      taskChecks.push(
+        createCheck(
+          'inactive-window',
+          'ok',
+          '窗口焦点',
+          '当前要求游戏窗口处于前台，更适合联调。'
+        )
+      );
+    }
+
+    switch (integration.id) {
+      case 'rune-cube':
+        taskChecks.push(...buildRuneInputChecks(drafts));
+        break;
+      case 'gem-cube':
+        taskChecks.push(...buildGemInputChecks(drafts, payload.hasGemClipboardImage));
+        break;
+      case 'drop-shared-gold':
+        taskChecks.push(...buildGoldInputChecks(drafts));
+        break;
+    }
+
+    const relevantChecks = [
+      ...taskChecks,
+      ...(globalChecks.some((check) => check.level === 'error')
+        ? [createCheck('python-global', 'error', '全局环境', '全局 Python 环境还未通过预检。')]
+        : [])
+    ];
+    const status = resolvePreflightStatus(relevantChecks);
+
+    return {
+      id: integration.id,
+      status,
+      summary: buildPreflightSummary(integration.title, status, relevantChecks),
+      checks: relevantChecks
+    };
+  });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    globalChecks,
+    tasks
+  };
+}
+
 function buildRuntimeArgs(
   integration: IntegrationConfig,
   payload: RunAutomationTaskInput
@@ -1237,6 +1557,13 @@ ipcMain.handle('automation:run-admin', async (_event, payload: RunAutomationAdmi
     result
   };
 });
+
+ipcMain.handle(
+  'automation:get-preflight',
+  async (_event, payload: AutomationPreflightInput): Promise<AutomationPreflightResponse> => {
+    return buildAutomationPreflight(payload);
+  }
+);
 
 ipcMain.handle(
   'automation:get-log',

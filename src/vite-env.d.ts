@@ -2,6 +2,8 @@
 
 import type {
   AppData,
+  AutomationPreflightInput,
+  AutomationPreflightResponse,
   AutomationLogDocument,
   CreateDropInput,
   DropOcrPreviewInput,
@@ -30,6 +32,9 @@ declare global {
       runIntegration: (id: IntegrationId) => Promise<IntegrationRunResponse>;
       runAutomationTask: (payload: RunAutomationTaskInput) => Promise<IntegrationRunResponse>;
       runAutomationAdmin: (payload: RunAutomationAdminInput) => Promise<IntegrationRunResponse>;
+      getAutomationPreflight: (
+        payload: AutomationPreflightInput
+      ) => Promise<AutomationPreflightResponse>;
       getAutomationLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
       onDataChanged: (listener: (data: AppData) => void) => () => void;
       saveImage: (payload: SaveImageInput) => Promise<SaveImageResult>;

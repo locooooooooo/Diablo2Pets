@@ -13,12 +13,14 @@ import {
   getCategoryOptions,
   getDropCategoryLabel,
   prepareDropRecords,
-  type DropCategory
+  type DropCategory,
+  type PreparedDropRecord
 } from '../lib/dropReport';
 import type { DropOcrResult, DropRecord } from '../types';
 
 interface DropPanelProps {
   drops: DropRecord[];
+  todayKey: string;
   busy: boolean;
   onCreateDrop: (payload: {
     itemName: string;
@@ -38,6 +40,52 @@ interface DropPanelProps {
 }
 
 type CategoryFilter = 'all' | DropCategory;
+
+function getRecentDayKeys(todayKey: string, count: number): string[] {
+  const [year, month, day] = todayKey.split('-').map(Number);
+  const baseDate = new Date(year, (month ?? 1) - 1, day ?? 1);
+
+  return Array.from({ length: count }, (_item, index) => {
+    const nextDate = new Date(baseDate);
+    nextDate.setDate(baseDate.getDate() - index);
+    const nextYear = nextDate.getFullYear();
+    const nextMonth = String(nextDate.getMonth() + 1).padStart(2, '0');
+    const nextDay = String(nextDate.getDate()).padStart(2, '0');
+    return `${nextYear}-${nextMonth}-${nextDay}`;
+  });
+}
+
+function buildMapHotspots(drops: PreparedDropRecord[]) {
+  const mapCounts = new Map<
+    string,
+    { count: number; highlightedCount: number }
+  >();
+
+  for (const drop of drops) {
+    const mapName = drop.mapName.trim() || '未填写场景';
+    const current = mapCounts.get(mapName) ?? { count: 0, highlightedCount: 0 };
+    current.count += 1;
+    if (drop.highlighted) {
+      current.highlightedCount += 1;
+    }
+    mapCounts.set(mapName, current);
+  }
+
+  return Array.from(mapCounts.entries())
+    .map(([mapName, value]) => ({
+      mapName,
+      totalCount: value.count,
+      highlightedCount: value.highlightedCount
+    }))
+    .sort((left, right) => {
+      if (right.highlightedCount !== left.highlightedCount) {
+        return right.highlightedCount - left.highlightedCount;
+      }
+
+      return right.totalCount - left.totalCount;
+    })
+    .slice(0, 3);
+}
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
   const imageItem = Array.from(items).find((item) => item.type.startsWith('image/'));
@@ -84,22 +132,33 @@ export function DropPanel(props: DropPanelProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
 
   const preparedDrops = useMemo(() => prepareDropRecords(props.drops), [props.drops]);
-  const dailySummary = useMemo(() => buildDailyDropSummary(preparedDrops), [preparedDrops]);
-  const categoryOptions = useMemo(() => getCategoryOptions(preparedDrops), [preparedDrops]);
+  const todayDrops = useMemo(
+    () => preparedDrops.filter((drop) => drop.dayKey === props.todayKey),
+    [preparedDrops, props.todayKey]
+  );
+  const weeklyDayKeys = useMemo(() => new Set(getRecentDayKeys(props.todayKey, 7)), [props.todayKey]);
+  const weeklyDrops = useMemo(
+    () => preparedDrops.filter((drop) => weeklyDayKeys.has(drop.dayKey)),
+    [preparedDrops, weeklyDayKeys]
+  );
+  const dailySummary = useMemo(() => buildDailyDropSummary(todayDrops), [todayDrops]);
+  const weeklySummary = useMemo(() => buildDailyDropSummary(weeklyDrops), [weeklyDrops]);
+  const weeklyHotspots = useMemo(() => buildMapHotspots(weeklyDrops), [weeklyDrops]);
+  const categoryOptions = useMemo(() => getCategoryOptions(todayDrops), [todayDrops]);
   const mapOptions = useMemo(() => {
     return Array.from(
       new Set(
-        preparedDrops
+        todayDrops
           .map((drop) => drop.mapName.trim())
           .filter((value) => value.length > 0)
       )
     ).sort((left, right) => left.localeCompare(right, 'zh-CN'));
-  }, [preparedDrops]);
+  }, [todayDrops]);
 
   const filteredDrops = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
 
-    return preparedDrops.filter((drop) => {
+    return todayDrops.filter((drop) => {
       const fullText = `${drop.itemName} ${drop.mapName} ${drop.note} ${drop.ocrText ?? ''}`.toLowerCase();
       return (
         (!keyword || fullText.includes(keyword)) &&
@@ -108,7 +167,7 @@ export function DropPanel(props: DropPanelProps) {
         (!highlightOnly || drop.highlighted)
       );
     });
-  }, [categoryFilter, highlightOnly, mapFilter, preparedDrops, searchText]);
+  }, [categoryFilter, highlightOnly, mapFilter, todayDrops, searchText]);
 
   const groupedDrops = useMemo(() => {
     const order: DropCategory[] = [
@@ -374,6 +433,50 @@ export function DropPanel(props: DropPanelProps) {
               最新高亮：
               {dailySummary.highlights[0]?.itemName ?? '等待下一件重点掉落'}
             </span>
+          </div>
+
+          <div className="report-trend-grid">
+            <article className="report-summary-card">
+              <div className="card-title small">近 7 日博览</div>
+              <div className="stack compact">
+                <div className="summary-row compact">
+                  <span>总掉落</span>
+                  <strong>{weeklySummary.totalCount || 0} 条</strong>
+                </div>
+                <div className="summary-row compact">
+                  <span>高亮数</span>
+                  <strong>{weeklySummary.highlightedCount || 0} 条</strong>
+                </div>
+                <div className="summary-row compact">
+                  <span>覆盖场景</span>
+                  <strong>{weeklySummary.mapCount || 0} 个</strong>
+                </div>
+              </div>
+            </article>
+
+            <article className="report-summary-card">
+              <div className="card-title small">场景热区榜</div>
+              {weeklyHotspots.length === 0 ? (
+                <div className="empty-state compact-empty">
+                  <strong>近 7 日还没有场景热区</strong>
+                  <p>继续记录几轮掉落后，这里会显示你最近最热的地图。</p>
+                </div>
+              ) : (
+                <div className="stack compact">
+                  {weeklyHotspots.map((spot, index) => (
+                    <div className="highlight-row" key={spot.mapName}>
+                      <strong>
+                        {index + 1}. {spot.mapName}
+                      </strong>
+                      <span>
+                        {spot.totalCount} 条掉落
+                        {spot.highlightedCount > 0 ? ` · 高亮 ${spot.highlightedCount}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
           </div>
         </article>
 

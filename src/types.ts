@@ -153,3 +153,31 @@ export interface IntegrationRunResponse {
   data: AppData;
   result: IntegrationRunResult;
 }
+
+export type AutomationCheckLevel = 'ok' | 'warning' | 'error';
+export type AutomationPreflightStatus = 'ready' | 'warning' | 'error';
+
+export interface AutomationCheckItem {
+  key: string;
+  level: AutomationCheckLevel;
+  label: string;
+  detail: string;
+}
+
+export interface AutomationPreflightTask {
+  id: IntegrationId;
+  status: AutomationPreflightStatus;
+  summary: string;
+  checks: AutomationCheckItem[];
+}
+
+export interface AutomationPreflightInput {
+  drafts: AutomationDrafts;
+  hasGemClipboardImage: boolean;
+}
+
+export interface AutomationPreflightResponse {
+  generatedAt: string;
+  globalChecks: AutomationCheckItem[];
+  tasks: AutomationPreflightTask[];
+}
