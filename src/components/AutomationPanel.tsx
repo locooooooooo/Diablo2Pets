@@ -45,6 +45,29 @@ function getIntegration(
   return target;
 }
 
+function getTaskMeta(id: IntegrationId): { title: string; description: string } {
+  switch (id) {
+    case 'rune-cube':
+      return {
+        title: '自动合成低级符文',
+        description:
+          '读取符文数量后直接生成合成计划，适合先试运行再切回游戏执行。'
+      };
+    case 'gem-cube':
+      return {
+        title: '自动合成宝石',
+        description:
+          '支持矩阵输入和截图识别两种方式，适合共享仓库联调。'
+      };
+    case 'drop-shared-gold':
+      return {
+        title: '共享仓库丢金币',
+        description:
+          '根据总额和角色等级计算分批方案，降低手工重复操作。'
+      };
+  }
+}
+
 function getBusyKey(id: IntegrationId, mode: AutomationRunMode): string {
   return `task-${id}-${mode}`;
 }
@@ -58,9 +81,7 @@ function getModeLabel(mode: AutomationRunMode): string {
 }
 
 function getStatusText(item: IntegrationConfig): string {
-  return item.lastRunAt
-    ? `上次执行 ${formatCompactDateTime(item.lastRunAt)}`
-    : '尚未执行';
+  return item.lastRunAt ? `上次执行 ${formatCompactDateTime(item.lastRunAt)}` : '尚未执行';
 }
 
 function getInputModeLabel(mode: GemInputMode): string {
@@ -243,6 +264,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
   async function runTask(id: IntegrationId, mode: AutomationRunMode) {
     try {
+      const taskMeta = getTaskMeta(id);
       const response = await props.onRunTask({
         id,
         mode,
@@ -259,7 +281,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         }
         await openLogViewer(
           id,
-          `${getIntegration(props.integrations, id).title} / ${getModeLabel(mode)}日志`
+          `${taskMeta.title} / ${getModeLabel(mode)}日志`
         );
       }
     } catch {
@@ -275,7 +297,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       });
 
       if (response.result.success) {
-        await openLogViewer(item.id, `${item.title} / ${getAdminLabel(action)}日志`);
+        await openLogViewer(item.id, `${getTaskMeta(item.id).title} / ${getAdminLabel(action)}日志`);
       }
     } catch {
       return;
@@ -342,7 +364,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <button
           className="ghost-button"
           disabled={props.busyKey !== null || logBusyId === item.id}
-          onClick={() => void openLogViewer(item.id, `${item.title} / 执行日志`)}
+          onClick={() => void openLogViewer(item.id, `${getTaskMeta(item.id).title} / 执行日志`)}
           type="button"
         >
           {logBusyId === item.id ? '读取日志中...' : '看日志'}
@@ -410,7 +432,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <p className="eyebrow">Workshop</p>
           <h3>赫拉迪姆工坊</h3>
         </div>
-        <span className="status-pill">按钮直出，运行 / 配置 / 日志同屏闭环</span>
+        <span className="status-pill">试运行、执行、Profile 和日志同屏闭环</span>
       </div>
 
       <article className="card safety-card">
@@ -436,8 +458,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
-              <div className="card-title">{runeTask.title}</div>
-              <p className="secondary-text">{runeTask.description}</p>
+              <div className="card-title">{getTaskMeta(runeTask.id).title}</div>
+              <p className="secondary-text">{getTaskMeta(runeTask.id).description}</p>
             </div>
             <span className="status-pill warm">builtin:rune_cubing</span>
           </div>
@@ -475,8 +497,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
-              <div className="card-title">{gemTask.title}</div>
-              <p className="secondary-text">{gemTask.description}</p>
+              <div className="card-title">{getTaskMeta(gemTask.id).title}</div>
+              <p className="secondary-text">{getTaskMeta(gemTask.id).description}</p>
             </div>
             <span className="status-pill warm">builtin:gem_cubing</span>
           </div>
@@ -572,8 +594,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="card workshop-card">
           <div className="workshop-topbar">
             <div>
-              <div className="card-title">{goldTask.title}</div>
-              <p className="secondary-text">{goldTask.description}</p>
+              <div className="card-title">{getTaskMeta(goldTask.id).title}</div>
+              <p className="secondary-text">{getTaskMeta(goldTask.id).description}</p>
             </div>
             <span className="status-pill warm">builtin:gold_drop</span>
           </div>

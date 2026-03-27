@@ -25,42 +25,6 @@ export interface DailyDropSummary {
   categoryCounts: Record<DropCategory, number>;
 }
 
-const allRunes = [
-  'el',
-  'eld',
-  'tir',
-  'nef',
-  'eth',
-  'ith',
-  'tal',
-  'ral',
-  'ort',
-  'thul',
-  'amn',
-  'sol',
-  'shael',
-  'dol',
-  'hel',
-  'io',
-  'lum',
-  'ko',
-  'fal',
-  'lem',
-  'pul',
-  'um',
-  'mal',
-  'ist',
-  'gul',
-  'vex',
-  'ohm',
-  'lo',
-  'sur',
-  'ber',
-  'jah',
-  'cham',
-  'zod'
-];
-
 const highRunes = new Set(['vex', 'ohm', 'lo', 'sur', 'ber', 'jah', 'cham', 'zod']);
 const highlightKeywords = [
   '无形',
@@ -89,7 +53,9 @@ function includesAny(text: string, keywords: string[]): boolean {
 }
 
 function containsWholeRuneWord(text: string): string | null {
-  const match = text.match(/\b(el|eld|tir|nef|eth|ith|tal|ral|ort|thul|amn|sol|shael|dol|hel|io|lum|ko|fal|lem|pul|um|mal|ist|gul|vex|ohm|lo|sur|ber|jah|cham|zod)\b/);
+  const match = text.match(
+    /\b(el|eld|tir|nef|eth|ith|tal|ral|ort|thul|amn|sol|shael|dol|hel|io|lum|ko|fal|lem|pul|um|mal|ist|gul|vex|ohm|lo|sur|ber|jah|cham|zod)\b/
+  );
   return match ? match[1] : null;
 }
 
@@ -114,7 +80,9 @@ export function getDropCategoryLabel(category: DropCategory): string {
   }
 }
 
-export function classifyDropRecord(drop: Pick<DropRecord, 'itemName' | 'note' | 'ocrText'>): DropCategory {
+export function classifyDropRecord(
+  drop: Pick<DropRecord, 'itemName' | 'note' | 'ocrText'>
+): DropCategory {
   const text = normalizeText(`${drop.itemName} ${drop.note} ${drop.ocrText ?? ''}`);
 
   if (!text) {
@@ -161,7 +129,7 @@ export function classifyDropRecord(drop: Pick<DropRecord, 'itemName' | 'note' | 
       'eth',
       'socket',
       '孔',
-      '统御',
+      '统盾',
       '幻化',
       '神圣',
       '权冠',
@@ -175,7 +143,9 @@ export function classifyDropRecord(drop: Pick<DropRecord, 'itemName' | 'note' | 
   return 'equipment';
 }
 
-export function isHighlightedDrop(drop: Pick<DropRecord, 'itemName' | 'note' | 'ocrText'>): boolean {
+export function isHighlightedDrop(
+  drop: Pick<DropRecord, 'itemName' | 'note' | 'ocrText'>
+): boolean {
   const text = normalizeText(`${drop.itemName} ${drop.note} ${drop.ocrText ?? ''}`);
   const runeWord = containsWholeRuneWord(text);
 
@@ -214,9 +184,9 @@ export function buildDailyDropSummary(drops: PreparedDropRecord[]): DailyDropSum
     }
   }
 
-  const sortedCategories = Object.entries(categoryCounts).sort((left, right) => {
-    return right[1] - left[1];
-  }) as Array<[DropCategory, number]>;
+  const sortedCategories = Object.entries(categoryCounts).sort(
+    (left, right) => right[1] - left[1]
+  ) as Array<[DropCategory, number]>;
 
   const [topCategory, topCategoryCount] = sortedCategories[0] ?? [null, 0];
   const highlights = drops.filter((drop) => drop.highlighted).slice(0, 3);
@@ -259,8 +229,4 @@ export function getCategoryOptions(preparedDrops: PreparedDropRecord[]): DropCat
   return order.filter((category) =>
     preparedDrops.some((drop) => drop.category === category)
   );
-}
-
-export function getRuneNames(): string[] {
-  return allRunes;
 }

@@ -1444,6 +1444,23 @@ body {
     rgba(18, 10, 9, 0.72);
 }
 
+.hero-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-banner::after {
+  content: '';
+  position: absolute;
+  right: -26px;
+  top: -32px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(72, 154, 182, 0.18), transparent 70%);
+  pointer-events: none;
+}
+
 .warm-card {
   background:
     radial-gradient(circle at top left, rgba(56, 154, 191, 0.14), transparent 28%),
@@ -1478,6 +1495,31 @@ body {
 .report-group,
 .stack {
   gap: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 219, 157, 0.16);
+  background: rgba(255, 250, 240, 0.03);
+}
+
+.empty-state strong {
+  color: var(--pet-text-0);
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--pet-text-2);
+  line-height: 1.6;
+}
+
+.compact-empty {
+  min-height: 100%;
+  justify-content: center;
 }
 
 .list-card {
@@ -1567,6 +1609,14 @@ body {
 
 .paste-preview {
   border-color: rgba(255, 228, 176, 0.14);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .workshop-topbar,

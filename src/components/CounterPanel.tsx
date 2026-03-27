@@ -18,14 +18,16 @@ interface CounterPanelProps {
 
 function getLatestRunText(recentRuns: RunRecord[]): string {
   if (recentRuns.length === 0) {
-    return '今天还没有完成的刷图记录';
+    return '今天还没有完成的刷图记录。';
   }
 
-  return `${recentRuns[0].mapName} · ${formatDuration(recentRuns[0].durationSeconds)}`;
+  return `${recentRuns[0].mapName} 路 ${formatDuration(recentRuns[0].durationSeconds)}`;
 }
 
 export function CounterPanel(props: CounterPanelProps) {
   const [mapName, setMapName] = useState(props.activeRun?.mapName ?? '混沌避难所');
+  const hasRuns = props.recentRuns.length > 0;
+  const hasDrops = props.recentDrops.length > 0;
 
   useEffect(() => {
     if (props.activeRun) {
@@ -52,19 +54,19 @@ export function CounterPanel(props: CounterPanelProps) {
           <h3>陪刷首页</h3>
         </div>
         {props.activeRun ? (
-          <span className="status-pill warm">正在陪你刷图 · {props.activeDurationText}</span>
+          <span className="status-pill warm">陪刷中 · {props.activeDurationText}</span>
         ) : (
           <span className="status-pill">待命中</span>
         )}
       </div>
 
       <div className="companion-hero">
-        <article className="card hero-card">
+        <article className="card hero-card hero-banner">
           <div className="integration-head">
             <div>
               <div className="card-title">当前狩猎状态</div>
               <p className="secondary-text">
-                桌宠首页优先承接开始、结束、切页和节奏反馈。
+                在这里开始或收口一轮刷图，再把掉落和自动化分流到后续页面。
               </p>
             </div>
             <span className="status-chip">
@@ -78,27 +80,25 @@ export function CounterPanel(props: CounterPanelProps) {
               <input
                 disabled={Boolean(props.activeRun)}
                 onChange={(event) => setMapName(event.target.value)}
-                placeholder="例如：世界之石要塞 / 混沌避难所 / 牛场"
+                placeholder="例如：世界之石、混沌避难所、牛场"
                 value={mapName}
               />
             </label>
 
             <div className="inline-actions">
               <button className="primary-button" disabled={props.busy} type="submit">
-                {props.activeRun ? '完成本次刷图' : '开始记录本次刷图'}
+                {props.busy
+                  ? props.activeRun
+                    ? '正在结算...'
+                    : '正在开始...'
+                  : props.activeRun
+                    ? '完成本次刷图'
+                    : '开始记录本次刷图'}
               </button>
-              <button
-                className="ghost-button"
-                onClick={props.onGoToDrops}
-                type="button"
-              >
+              <button className="ghost-button" onClick={props.onGoToDrops} type="button">
                 去记掉落
               </button>
-              <button
-                className="ghost-button"
-                onClick={props.onGoToWorkshop}
-                type="button"
-              >
+              <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
                 打开工坊
               </button>
             </div>
@@ -107,14 +107,14 @@ export function CounterPanel(props: CounterPanelProps) {
           <div className="summary-list">
             <div className="summary-row">
               <span>桌宠定位</span>
-              <strong>陪刷伙伴优先，记录和自动化退到第二层</strong>
+              <strong>先陪你刷，再替你记，再帮你跑自动化。</strong>
             </div>
             <div className="summary-row">
               <span>当前建议</span>
               <strong>
                 {props.activeRun
-                  ? '刷图结束后在这里一键收口，再去掉落页补战利品'
-                  : '先开始一轮，再让桌宠帮你累计节奏和战果'}
+                  ? '刷完就点结束，然后去战报贴图保存战果。'
+                  : '先开始一轮，让桌宠先把节奏和耗时记起来。'}
               </strong>
             </div>
           </div>
@@ -153,19 +153,19 @@ export function CounterPanel(props: CounterPanelProps) {
       <div className="quick-grid">
         <article className="action-tile">
           <span className="eyebrow">Quick Flow</span>
-          <strong>掉落账本</strong>
-          <p>截图、OCR、备注都在一页完成，适合刷图结束立刻记账。</p>
+          <strong>战利品账本</strong>
+          <p>截图、OCR、备注和保存都在一页完成，适合刷图结束后立刻收口。</p>
           <button className="text-button" onClick={props.onGoToDrops} type="button">
-            现在去记录
+            现在去记一条
           </button>
         </article>
 
         <article className="action-tile">
           <span className="eyebrow">Workshop</span>
           <strong>赫拉迪姆工坊</strong>
-          <p>符文、宝石和金币任务保留完整 profile 和日志闭环。</p>
+          <p>符文、宝石、金币三条任务线集中管理，适合试运行和联调。</p>
           <button className="text-button" onClick={props.onGoToWorkshop} type="button">
-            打开工坊
+            进入工坊
           </button>
         </article>
       </div>
@@ -174,7 +174,10 @@ export function CounterPanel(props: CounterPanelProps) {
         <article className="card">
           <div className="card-title">地图分布</div>
           {props.stats.mapBreakdown.length === 0 ? (
-            <p className="empty-text">今天还没有刷图记录。</p>
+            <div className="empty-state">
+              <strong>今天还没有地图统计</strong>
+              <p>开始第一轮刷图后，这里会显示各个场景的次数和平均耗时。</p>
+            </div>
           ) : (
             <div className="list-card">
               {props.stats.mapBreakdown.map((item) => (
@@ -195,8 +198,11 @@ export function CounterPanel(props: CounterPanelProps) {
 
         <article className="card">
           <div className="card-title">最近刷图</div>
-          {props.recentRuns.length === 0 ? (
-            <p className="empty-text">这里会显示你最近完成的刷图节奏。</p>
+          {!hasRuns ? (
+            <div className="empty-state">
+              <strong>还没有最近刷图数据</strong>
+              <p>完成一次刷图后，这里会显示最近几轮的路线和完成时间。</p>
+            </div>
           ) : (
             <div className="list-card">
               {props.recentRuns.map((run) => (
@@ -216,9 +222,21 @@ export function CounterPanel(props: CounterPanelProps) {
       </div>
 
       <article className="card">
-        <div className="card-title">今日战利品预览</div>
-        {props.recentDrops.length === 0 ? (
-          <p className="empty-text">掉落记录会在这里形成今天的战果预览。</p>
+        <div className="panel-header">
+          <div>
+            <div className="card-title">今日战果预览</div>
+            <p className="secondary-text">最近的掉落会先在这里出现，再决定是否去战报页继续整理。</p>
+          </div>
+          <span className="status-pill">
+            {hasDrops ? `${props.recentDrops.length} 条战果` : '等待第一条掉落'}
+          </span>
+        </div>
+
+        {!hasDrops ? (
+          <div className="empty-state">
+            <strong>战果区还是空的</strong>
+            <p>去战报页贴一张截图，桌宠就能帮你开始记账。</p>
+          </div>
         ) : (
           <div className="list-card">
             {props.recentDrops.map((drop) => (

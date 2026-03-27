@@ -76,7 +76,7 @@ export function DropPanel(props: DropPanelProps) {
   const [ocrResult, setOcrResult] = useState<DropOcrResult | null>(null);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [pasteHint, setPasteHint] = useState(
-    '截图后直接按 Ctrl+V，我会自动保存截图、跑 OCR，并帮你补一条战利品记录。'
+    '截图后直接按 Ctrl+V，我会自动保存图片、跑 OCR，并帮你预填一条掉落记录。'
   );
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
@@ -84,14 +84,8 @@ export function DropPanel(props: DropPanelProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
 
   const preparedDrops = useMemo(() => prepareDropRecords(props.drops), [props.drops]);
-  const dailySummary = useMemo(
-    () => buildDailyDropSummary(preparedDrops),
-    [preparedDrops]
-  );
-  const categoryOptions = useMemo(
-    () => getCategoryOptions(preparedDrops),
-    [preparedDrops]
-  );
+  const dailySummary = useMemo(() => buildDailyDropSummary(preparedDrops), [preparedDrops]);
+  const categoryOptions = useMemo(() => getCategoryOptions(preparedDrops), [preparedDrops]);
   const mapOptions = useMemo(() => {
     return Array.from(
       new Set(
@@ -183,9 +177,7 @@ export function DropPanel(props: DropPanelProps) {
     setPreparedScreenshotPath('');
     setOcrResult(null);
     setOcrBusy(false);
-    setPasteHint(
-      '截图后直接按 Ctrl+V，我会自动保存截图、跑 OCR，并帮你补一条战利品记录。'
-    );
+    setPasteHint('截图后直接按 Ctrl+V，我会自动保存图片、跑 OCR，并帮你预填一条掉落记录。');
   }
 
   async function runOcrForImage(dataUrl: string) {
@@ -213,12 +205,10 @@ export function DropPanel(props: DropPanelProps) {
         setPasteHint(
           result.warning
             ? `截图已保存，OCR 已完成：${result.warning}`
-            : '截图已保存，OCR 已完成，结果已经回填到战报表单。'
+            : '截图已保存，OCR 已完成，结果已经回填到记录表单。'
         );
       } else {
-        setPasteHint(
-          result.warning || '截图已保存，但当前环境没有可用的 OCR 引擎。'
-        );
+        setPasteHint(result.warning || '截图已保存，但当前环境没有可用的 OCR 引擎。');
       }
     } catch (error) {
       setPasteHint(`截图已收到，但 OCR 失败：${getErrorMessage(error)}`);
@@ -237,6 +227,11 @@ export function DropPanel(props: DropPanelProps) {
 
     const finalItemName = itemName.trim() || ocrResult?.suggestedItemName || '';
     const finalNote = note.trim() || ocrResult?.suggestedNote || '';
+
+    if (!finalItemName) {
+      setPasteHint('请先填写物品名称，或先贴一张掉落截图。');
+      return;
+    }
 
     await props.onCreateDrop({
       itemName: finalItemName,
@@ -265,6 +260,13 @@ export function DropPanel(props: DropPanelProps) {
     }
   }
 
+  function clearFilters() {
+    setSearchText('');
+    setCategoryFilter('all');
+    setMapFilter('all');
+    setHighlightOnly(false);
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -272,7 +274,9 @@ export function DropPanel(props: DropPanelProps) {
           <p className="eyebrow">Drops</p>
           <h3>战利品账本</h3>
         </div>
-        <span className="status-pill">筛选、分类、每日战报</span>
+        <span className="status-pill">
+          {ocrBusy ? 'OCR 识别中' : dailySummary.totalCount > 0 ? `今日 ${dailySummary.totalCount} 条记录` : '等待第一条战果'}
+        </span>
       </div>
 
       <div className="report-hero">
@@ -284,8 +288,8 @@ export function DropPanel(props: DropPanelProps) {
             </div>
             <span className="status-chip">
               {dailySummary.highlightedCount > 0
-                ? `高亮战利品 ${dailySummary.highlightedCount}`
-                : '等待首个高亮'}
+                ? `高亮 ${dailySummary.highlightedCount} 条`
+                : '等待第一条高亮'}
             </span>
           </div>
 
@@ -309,7 +313,7 @@ export function DropPanel(props: DropPanelProps) {
               <div className="card-title small">类别分布</div>
               <div className="tag-row">
                 {categoryOptions.length === 0 ? (
-                  <span className="secondary-text">还没有掉落类别可统计。</span>
+                  <span className="secondary-text">还没有足够的掉落记录来形成分布。</span>
                 ) : (
                   categoryOptions.map((category) => (
                     <span className="status-pill" key={category}>
@@ -323,7 +327,10 @@ export function DropPanel(props: DropPanelProps) {
             <article className="report-summary-card">
               <div className="card-title small">高亮速记</div>
               {dailySummary.highlights.length === 0 ? (
-                <p className="secondary-text">今天还没有命中高亮词条。</p>
+                <div className="empty-state compact-empty">
+                  <strong>还没有高亮战利品</strong>
+                  <p>掉到高符、精品底材或重点物品后，这里会优先展示。</p>
+                </div>
               ) : (
                 <div className="stack compact">
                   {dailySummary.highlights.map((drop) => (
@@ -345,9 +352,15 @@ export function DropPanel(props: DropPanelProps) {
           <div className="integration-head">
             <div>
               <div className="card-title">记录一条战利品</div>
-              <p className="secondary-text">先贴图，再补图名、场景和备注。</p>
+              <p className="secondary-text">先贴图，再补场景和备注，这样最快。</p>
             </div>
-            <span className="status-pill">分类建议：{getDropCategoryLabel(currentCategory)}</span>
+            <span className="status-pill">当前分类建议：{getDropCategoryLabel(currentCategory)}</span>
+          </div>
+
+          <div className="tag-row">
+            <span className="mini-pill">{ocrBusy ? 'OCR 识别中' : '可随时 Ctrl+V 粘贴截图'}</span>
+            {preparedScreenshotPath ? <span className="mini-pill">截图已落盘</span> : null}
+            {ocrResult?.engine ? <span className="mini-pill">OCR {ocrResult.engine}</span> : null}
           </div>
 
           <div className="split-grid">
@@ -355,7 +368,7 @@ export function DropPanel(props: DropPanelProps) {
               <span>物品名称</span>
               <input
                 onChange={(event) => setItemName(event.target.value)}
-                placeholder="例如：破隐法杖 / 乔丹之石 / Ber"
+                placeholder="例如：破隐法杖、乔丹之石、Ber"
                 value={itemName}
               />
             </label>
@@ -363,7 +376,7 @@ export function DropPanel(props: DropPanelProps) {
               <span>掉落场景</span>
               <input
                 onChange={(event) => setMapName(event.target.value)}
-                placeholder="例如：巴尔 / 牛场 / A4 超市"
+                placeholder="例如：巴尔、牛场、A4 超市"
                 value={mapName}
               />
             </label>
@@ -420,9 +433,7 @@ export function DropPanel(props: DropPanelProps) {
                 <span className="status-pill">
                   建议物品：{ocrResult.suggestedItemName || '未识别'}
                 </span>
-                <span className="status-pill">
-                  文本行数：{ocrResult.lines.length}
-                </span>
+                <span className="status-pill">文本行数：{ocrResult.lines.length}</span>
                 <span className="status-pill">
                   建议分类：{getDropCategoryLabel(currentCategory)}
                 </span>
@@ -451,7 +462,7 @@ export function DropPanel(props: DropPanelProps) {
         <div className="panel-header">
           <div>
             <div className="card-title">战报筛选</div>
-            <p className="secondary-text">支持按关键词、类别、场景和高亮状态快速回看。</p>
+            <p className="secondary-text">按关键词、类别、场景和高亮状态快速回看今天的战果。</p>
           </div>
           <span className="status-pill">当前结果 {filteredDrops.length}</span>
         </div>
@@ -494,20 +505,28 @@ export function DropPanel(props: DropPanelProps) {
           </label>
         </div>
 
-        <label className="checkbox-row">
-          <input
-            checked={highlightOnly}
-            onChange={(event) => setHighlightOnly(event.target.checked)}
-            type="checkbox"
-          />
-          <span>只看高亮战利品</span>
-        </label>
+        <div className="filter-actions">
+          <label className="checkbox-row">
+            <input
+              checked={highlightOnly}
+              onChange={(event) => setHighlightOnly(event.target.checked)}
+              type="checkbox"
+            />
+            <span>只看高亮战利品</span>
+          </label>
+          <button className="text-button" onClick={clearFilters} type="button">
+            清空筛选
+          </button>
+        </div>
       </article>
 
       <article className="card">
         <div className="card-title">今日战报明细</div>
         {groupedDrops.length === 0 ? (
-          <p className="empty-text">当前筛选条件下还没有条目。</p>
+          <div className="empty-state">
+            <strong>当前筛选下还没有内容</strong>
+            <p>你可以清空筛选，或者先贴一张截图开始记账。</p>
+          </div>
         ) : (
           <div className="stack">
             {groupedDrops.map((group) => (
@@ -531,15 +550,11 @@ export function DropPanel(props: DropPanelProps) {
                           {drop.mapName || '未填写场景'} · {formatCompactDateTime(drop.createdAt)}
                         </span>
                         <div className="tag-row">
-                          <span className="mini-pill">
-                            {getDropCategoryLabel(drop.category)}
-                          </span>
+                          <span className="mini-pill">{getDropCategoryLabel(drop.category)}</span>
                           {drop.ocrEngine ? (
                             <span className="mini-pill">OCR {drop.ocrEngine}</span>
                           ) : null}
-                          {drop.screenshotPath ? (
-                            <span className="mini-pill">有截图</span>
-                          ) : null}
+                          {drop.screenshotPath ? <span className="mini-pill">有截图</span> : null}
                         </div>
                         {drop.note ? (
                           <span className="secondary-text">{drop.note}</span>
