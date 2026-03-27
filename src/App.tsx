@@ -94,6 +94,7 @@ export default function App() {
   const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
   const [showPetCodex, setShowPetCodex] = useState(false);
   const [selectedCodexEntryId, setSelectedCodexEntryId] = useState<string | null>(null);
+  const panelStackRef = useRef<HTMLDivElement | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
   const petCeremonySnapshotRef = useRef<ReturnType<typeof createPetCeremonySnapshot> | null>(null);
   const setupGuideInitializedRef = useRef(false);
@@ -241,6 +242,14 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [workshopFocusId]);
+
+  useEffect(() => {
+    if (activeTab !== 'companion' || !showSetupGuide) {
+      return;
+    }
+
+    panelStackRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, showSetupGuide]);
 
   useEffect(() => {
     if (!data) {
@@ -815,7 +824,13 @@ export default function App() {
 
   function handleOpenSetupGuide() {
     handleSelectTab('companion');
+    setShowPetCodex(false);
     setShowSetupGuide(true);
+    refreshSetupGuide();
+
+    if (data.settings.windowMode !== 'panel') {
+      void handleUpdateSettings({ windowMode: 'panel' });
+    }
   }
 
   function handleOpenWorkshopFromGuide() {
@@ -984,7 +999,10 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="panel-stack">
+        <div
+          className={activeTab === 'companion' ? 'panel-stack panel-stack-companion' : 'panel-stack'}
+          ref={panelStackRef}
+        >
           {activeTab === 'companion' ? (
             <>
               {!data.settings.setupGuideCompleted && showSetupGuide ? (
