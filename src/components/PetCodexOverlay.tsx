@@ -480,6 +480,28 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
     selected,
     typeFilter
   ]);
+  const detailDrilldownMeta = useMemo(() => {
+    if (!jumpContext || !selected || selected.chapter.id === 'atlas') {
+      return null;
+    }
+
+    const entryInFocus = drilldownEntryIds.has(visibleSelectedEntry.id);
+    const sourceLabel = jumpContext.sourceLabel
+      ? `${jumpContext.sourceTitle} · ${jumpContext.sourceLabel}`
+      : jumpContext.sourceTitle;
+
+    return {
+      sourceLabel,
+      statusLabel: entryInFocus ? '焦点命中' : '上下文跟随',
+      statusDetail: entryInFocus
+        ? '当前详情属于这次 Atlas 钻取命中的条目，右侧面板会保持这条证据线。'
+        : '当前详情仍保留 Atlas 钻取来源，方便你继续沿着这条上下文回看。',
+      clues:
+        jumpContext.clues.length > 0
+          ? jumpContext.clues
+          : [drilldownFocusSummary?.label ?? jumpContext.sourceTitle]
+    };
+  }, [drilldownEntryIds, drilldownFocusSummary?.label, jumpContext, selected, visibleSelectedEntry.id]);
 
   function resetFilters(clearContext = true) {
     setSearchText('');
@@ -950,6 +972,30 @@ export function PetCodexOverlay(props: PetCodexOverlayProps) {
                 {visibleSelectedEntry.accent}
               </span>
             </div>
+
+            {detailDrilldownMeta ? (
+              <article className="pet-codex-detail-trace">
+                <div className="pet-codex-detail-trace-copy">
+                  <p className="eyebrow">Drilldown Trace</p>
+                  <strong>{detailDrilldownMeta.sourceLabel}</strong>
+                  <p>{detailDrilldownMeta.statusDetail}</p>
+                </div>
+
+                <div className="pet-codex-detail-trace-side">
+                  <span className="pet-codex-trace-badge">{detailDrilldownMeta.statusLabel}</span>
+                  <div className="pet-codex-detail-trace-pills">
+                    {detailDrilldownMeta.clues.map((clue) => (
+                      <span className="pet-codex-context-pill" key={`detail-${visibleSelectedEntry.id}-${clue}`}>
+                        {clue}
+                      </span>
+                    ))}
+                  </div>
+                  <button className="ghost-button" onClick={handleReturnToAtlas} type="button">
+                    返回总览
+                  </button>
+                </div>
+              </article>
+            ) : null}
 
             <div className="pet-codex-detail-copy">
               <p>{visibleSelectedEntry.detail}</p>
