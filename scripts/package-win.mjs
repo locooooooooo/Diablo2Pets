@@ -8,6 +8,10 @@ const __dirname = dirname(__filename);
 const workspaceRoot = resolve(__dirname, '..');
 const releaseAppFolderName = 'Diablo2Pets-win32-x64';
 const vendorRuntimeRoot = join(workspaceRoot, 'vendor', 'python-runtime', 'win32-x64');
+const electronCacheDir =
+  process.platform === 'win32' && process.env.LOCALAPPDATA
+    ? join(process.env.LOCALAPPDATA, 'electron', 'Cache')
+    : null;
 const packagerCommand = join(
   workspaceRoot,
   'node_modules',
@@ -54,37 +58,28 @@ run('npm.cmd', ['run', 'make:icon']);
 run('npm.cmd', ['run', 'build']);
 run('npm.cmd', ['run', 'prepare:python-runtime']);
 
+const packagerBaseArgs = [
+  '.',
+  'Diablo2Pets',
+  '--platform=win32',
+  '--arch=x64',
+  '--icon',
+  'build/icon.ico',
+  '--prune=true',
+  '--asar.unpackDir=automation/python_runtime'
+];
+
+if (electronCacheDir && existsSync(electronCacheDir)) {
+  packagerBaseArgs.push('--electron-zip-dir', electronCacheDir);
+}
+
 let outputRoot = join(workspaceRoot, 'release');
 
 try {
-  run(packagerCommand, [
-    '.',
-    'Diablo2Pets',
-    '--platform=win32',
-    '--arch=x64',
-    '--out',
-    outputRoot,
-    '--overwrite',
-    '--icon',
-    'build/icon.ico',
-    '--prune=true',
-    '--asar.unpackDir=automation/python_runtime'
-  ]);
+  run(packagerCommand, [...packagerBaseArgs, '--out', outputRoot, '--overwrite']);
 } catch (error) {
   outputRoot = join(workspaceRoot, 'release-fixed');
-  run(packagerCommand, [
-    '.',
-    'Diablo2Pets',
-    '--platform=win32',
-    '--arch=x64',
-    '--out',
-    outputRoot,
-    '--overwrite',
-    '--icon',
-    'build/icon.ico',
-    '--prune=true',
-    '--asar.unpackDir=automation/python_runtime'
-  ]);
+  run(packagerCommand, [...packagerBaseArgs, '--out', outputRoot, '--overwrite']);
 }
 
 if (!existsSync(vendorRuntimeRoot)) {

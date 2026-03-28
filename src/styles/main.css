@@ -6839,3 +6839,124 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.profile-guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-color: rgba(255, 192, 102, 0.26);
+  background:
+    radial-gradient(circle at top right, rgba(255, 184, 96, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(56, 28, 18, 0.9), rgba(18, 10, 8, 0.94));
+}
+
+.profile-guide-focus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 196, 107, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(14, 10, 8, 0.52);
+}
+
+.profile-guide-focus.success {
+  border-color: rgba(116, 194, 126, 0.26);
+}
+
+.profile-guide-focus strong {
+  display: block;
+  color: #fff2d1;
+  font-size: 20px;
+}
+
+.profile-guide-focus p {
+  margin: 8px 0 0;
+  color: #d8bf97;
+  line-height: 1.6;
+}
+
+.profile-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-guide-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(228, 178, 102, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(13, 8, 6, 0.38);
+}
+
+.profile-guide-step.ready {
+  border-color: rgba(116, 194, 126, 0.22);
+}
+
+.profile-guide-step.pending {
+  border-color: rgba(244, 174, 85, 0.22);
+}
+
+.profile-guide-step.spotlight {
+  box-shadow:
+    0 0 0 1px rgba(255, 196, 107, 0.12),
+    0 18px 34px rgba(88, 38, 17, 0.16);
+}
+
+.profile-guide-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-guide-step strong {
+  color: #fff2d1;
+  font-size: 17px;
+}
+
+.profile-guide-step p {
+  margin: 0;
+  color: #e6cfab;
+  line-height: 1.55;
+}
+
+.profile-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.profile-guide-actions .primary-button,
+.profile-guide-actions .ghost-button {
+  flex: 1 1 132px;
+}
+
+.sequence-chips.compact {
+  gap: 6px;
+}
+
+.sequence-chips.compact .mini-pill {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+@media (max-width: 1100px) {
+  .profile-guide-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-guide-focus {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

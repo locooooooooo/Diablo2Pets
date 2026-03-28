@@ -7,6 +7,10 @@ import {
 } from 'react';
 import { formatCompactDateTime } from '../lib/date';
 import { parseAutomationLog } from '../lib/automationLog';
+import {
+  getIntegrationLabel,
+  isTaskProfileReady
+} from '../lib/setupGuideState';
 import type {
   AutomationAdminAction,
   AutomationCheckItem,
@@ -87,6 +91,14 @@ interface TaskDiagnosis {
   title: string;
   description: string;
   actions: QuickFixAction[];
+}
+
+interface ProfileGuideStep {
+  id: IntegrationId;
+  title: string;
+  ready: boolean;
+  summary: string;
+  detail: string;
 }
 
 function getIntegration(
@@ -728,6 +740,17 @@ function getTaskSpotlightLabel(id: IntegrationId): string {
   }
 }
 
+function getProfileGuideDetail(id: IntegrationId): string {
+  switch (id) {
+    case 'rune-cube':
+      return '先录方块输出格、Transmute 和符文起始格，后面填数量就能跑。';
+    case 'gem-cube':
+      return '先录输入格、输出格和宝石堆起点，矩阵和截图识别都会靠这套坐标。';
+    case 'drop-shared-gold':
+      return '先录共享仓库、金币按钮和背包金币位，后面才能自动分批丢金币。';
+  }
+}
+
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -808,6 +831,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const runeTask = getIntegration(props.integrations, 'rune-cube');
   const gemTask = getIntegration(props.integrations, 'gem-cube');
   const goldTask = getIntegration(props.integrations, 'drop-shared-gold');
+  const taskItems = useMemo(() => [runeTask, gemTask, goldTask], [runeTask, gemTask, goldTask]);
   const preflightMap = useMemo(() => {
     return new Map((preflight?.tasks ?? []).map((task) => [task.id, task]));
   }, [preflight]);
@@ -887,6 +911,25 @@ export function AutomationPanel(props: AutomationPanelProps) {
     props.busyKey,
     pythonSourceCheck?.level
   ]);
+  const profileGuideSteps = useMemo<ProfileGuideStep[]>(() => {
+    return taskItems.map((item) => {
+      const task = preflightMap.get(item.id) ?? null;
+      const ready = task ? isTaskProfileReady(task) : false;
+      return {
+        id: item.id,
+        title: `${getIntegrationLabel(item.id)} Profile`,
+        ready,
+        summary: ready ? '这条坐标已经录好。' : '还没录制，当前不能稳定执行这条任务。',
+        detail: ready
+          ? '可以直接试运行，或者点“看 Profile”确认当前配置。'
+          : task
+            ? getProfileGuideDetail(item.id)
+            : '我还在等预检返回这条任务的 Profile 状态。'
+      };
+    });
+  }, [preflightMap, taskItems]);
+  const readyProfileCount = profileGuideSteps.filter((step) => step.ready).length;
+  const nextProfileStep = profileGuideSteps.find((step) => !step.ready) ?? null;
 
   useEffect(() => {
     if (!props.highlightedTaskId) {
@@ -964,6 +1007,17 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
   function requestPreflightRefresh() {
     setPreflightTick((current) => current + 1);
+  }
+
+  function scrollToTask(id: IntegrationId) {
+    const target =
+      id === 'rune-cube'
+        ? runeCardRef.current
+        : id === 'gem-cube'
+          ? gemCardRef.current
+          : goldCardRef.current;
+
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function appendEnvironmentTimeline(
@@ -1777,6 +1831,145 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderProfileGuide() {
+    return (
+      <article className="card profile-guide-card">
+        <div className="integration-head">
+          <div>
+            <p className="eyebrow">Start Here</p>
+            <div className="card-title">Profile 录制向导</div>
+            <p className="secondary-text">
+              先把三条任务线的坐标录好，工坊才会从“能看”变成“能跑”。录制时按 <code>F10</code> 捕获点位，按 <code>F12</code> 结束。
+            </p>
+          </div>
+          <span className={`status-pill ${readyProfileCount === profileGuideSteps.length ? 'success' : 'warm'}`}>
+            {readyProfileCount}/{profileGuideSteps.length} 已录制
+          </span>
+        </div>
+
+        <article className={`profile-guide-focus ${nextProfileStep ? 'attention' : 'success'}`}>
+          <div>
+            <p className="eyebrow">Next Step</p>
+            <strong>
+              {nextProfileStep
+                ? `先录 ${getIntegrationLabel(nextProfileStep.id)} Profile`
+                : '三条 Profile 都已就绪'}
+            </strong>
+            <p>
+              {nextProfileStep
+                ? `${nextProfileStep.detail} 录完后我会自动刷新预检，并把最新日志展示出来。`
+                : '现在已经可以直接试运行三条任务线了，优先从符文或金币先跑一条最稳。'}
+            </p>
+          </div>
+          {nextProfileStep ? (
+            <div className="tool-row">
+              <button
+                className="primary-button"
+                disabled={props.busyKey !== null}
+                onClick={() => {
+                  scrollToTask(nextProfileStep.id);
+                  const targetItem = getIntegration(props.integrations, nextProfileStep.id);
+                  void runAdmin(targetItem, 'record-profile');
+                }}
+                type="button"
+              >
+                {props.busyKey === getAdminBusyKey(nextProfileStep.id, 'record-profile')
+                  ? '录制中...'
+                  : `开始录 ${getIntegrationLabel(nextProfileStep.id)}`}
+              </button>
+              <button
+                className="ghost-button"
+                disabled={props.busyKey !== null}
+                onClick={() => scrollToTask(nextProfileStep.id)}
+                type="button"
+              >
+                先定位到任务卡
+              </button>
+            </div>
+          ) : (
+            <div className="tool-row">
+              <button
+                className="primary-button"
+                disabled={props.busyKey !== null}
+                onClick={() => void runTask('rune-cube', 'dry-run')}
+                type="button"
+              >
+                试运行符文任务
+              </button>
+            </div>
+          )}
+        </article>
+
+        <div className="profile-guide-grid">
+          {profileGuideSteps.map((step, index) => {
+            const item = getIntegration(props.integrations, step.id);
+            const task = preflightMap.get(step.id) ?? null;
+            const statusLabel = step.ready ? '已录制' : task ? '待录制' : '待读取';
+            return (
+              <article
+                className={`profile-guide-step ${step.ready ? 'ready' : 'pending'} ${
+                  props.highlightedTaskId === step.id ? 'spotlight' : ''
+                }`}
+                key={step.id}
+              >
+                <div className="profile-guide-step-head">
+                  <span className="mini-pill">步骤 {index + 1}</span>
+                  <span className={`status-pill ${step.ready ? 'success' : 'attention'}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+                <strong>{step.title}</strong>
+                <p>{step.summary}</p>
+                <span className="helper-text">{step.detail}</span>
+                <div className="sequence-chips compact">
+                  {getRecordSteps(step.id).slice(0, 4).map((recordStep) => (
+                    <span className="mini-pill" key={recordStep}>
+                      {recordStep}
+                    </span>
+                  ))}
+                </div>
+                <div className="profile-guide-actions">
+                  {!step.ready ? (
+                    <button
+                      className="primary-button"
+                      disabled={props.busyKey !== null}
+                      onClick={() => {
+                        scrollToTask(step.id);
+                        void runAdmin(item, 'record-profile');
+                      }}
+                      type="button"
+                    >
+                      {props.busyKey === getAdminBusyKey(step.id, 'record-profile')
+                        ? '录制中...'
+                        : '录 Profile'}
+                    </button>
+                  ) : (
+                    <button
+                      className="ghost-button"
+                      disabled={props.busyKey !== null}
+                      onClick={() => void runAdmin(item, 'print-profile')}
+                      type="button"
+                    >
+                      看 Profile
+                    </button>
+                  )}
+                  <button
+                    className="ghost-button"
+                    disabled={props.busyKey !== null}
+                    onClick={() => scrollToTask(step.id)}
+                    type="button"
+                  >
+                    查看任务卡
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </article>
+    );
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -1797,6 +1990,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <span className="status-pill warm">继续当前引导</span>
         </article>
       ) : null}
+
+      {renderProfileGuide()}
 
       <article className="card safety-card">
         <div className="integration-head">
