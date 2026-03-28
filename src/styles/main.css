@@ -2003,6 +2003,38 @@ select,
   border-radius: 22px;
 }
 
+.setup-guide-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 196, 107, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(95, 169, 198, 0.12), transparent 34%),
+    radial-gradient(circle at left center, rgba(255, 182, 98, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(21, 33, 43, 0.86), rgba(12, 18, 24, 0.92));
+}
+
+.setup-guide-next strong {
+  display: block;
+  color: #fff2d1;
+  font-size: 20px;
+}
+
+.setup-guide-next p {
+  margin: 8px 0 0;
+  color: #d8bf97;
+  line-height: 1.6;
+}
+
+.setup-guide-next .primary-button {
+  flex: 0 0 auto;
+  min-width: 176px;
+}
+
 .setup-guide-head {
   display: flex;
   align-items: flex-start;
@@ -2127,6 +2159,14 @@ select,
 .setup-guide-reminder strong {
   color: #fff2d1;
   font-size: 18px;
+}
+
+.pet-next-step {
+  color: #f5d59d;
+  border-color: rgba(255, 196, 107, 0.24);
+  background:
+    linear-gradient(180deg, rgba(97, 152, 187, 0.18), rgba(255, 255, 255, 0.02)),
+    rgba(17, 24, 31, 0.5);
 }
 
 .setup-guide-footer {
@@ -3799,13 +3839,18 @@ body {
 }
 
 .panel-stack.panel-stack-companion {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 6px;
+  -webkit-app-region: no-drag;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
+  scrollbar-gutter: stable both-edges;
+  touch-action: pan-y;
 }
 
 .panel-stack.panel-stack-companion > .panel {
+  flex: 0 0 auto;
   height: auto;
   min-height: auto;
   overflow: visible;

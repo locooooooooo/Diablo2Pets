@@ -3,6 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { SetupGuideHint } from '../lib/setupGuideState';
 import type { PetCeremony } from '../lib/petCeremony';
 import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
@@ -42,6 +43,7 @@ interface PetShellProps {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
+  setupGuideHint: SetupGuideHint;
   setupGuideCompleted: boolean;
   onPetHeadpat: () => void;
   onPetCheer: () => void;
@@ -182,8 +184,16 @@ export function PetShell(props: PetShellProps) {
         <span className="mini-pill">{props.activeRun ? '陪刷中' : '面板模式'}</span>
         <span className="mini-pill pet-gesture-hint">摸头像回应 / 双击庆祝</span>
         {!props.setupGuideCompleted ? (
-          <button className="quick-toggle active" onClick={props.onOpenSetupGuide} type="button">
-            继续引导
+          <span className="mini-pill pet-next-step">{props.setupGuideHint.badge}</span>
+        ) : null}
+        {!props.setupGuideCompleted ? (
+          <button
+            className="quick-toggle active"
+            onClick={props.onOpenSetupGuide}
+            title={props.setupGuideHint.title}
+            type="button"
+          >
+            {props.setupGuideHint.actionLabel}
           </button>
         ) : null}
         <button

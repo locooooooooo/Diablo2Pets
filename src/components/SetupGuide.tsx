@@ -4,6 +4,11 @@ import type {
   AutomationPreflightResponse,
   IntegrationId
 } from '../types';
+import {
+  getIntegrationLabel,
+  isTaskProfileReady,
+  type SetupGuideHint
+} from '../lib/setupGuideState';
 
 interface SetupGuideProps {
   preflight: AutomationPreflightResponse | null;
@@ -11,8 +16,10 @@ interface SetupGuideProps {
   error: string;
   busyKey: string | null;
   settings: AppSettings;
+  nextAction: SetupGuideHint;
   onRefresh: () => void;
   onInstallDependencies: () => Promise<void>;
+  onNextAction: () => void;
   onOpenWorkshop: () => void;
   onOpenWorkshopTask: (id: IntegrationId) => void;
   onEnableFloating: () => void;
@@ -56,21 +63,6 @@ function getToneLabel(tone: StepTone): string {
     case 'error':
       return '需要修复';
   }
-}
-
-function getTaskTitle(id: IntegrationId): string {
-  switch (id) {
-    case 'rune-cube':
-      return '符文';
-    case 'gem-cube':
-      return '宝石';
-    case 'drop-shared-gold':
-      return '金币';
-  }
-}
-
-function isTaskProfileReady(task: AutomationPreflightResponse['tasks'][number]): boolean {
-  return task.checks.some((check) => check.key === 'profile-path' && check.level === 'ok');
 }
 
 export function SetupGuide(props: SetupGuideProps) {
@@ -165,12 +157,12 @@ export function SetupGuide(props: SetupGuideProps) {
       tone: profilesReady ? 'success' : missingProfileTasks.length === tasks.length ? 'error' : 'attention',
       chips:
         tasks.length > 0
-          ? tasks.map((task) => `${getTaskTitle(task.id)} · ${isTaskProfileReady(task) ? '已录制' : '待录制'}`)
+          ? tasks.map((task) => `${getIntegrationLabel(task.id)} · ${isTaskProfileReady(task) ? '已录制' : '待录制'}`)
           : ['等待预检返回 profile 状态'],
       actions: profilesReady
         ? []
         : missingProfileTasks.map((task) => ({
-            label: `去录 ${getTaskTitle(task.id)} Profile`,
+            label: `去录 ${getIntegrationLabel(task.id)} Profile`,
             kind: missingProfileTasks.length === 1 ? 'primary' : 'secondary',
             disabled: props.busyKey !== null,
             onClick: () => props.onOpenWorkshopTask(task.id)
@@ -236,6 +228,17 @@ export function SetupGuide(props: SetupGuideProps) {
           </button>
         </div>
       </div>
+
+      <article className="setup-guide-next">
+        <div>
+          <p className="eyebrow">Next Step</p>
+          <strong>{props.nextAction.title}</strong>
+          <p>{props.nextAction.detail}</p>
+        </div>
+        <button className="primary-button" onClick={props.onNextAction} type="button">
+          {props.nextAction.actionLabel}
+        </button>
+      </article>
 
       {props.error ? (
         <div className="empty-state compact-empty">

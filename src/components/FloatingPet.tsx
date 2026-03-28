@@ -3,6 +3,7 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { SetupGuideHint } from '../lib/setupGuideState';
 import type { PetCeremony } from '../lib/petCeremony';
 import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
@@ -41,6 +42,7 @@ interface FloatingPetProps {
   eventBusy: boolean;
   alwaysOnTop: boolean;
   busy: boolean;
+  setupGuideHint: SetupGuideHint;
   setupGuideCompleted: boolean;
   preflight: AutomationPreflightResponse | null;
   preflightBusy: boolean;
@@ -165,10 +167,10 @@ export function FloatingPet(props: FloatingPetProps) {
 
     if (!props.setupGuideCompleted) {
       return {
-        badge: '继续引导',
-        title: '首启闭环还没走完',
-        detail: '先把引导补齐，后面的陪刷和工坊体验都会更稳。',
-        label: '继续引导',
+        badge: props.setupGuideHint.badge,
+        title: props.setupGuideHint.title,
+        detail: props.setupGuideHint.detail,
+        label: props.setupGuideHint.actionLabel,
         action: props.onOpenSetupGuide
       };
     }
@@ -224,6 +226,7 @@ export function FloatingPet(props: FloatingPetProps) {
     props.onStartRun,
     props.onStopRun,
     props.recentRuns,
+    props.setupGuideHint,
     props.setupGuideCompleted,
     warningTask
   ]);

@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type WheelEvent as ReactWheelEvent
+} from 'react';
 import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
@@ -18,6 +24,7 @@ import {
   createPetInteractionCue,
   type PetInteractionCue
 } from './lib/petPersona';
+import { buildSetupGuideHint } from './lib/setupGuideState';
 import { playPetChime } from './lib/petSound';
 import {
   buildPetProgression,
@@ -52,6 +59,14 @@ import type {
 
 type TabKey = 'companion' | 'drops' | 'workshop';
 type Message = { kind: 'success' | 'error'; text: string } | null;
+const DEFAULT_SETTINGS: AppData['settings'] = {
+  alwaysOnTop: false,
+  launchOnStartup: false,
+  notificationsEnabled: false,
+  windowMode: 'panel',
+  setupGuideCompleted: false,
+  windowPlacement: {}
+};
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -358,6 +373,10 @@ export default function App() {
           })
         : null,
     [data?.drops, petHabitat, petProgression, petRewards, petRoom]
+  );
+  const setupGuideHint = useMemo(
+    () => buildSetupGuideHint(setupPreflight, data?.settings ?? DEFAULT_SETTINGS),
+    [data?.settings, setupPreflight]
   );
 
   useEffect(() => {
@@ -814,6 +833,33 @@ export default function App() {
     setShowPetCodex(false);
   }
 
+  function handleCompanionWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (activeTab !== 'companion' || showPetCodex) {
+      return;
+    }
+
+    const container = panelStackRef.current;
+    if (!container || container.scrollHeight <= container.clientHeight + 1) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.pet-codex-overlay')) {
+      return;
+    }
+
+    const multiplier =
+      event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? container.clientHeight : 1;
+    const nextTop = container.scrollTop + event.deltaY * multiplier;
+
+    if (nextTop === container.scrollTop) {
+      return;
+    }
+
+    container.scrollTop = nextTop;
+    event.preventDefault();
+  }
+
   function handleOpenPanel(tab: TabKey) {
     handleSelectTab(tab);
 
@@ -830,6 +876,24 @@ export default function App() {
 
     if (data.settings.windowMode !== 'panel') {
       void handleUpdateSettings({ windowMode: 'panel' });
+    }
+  }
+
+  function handleFollowSetupGuideHint() {
+    switch (setupGuideHint.action) {
+      case 'open-workshop-task':
+        if (setupGuideHint.integrationId) {
+          handleOpenWorkshopTaskFromGuide(setupGuideHint.integrationId);
+          return;
+        }
+        handleOpenSetupGuide();
+        return;
+      case 'enable-floating':
+        handleEnableFloatingFromGuide();
+        return;
+      case 'open-guide':
+      default:
+        handleOpenSetupGuide();
     }
   }
 
@@ -893,7 +957,7 @@ export default function App() {
           onOpenCodexEntry={handleOpenPetCodex}
           onOpenDrops={() => handleOpenPanel('drops')}
           onOpenPanel={() => handleOpenPanel('companion')}
-          onOpenSetupGuide={handleOpenSetupGuide}
+          onOpenSetupGuide={handleFollowSetupGuideHint}
           onOpenWorkshop={() => handleOpenPanel('workshop')}
           onPetCheer={handlePetCheer}
           onPetHeadpat={handlePetHeadpat}
@@ -913,6 +977,7 @@ export default function App() {
           room={petRoom!}
           scene={petScene!}
           snapPreview={floatingSnapPreview}
+          setupGuideHint={setupGuideHint}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
@@ -944,7 +1009,7 @@ export default function App() {
           onEventAction={handlePetEventAction}
           onOpenCodex={() => handleOpenPetCodex()}
           onOpenCodexEntry={handleOpenPetCodex}
-          onOpenSetupGuide={handleOpenSetupGuide}
+          onOpenSetupGuide={handleFollowSetupGuideHint}
           onPetCheer={handlePetCheer}
           onPetHeadpat={handlePetHeadpat}
           onMinimize={() => void window.d2Pet.minimize()}
@@ -970,6 +1035,7 @@ export default function App() {
           recentRuns={recentRuns}
           room={petRoom!}
           scene={petScene!}
+          setupGuideHint={setupGuideHint}
           setupGuideCompleted={data.settings.setupGuideCompleted}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
@@ -1001,6 +1067,7 @@ export default function App() {
 
         <div
           className={activeTab === 'companion' ? 'panel-stack panel-stack-companion' : 'panel-stack'}
+          onWheelCapture={activeTab === 'companion' ? handleCompanionWheel : undefined}
           ref={panelStackRef}
         >
           {activeTab === 'companion' ? (
@@ -1017,9 +1084,11 @@ export default function App() {
                   onInstallDependencies={() =>
                     handleRunEnvironmentAction({ action: 'install-python-deps' }).then(() => undefined)
                   }
+                  onNextAction={handleFollowSetupGuideHint}
                   onOpenWorkshop={handleOpenWorkshopFromGuide}
                   onOpenWorkshopTask={handleOpenWorkshopTaskFromGuide}
                   onRefresh={refreshSetupGuide}
+                  nextAction={setupGuideHint}
                   preflight={setupPreflight}
                   settings={data.settings}
                 />
@@ -1029,16 +1098,19 @@ export default function App() {
                 <article className="card setup-guide-reminder">
                   <div>
                     <p className="eyebrow">Guide</p>
-                    <strong>首次启动引导已收起</strong>
+                    <strong>{setupGuideHint.title}</strong>
                     <p className="secondary-text">
-                      你可以随时再打开，把 Python、依赖、Profile 和悬浮态继续补完整。
+                      {setupGuideHint.detail}
                     </p>
                   </div>
                   <div className="tool-row">
-                    <button className="ghost-button" onClick={handleOpenSetupGuide} type="button">
-                      继续引导
+                    <button className="primary-button" onClick={handleFollowSetupGuideHint} type="button">
+                      {setupGuideHint.actionLabel}
                     </button>
-                    <button className="primary-button" onClick={handleCompleteSetupGuide} type="button">
+                    <button className="ghost-button" onClick={handleOpenSetupGuide} type="button">
+                      打开完整引导
+                    </button>
+                    <button className="ghost-button" onClick={handleCompleteSetupGuide} type="button">
                       直接完成
                     </button>
                   </div>
@@ -1049,6 +1121,7 @@ export default function App() {
                 activeDurationText={activeDurationText}
                 activeRun={data.activeRun}
                 busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+                onFollowSetupGuideHint={handleFollowSetupGuideHint}
                 onOpenSetupGuide={handleOpenSetupGuide}
                 onGoToDrops={() => handleSelectTab('drops')}
                 onGoToWorkshop={() => handleSelectTab('workshop')}
@@ -1058,6 +1131,7 @@ export default function App() {
                 preflightBusy={setupPreflightBusy}
                 recentDrops={todayDrops}
                 recentRuns={recentRuns}
+                setupGuideHint={setupGuideHint}
                 setupGuideCompleted={data.settings.setupGuideCompleted}
                 stats={todayStats}
               />

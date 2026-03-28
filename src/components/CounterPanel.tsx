@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { formatCompactDateTime, formatDuration } from '../lib/date';
+import type { SetupGuideHint } from '../lib/setupGuideState';
 import type { TodayStats } from '../lib/stats';
 import type {
   ActiveRun,
@@ -19,9 +20,11 @@ interface CounterPanelProps {
   busy: boolean;
   preflight: AutomationPreflightResponse | null;
   preflightBusy: boolean;
+  setupGuideHint: SetupGuideHint;
   setupGuideCompleted: boolean;
   onStartRun: (mapName: string) => Promise<void>;
   onStopRun: () => Promise<void>;
+  onFollowSetupGuideHint: () => void;
   onGoToDrops: () => void;
   onGoToWorkshop: () => void;
   onOpenSetupGuide: () => void;
@@ -225,12 +228,12 @@ export function CounterPanel(props: CounterPanelProps) {
 
     if (!props.setupGuideCompleted) {
       return {
-        badge: '今日待办',
-        title: '先把首启引导走完',
-        detail: '引导会帮你把 runtime、依赖、Profile 和桌宠形态一次收齐，后面每天上线都能更快进入陪刷状态。',
-        label: '继续首启引导',
+        badge: props.setupGuideHint.badge,
+        title: props.setupGuideHint.title,
+        detail: props.setupGuideHint.detail,
+        label: props.setupGuideHint.actionLabel,
         kind: 'primary',
-        onClick: props.onOpenSetupGuide
+        onClick: props.onFollowSetupGuideHint
       };
     }
 
@@ -292,6 +295,7 @@ export function CounterPanel(props: CounterPanelProps) {
     mapName,
     props.activeRun,
     props.busy,
+    props.onFollowSetupGuideHint,
     props.onGoToDrops,
     props.onGoToWorkshop,
     props.onOpenSetupGuide,
@@ -299,6 +303,7 @@ export function CounterPanel(props: CounterPanelProps) {
     props.onStopRun,
     props.recentDrops.length,
     props.recentRuns,
+    props.setupGuideHint,
     props.setupGuideCompleted,
     warningTask
   ]);
@@ -327,15 +332,15 @@ export function CounterPanel(props: CounterPanelProps) {
 
     if (!props.setupGuideCompleted) {
       return {
-        badge: '回到引导',
-        title: '今天先把首启闭环走完',
-        detail: 'runtime、依赖、Profile 和陪刷形态收齐之后，桌宠才会真正从工具面板变成可长期陪刷的桌面助手。',
+        badge: props.setupGuideHint.badge,
+        title: props.setupGuideHint.title,
+        detail: `${props.setupGuideHint.detail} 这一段补完后，首页就会切回纯日常模式。`,
         meta: '引导完成后，首页会自动切回纯日常模式。',
         actions: [
           {
-            label: '继续引导',
+            label: props.setupGuideHint.actionLabel,
             kind: 'primary',
-            onClick: props.onOpenSetupGuide
+            onClick: props.onFollowSetupGuideHint
           },
           {
             label: '先看工坊',
@@ -413,12 +418,14 @@ export function CounterPanel(props: CounterPanelProps) {
     props.activeDurationText,
     props.activeRun,
     props.busy,
+    props.onFollowSetupGuideHint,
     props.onGoToDrops,
     props.onGoToWorkshop,
     props.onOpenSetupGuide,
     props.onStartRun,
     props.onStopRun,
     props.recentRuns,
+    props.setupGuideHint,
     props.setupGuideCompleted
   ]);
 
@@ -766,7 +773,7 @@ export function CounterPanel(props: CounterPanelProps) {
                 {props.activeRun
                   ? '刷完就点完成，然后顺手去战报页把今天的掉落收口。'
                   : missingGuide
-                    ? '先把首启引导补齐，后面每天上线就能直接开跑。'
+                    ? `${props.setupGuideHint.title}，后面每天上线就能直接开跑。`
                     : '可以直接沿用最近路线开刷，或者先去工坊看今天的自动化预检。'}
               </strong>
             </div>
