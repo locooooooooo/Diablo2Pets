@@ -240,7 +240,8 @@ function describeRecordingProgress(event: AutomationRecordProgressEvent): string
   }
 
   if (typeof event.stepIndex === 'number') {
-    const stepLabel = getRecordSteps(event.id)[event.stepIndex] ?? `Step ${event.stepIndex + 1}`;
+    const stepLabel =
+      getReadableRecordSteps(event.id)[event.stepIndex] ?? `Step ${event.stepIndex + 1}`;
     return `Current target: ${stepLabel}. Focus the matching spot in game and press F10.`;
   }
 
@@ -249,6 +250,83 @@ function describeRecordingProgress(event: AutomationRecordProgressEvent): string
   }
 
   return translatedLine;
+}
+
+function getReadableRecordSteps(id: IntegrationId): string[] {
+  switch (id) {
+    case 'rune-cube':
+      return ['方块输出格', 'Transmute 按钮', '左上符文格', '右上符文格', '左下符文格'];
+    case 'gem-cube':
+      return [
+        '输入格 1',
+        '输入格 2',
+        '输入格 3',
+        '输出格',
+        'Transmute 按钮',
+        '结果落点',
+        '左上宝石堆',
+        '右上宝石堆',
+        '左下宝石堆'
+      ];
+    case 'drop-shared-gold':
+      return ['仓库点击点', '共享标签', '仓库金币按钮', '背包金币按钮'];
+  }
+}
+
+function getRecordingFailureSummary(rawText: string): string {
+  const text = rawText.trim();
+  const normalized = text.toLowerCase();
+
+  if (!text) {
+    return '录制中断了，但没有返回更多信息。建议先看日志，再重新录一次。';
+  }
+
+  if (
+    normalized.includes('stopped by user') ||
+    normalized.includes('cancelled') ||
+    normalized.includes('canceled') ||
+    normalized.includes('stop key')
+  ) {
+    return '录制被提前结束了。通常是按了 F12，或者主动中止了录制。';
+  }
+
+  if (
+    normalized.includes('access is denied') ||
+    normalized.includes('permission') ||
+    normalized.includes('administrator')
+  ) {
+    return '录制权限不足。请尝试以管理员身份运行桌宠，再重新录制。';
+  }
+
+  if (
+    normalized.includes('not found') ||
+    normalized.includes('no such file') ||
+    normalized.includes('找不到')
+  ) {
+    return '录制依赖的脚本或配置没有找到。建议先看日志确认缺的是哪一项。';
+  }
+
+  if (
+    normalized.includes('keyboard') ||
+    normalized.includes('hotkey') ||
+    normalized.includes('f10')
+  ) {
+    return '热键监听没有正常工作。请确认没有别的程序占用 F10 / F12。';
+  }
+
+  if (
+    normalized.includes('window') ||
+    normalized.includes('inventory') ||
+    normalized.includes('cube')
+  ) {
+    return '游戏窗口可能没有准备好。请把背包、方块或仓库界面摆好后再录。';
+  }
+
+  return `录制失败：${text}`;
+}
+
+function getRecordingSuccessSummary(id: IntegrationId): string {
+  return `${getIntegrationLabel(id)} 的 Profile 已经录好。下一步建议先试运行，确认点击点和流程都对。`;
 }
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
@@ -890,7 +968,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           return current;
         }
 
-        const stepCount = getRecordSteps(event.id).length;
+        const stepCount = getReadableRecordSteps(event.id).length;
         const nextStepIndex =
           typeof event.stepIndex === 'number'
             ? Math.min(Math.max(event.stepIndex, 0), Math.max(stepCount - 1, 0))
@@ -1320,7 +1398,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       if (action === 'record-profile') {
         setRecordingGuide({
           taskId: item.id,
-          stepIndex: Math.max(0, getRecordSteps(item.id).length - 1),
+          stepIndex: Math.max(0, getReadableRecordSteps(item.id).length - 1),
           status: response.result.success ? 'success' : 'error',
           detail: response.result.success
             ? `${getIntegrationLabel(item.id)} Profile 录制完成，预检会自动刷新。你现在可以看 Profile，或者直接试运行这条任务。`
@@ -1329,6 +1407,22 @@ export function AutomationPanel(props: AutomationPanelProps) {
           lastLine: response.result.stderr || response.result.stdout || 'Recording finished.',
           live: true
         });
+
+        setRecordingGuide((current) =>
+          current
+            ? {
+                ...current,
+                detail: response.result.success
+                  ? getRecordingSuccessSummary(item.id)
+                  : getRecordingFailureSummary(response.result.stderr || response.result.stdout),
+                updatedAt: new Date().toISOString()
+              }
+            : current
+        );
+
+        if (response.result.success) {
+          scrollToTask(item.id);
+        }
       }
 
       if (response.result.success) {
@@ -1346,6 +1440,16 @@ export function AutomationPanel(props: AutomationPanelProps) {
           lastLine: getErrorMessage(error),
           live: false
         });
+
+        setRecordingGuide((current) =>
+          current
+            ? {
+                ...current,
+                detail: getRecordingFailureSummary(getErrorMessage(error)),
+                updatedAt: new Date().toISOString()
+              }
+            : current
+        );
       }
       return;
     }
@@ -1460,7 +1564,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }
 
     const item = getIntegration(props.integrations, recordingGuide.taskId);
-    const steps = getRecordSteps(recordingGuide.taskId);
+    const steps = getReadableRecordSteps(recordingGuide.taskId);
     const currentStep = steps[Math.min(recordingGuide.stepIndex, steps.length - 1)] ?? steps[0];
     const busy =
       props.busyKey === getAdminBusyKey(recordingGuide.taskId, 'record-profile') ||
@@ -1601,6 +1705,183 @@ export function AutomationPanel(props: AutomationPanelProps) {
               type="button"
             >
               看日志
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  function renderRecordingGuideCard() {
+    if (!recordingGuide) {
+      return null;
+    }
+
+    const item = getIntegration(props.integrations, recordingGuide.taskId);
+    const steps = getReadableRecordSteps(recordingGuide.taskId);
+    const currentStep = steps[Math.min(recordingGuide.stepIndex, steps.length - 1)] ?? steps[0];
+    const busy =
+      props.busyKey === getAdminBusyKey(recordingGuide.taskId, 'record-profile') ||
+      recordingGuide.status === 'recording';
+
+    return (
+      <article className={`card recording-guide-card ${recordingGuide.status}`}>
+        <div className="integration-head">
+          <div>
+            <p className="eyebrow">Recording Assistant</p>
+            <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} Profile</div>
+            <p className="secondary-text">
+              录制助手会跟着控制台提示自动推进。你只需要切回游戏，把鼠标对到目标位置后按
+              <code> F10</code>。
+            </p>
+          </div>
+          <div className="tool-row">
+            <span className={`status-pill ${recordingGuide.live ? 'success' : 'warm'}`}>
+              {recordingGuide.live ? '实时同步' : '预置步骤'}
+            </span>
+            <span
+              className={`status-pill ${
+                recordingGuide.status === 'success'
+                  ? 'success'
+                  : recordingGuide.status === 'error'
+                    ? 'error'
+                    : 'warm'
+              }`}
+            >
+              {recordingGuide.status === 'success'
+                ? '录制完成'
+                : recordingGuide.status === 'error'
+                  ? '录制失败'
+                  : '录制中'}
+            </span>
+            <button
+              className="ghost-button"
+              onClick={() => setRecordingGuide(null)}
+              type="button"
+            >
+              收起助手
+            </button>
+          </div>
+        </div>
+
+        <article className={`recording-guide-focus ${recordingGuide.status}`}>
+          <div>
+            <p className="eyebrow">Current Step</p>
+            <strong>{currentStep}</strong>
+            <p>{recordingGuide.detail}</p>
+            <p className="recording-guide-console-line">
+              最近一条录制提示：{recordingGuide.lastLine ?? '等待录制提示...'}
+            </p>
+            <span className="helper-text">
+              热键：按 <code>F10</code> 捕获当前位置，按 <code>F12</code> 提前结束录制。时间：
+              {formatCompactDateTime(recordingGuide.updatedAt)}
+            </span>
+          </div>
+          <div className="tool-row">
+            <button
+              className="ghost-button"
+              disabled={busy || recordingGuide.stepIndex <= 0}
+              onClick={() =>
+                setRecordingGuide((current) =>
+                  current
+                    ? { ...current, stepIndex: Math.max(0, current.stepIndex - 1) }
+                    : current
+                )
+              }
+              type="button"
+            >
+              上一步提示
+            </button>
+            <button
+              className="primary-button"
+              disabled={busy || recordingGuide.stepIndex >= steps.length - 1}
+              onClick={() =>
+                setRecordingGuide((current) =>
+                  current
+                    ? {
+                        ...current,
+                        stepIndex: Math.min(steps.length - 1, current.stepIndex + 1),
+                        updatedAt: new Date().toISOString()
+                      }
+                    : current
+                )
+              }
+              type="button"
+            >
+              下一步提示
+            </button>
+            <button
+              className="ghost-button"
+              onClick={() => scrollToTask(recordingGuide.taskId)}
+              type="button"
+            >
+              回到任务卡
+            </button>
+          </div>
+        </article>
+
+        <div className="recording-guide-step-grid">
+          {steps.map((step, index) => {
+            const state =
+              index < recordingGuide.stepIndex
+                ? 'done'
+                : index === recordingGuide.stepIndex
+                  ? 'current'
+                  : 'upcoming';
+
+            return (
+              <article
+                className={`recording-guide-step ${state}`}
+                key={`${recordingGuide.taskId}-${step}`}
+              >
+                <span className="mini-pill">步骤 {index + 1}</span>
+                <strong>{step}</strong>
+                <p>
+                  {state === 'done'
+                    ? '这一格已经录完了，可以继续往后走。'
+                    : state === 'current'
+                      ? '把鼠标对准当前目标，回到录制窗口后按 F10。'
+                      : '先不用急，录完当前高亮步骤再继续。'}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="recording-guide-footer">
+          <span className="helper-text">
+            {busy
+              ? `录制窗口仍在运行：${getTaskMeta(item.id).title}`
+              : recordingGuide.status === 'success'
+                ? 'Profile 已录好。建议现在先试运行一次，确认点击点和流程都对。'
+                : '录制已中断或失败。先看日志，再重新录一次会更稳。'}
+          </span>
+          <div className="tool-row">
+            {recordingGuide.status === 'success' ? (
+              <button
+                className="primary-button"
+                disabled={props.busyKey !== null}
+                onClick={() => void runTask(item.id, 'dry-run')}
+                type="button"
+              >
+                立即试运行
+              </button>
+            ) : null}
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void runAdmin(item, 'print-profile')}
+              type="button"
+            >
+              查看 Profile
+            </button>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void openLogViewer(item.id, `${getTaskMeta(item.id).title} / 执行日志`)}
+              type="button"
+            >
+              查看日志
             </button>
           </div>
         </div>
@@ -2010,7 +2291,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             ) : null}
           </div>
           <div className="sequence-chips">
-            {getRecordSteps(item.id).map((step) => (
+            {getReadableRecordSteps(item.id).map((step) => (
               <span className="mini-pill" key={step}>
                 {step}
               </span>
@@ -2202,7 +2483,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 <p>{step.summary}</p>
                 <span className="helper-text">{step.detail}</span>
                 <div className="sequence-chips compact">
-                  {getRecordSteps(step.id).slice(0, 4).map((recordStep) => (
+                  {getReadableRecordSteps(step.id).slice(0, 4).map((recordStep) => (
                     <span className="mini-pill" key={recordStep}>
                       {recordStep}
                     </span>
@@ -2273,7 +2554,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       ) : null}
 
       {renderProfileGuide()}
-      {renderRecordingGuide()}
+      {renderRecordingGuideCard()}
 
       <article className="card safety-card">
         <div className="integration-head">
