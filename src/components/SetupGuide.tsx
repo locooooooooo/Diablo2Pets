@@ -17,6 +17,13 @@ interface SetupGuideProps {
   busyKey: string | null;
   settings: AppSettings;
   nextAction: SetupGuideHint;
+  latestActivity: {
+    title: string;
+    detail: string;
+    tone: StepTone;
+    timestampLabel: string;
+    logPreview?: string;
+  } | null;
   onRefresh: () => void;
   onInstallRuntime: () => Promise<void>;
   onInstallDependencies: () => Promise<void>;
@@ -90,6 +97,7 @@ export function SetupGuide(props: SetupGuideProps) {
   const dependencyReady = dependencyCheck?.level === 'ok' && ocrCheck?.level === 'ok';
   const missingProfileTasks = tasks.filter((task) => !isTaskProfileReady(task));
   const profilesReady = tasks.length > 0 && missingProfileTasks.length === 0;
+  const coreReady = runtimeReady && dependencyReady && profilesReady;
   const desktopReady =
     props.settings.windowMode === 'floating' || props.settings.notificationsEnabled;
   const completedSteps = [
@@ -98,8 +106,19 @@ export function SetupGuide(props: SetupGuideProps) {
     profilesReady,
     desktopReady
   ].filter(Boolean).length;
+  const requiredCompletedSteps = [runtimeReady, dependencyReady, profilesReady].filter(Boolean).length;
   const installRuntimeBusy = props.busyKey === 'env-install-python-runtime';
   const installDepsBusy = props.busyKey === 'env-install-python-deps';
+  const busyText = installRuntimeBusy
+    ? '正在准备内置 Python runtime，首次执行可能需要几十秒。'
+    : installDepsBusy
+      ? '正在安装 Python 依赖和 OCR 组件，完成后会自动重新诊断。'
+      : '';
+  const blockingSummary = [
+    !runtimeReady ? '内置 runtime 未就绪' : null,
+    !dependencyReady ? '依赖 / OCR 未就绪' : null,
+    !profilesReady ? '三条 Profile 还没录完' : null
+  ].filter(Boolean) as string[];
 
   const steps: SetupStep[] = [
     {
@@ -178,13 +197,26 @@ export function SetupGuide(props: SetupGuideProps) {
     {
       key: 'profiles',
       title: '录好三条 Profile',
-      summary: profilesReady
-        ? '符文、宝石、金币三条任务线都能直接开跑。'
-        : '继续把缺失的 Profile 录完，工坊预检就会更接近全绿。',
-      detail: profilesReady
-        ? '后面只需要按库存填数量或贴截图，就可以试运行或正式执行。'
-        : '点下面缺的任务，桌宠会直接带你跳到工坊对应卡片，并高亮那一项。',
-      tone: profilesReady ? 'success' : missingProfileTasks.length === tasks.length ? 'error' : 'attention',
+      summary:
+        tasks.length === 0
+          ? '我还在读取工坊三条任务线的状态。'
+          : profilesReady
+            ? '符文、宝石、金币三条任务线都能直接开跑。'
+            : '继续把缺失的 Profile 录完，工坊预检就会更接近全绿。',
+      detail:
+        tasks.length === 0
+          ? '如果这里长时间不更新，先点刷新诊断，或者直接进入工坊看全量预检。'
+          : profilesReady
+            ? '后面只需要按库存填数量或贴截图，就可以试运行或正式执行。'
+            : '点下面缺的任务，桌宠会直接带你跳到工坊对应卡片，并高亮那一项。',
+      tone:
+        tasks.length === 0
+          ? 'attention'
+          : profilesReady
+            ? 'success'
+            : missingProfileTasks.length === tasks.length
+              ? 'error'
+              : 'attention',
       chips:
         tasks.length > 0
           ? tasks.map(
@@ -249,7 +281,7 @@ export function SetupGuide(props: SetupGuideProps) {
           <p className="eyebrow">First Launch</p>
           <h3>首次启动引导</h3>
           <p className="secondary-text">
-            先把内置 runtime、依赖、Profile 和桌宠形态安顿好，后面就能更稳地陪你刷。
+            我会明确告诉你现在能不能用、卡在哪一步、下一步该点什么。
           </p>
         </div>
         <div className="setup-guide-meta">
@@ -263,6 +295,28 @@ export function SetupGuide(props: SetupGuideProps) {
         </div>
       </div>
 
+      <article className={`setup-guide-status ${coreReady ? 'success' : 'attention'}`}>
+        <div>
+          <p className="eyebrow">{coreReady ? 'Ready' : 'Not Ready Yet'}</p>
+          <strong>
+            {coreReady ? '现在已经能用了' : `还差 ${3 - requiredCompletedSteps} 步才能真正开用`}
+          </strong>
+          <p>
+            {coreReady
+              ? desktopReady
+                ? '环境、依赖、Profile 和桌宠形态都已齐备，可以直接去工坊或开始陪刷。'
+                : '环境、依赖和 Profile 已齐备，现在就能用了；悬浮态和通知只是额外增强。'
+              : `当前阻塞项：${blockingSummary.join(' / ')}。`}
+          </p>
+        </div>
+        <div className="setup-guide-status-side">
+          <span className="status-pill warm">{requiredCompletedSteps}/3 核心可用项</span>
+          <span className="helper-text">
+            核心三项齐了就能开用，桌宠形态属于可选优化。
+          </span>
+        </div>
+      </article>
+
       <article className="setup-guide-next">
         <div>
           <p className="eyebrow">Next Step</p>
@@ -274,6 +328,31 @@ export function SetupGuide(props: SetupGuideProps) {
         </button>
       </article>
 
+      {busyText ? (
+        <article className="setup-guide-activity attention busy">
+          <div className="setup-guide-activity-head">
+            <strong>正在执行当前步骤</strong>
+            <span className="status-pill warm">处理中</span>
+          </div>
+          <p>{busyText}</p>
+        </article>
+      ) : null}
+
+      {props.latestActivity ? (
+        <article className={`setup-guide-activity ${props.latestActivity.tone}`}>
+          <div className="setup-guide-activity-head">
+            <strong>{props.latestActivity.title}</strong>
+            <span className={`status-pill ${props.latestActivity.tone}`}>
+              {props.latestActivity.timestampLabel}
+            </span>
+          </div>
+          <p>{props.latestActivity.detail}</p>
+          {props.latestActivity.logPreview ? (
+            <pre className="setup-guide-log-preview">{props.latestActivity.logPreview}</pre>
+          ) : null}
+        </article>
+      ) : null}
+
       {props.error ? (
         <div className="empty-state compact-empty">
           <strong>引导诊断暂时失败</strong>
@@ -283,9 +362,9 @@ export function SetupGuide(props: SetupGuideProps) {
 
       <div className="setup-progress-row">
         <article className="setup-progress-card">
-          <span>核心准备</span>
-          <strong>{completedSteps}/4</strong>
-          <p>覆盖内置 runtime、依赖、Profile 和桌面陪刷形态。</p>
+          <span>核心可用度</span>
+          <strong>{requiredCompletedSteps}/3</strong>
+          <p>只看 runtime、依赖和 Profile，这三项齐了就能正式开用。</p>
         </article>
         <article className="setup-progress-card">
           <span>自动化任务</span>

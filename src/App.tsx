@@ -17,7 +17,7 @@ import {
   createPetCeremonySnapshot,
   type PetCeremony
 } from './lib/petCeremony';
-import { formatDuration, getDayKey } from './lib/date';
+import { formatCompactDateTime, formatDuration, getDayKey } from './lib/date';
 import { buildPetCodex } from './lib/petCodex';
 import { buildPetHabitat } from './lib/petHabitat';
 import {
@@ -64,6 +64,13 @@ import type {
 
 type TabKey = 'companion' | 'drops' | 'workshop';
 type Message = { kind: 'success' | 'error'; text: string } | null;
+type SetupGuideActivity = {
+  title: string;
+  detail: string;
+  tone: 'success' | 'attention' | 'error';
+  timestampLabel: string;
+  logPreview?: string;
+} | null;
 const DEFAULT_SETTINGS: AppData['settings'] = {
   alwaysOnTop: false,
   launchOnStartup: false,
@@ -92,6 +99,18 @@ function getAdminSuccessText(action: RunAutomationAdminInput['action']): string 
   }
 }
 
+function getSetupActivityTimeLabel() {
+  return formatCompactDateTime(new Date().toISOString());
+}
+
+function getLogPreview(content?: string): string | undefined {
+  if (!content?.trim()) {
+    return undefined;
+  }
+
+  return content.trim().split(/\r?\n/).slice(-10).join('\n');
+}
+
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('companion');
@@ -103,6 +122,7 @@ export default function App() {
   const [setupPreflight, setSetupPreflight] = useState<AutomationPreflightResponse | null>(null);
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
+  const [setupGuideActivity, setSetupGuideActivity] = useState<SetupGuideActivity>(null);
   const [petInteractionCue, setPetInteractionCue] = useState<PetInteractionCue | null>(null);
   const [petFishingCatch, setPetFishingCatch] = useState<PetFishingCatch | null>(null);
   const [petCeremony, setPetCeremony] = useState<PetCeremony | null>(null);
@@ -718,19 +738,40 @@ export default function App() {
 
     try {
       const response = await window.d2Pet.runEnvironmentAction(payload);
+      const successText =
+        payload.action === 'install-python-deps'
+          ? 'Python 运行时依赖安装完成。'
+          : '内置 Python runtime 已准备完成。';
+
       setMessage({
         kind: response.result.success ? 'success' : 'error',
         text: response.result.success
-          ? payload.action === 'install-python-deps'
-            ? 'Python 运行时依赖安装完成。'
-            : '环境修复动作已完成。'
+          ? successText
           : response.result.stderr || '环境修复失败。'
+      });
+      setSetupGuideActivity({
+        title:
+          payload.action === 'install-python-deps'
+            ? '依赖安装结果'
+            : '内置 Runtime 处理结果',
+        detail: response.result.success
+          ? successText
+          : response.result.stderr || response.result.stdout || '环境修复失败。',
+        tone: response.result.success ? 'success' : 'error',
+        timestampLabel: getSetupActivityTimeLabel(),
+        logPreview: getLogPreview(response.log.content)
       });
       refreshSetupGuide();
       return response;
     } catch (error) {
       const text = getErrorMessage(error);
       setMessage({ kind: 'error', text });
+      setSetupGuideActivity({
+        title: '引导动作执行失败',
+        detail: text,
+        tone: 'error',
+        timestampLabel: getSetupActivityTimeLabel()
+      });
       throw new Error(text);
     } finally {
       setBusyKey(null);
@@ -949,6 +990,9 @@ export default function App() {
       case 'install-deps':
         void handleRunEnvironmentAction({ action: 'install-python-deps' });
         return;
+      case 'complete-guide':
+        handleCompleteSetupGuide();
+        return;
       case 'open-workshop-task':
         if (setupGuideHint.integrationId) {
           handleOpenWorkshopTaskFromGuide(setupGuideHint.integrationId);
@@ -972,6 +1016,12 @@ export default function App() {
   function handleOpenWorkshopTaskFromGuide(id: IntegrationId) {
     handleOpenPanel('workshop');
     setWorkshopFocusId(id);
+    setSetupGuideActivity({
+      title: `下一步：去录${id === 'rune-cube' ? '符文' : id === 'gem-cube' ? '宝石' : '金币'} Profile`,
+      detail: '我已经把你带到工坊对应任务卡了。看到高亮任务后，先点“录 Profile”，按弹出的提示捕获坐标。',
+      tone: 'attention',
+      timestampLabel: getSetupActivityTimeLabel()
+    });
   }
 
   function handleEnableFloatingFromGuide() {
@@ -985,6 +1035,12 @@ export default function App() {
   }
 
   function handleCompleteSetupGuide() {
+    setSetupGuideActivity({
+      title: '首次引导已完成',
+      detail: '现在已经不再是“安家中”。你可以直接去工坊执行任务，或者开始记录刷图和掉落。',
+      tone: 'success',
+      timestampLabel: getSetupActivityTimeLabel()
+    });
     void handleUpdateSettings({ setupGuideCompleted: true });
   }
 
@@ -1146,6 +1202,7 @@ export default function App() {
                 <SetupGuide
                   busyKey={busyKey}
                   error={setupPreflightError}
+                  latestActivity={setupGuideActivity}
                   loading={setupPreflightBusy}
                   onComplete={handleCompleteSetupGuide}
                   onDismiss={() => setShowSetupGuide(false)}

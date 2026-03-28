@@ -123,7 +123,7 @@ export function createPetInteractionCue(
         id: makeInteractionId(),
         kind,
         emotion: 'curious',
-        emotionLabel: '先安家',
+        emotionLabel: '待完成引导',
         headline: '我在，先把引导走完',
         statusLine: '再给我一点准备时间，等环境和 Profile 补齐之后，我就能更稳地陪刷。',
         scripts: [
@@ -371,12 +371,12 @@ export function buildPetPersona(input: PetPersonaInput): PetPersona {
   if (!input.setupGuideCompleted) {
     return {
       emotion: 'curious',
-      emotionLabel: '等你安家',
-      headline: '先把首次引导走完',
-      statusLine: '把环境、Profile 和桌宠形态安顿好，后面就能更稳地陪你刷。',
+      emotionLabel: '待完成引导',
+      headline: '还差几步就能正式开用',
+      statusLine: '先把环境、依赖和 Profile 补齐，我会明确告诉你下一步该点什么。',
       scripts: [
-        '我现在更像一只还没安家的宠物，先带我把引导收完。',
-        '引导结束后，我会从工具面板变成真正的桌面陪刷助手。',
+        '现在不是“安家中”这种抽象状态了，你只要照着下一步补就行。',
+        '引导结束后，我会从工具面板变成真正能直接用的桌面陪刷助手。',
         '先补这一段，后面每天打开就能直接继续。'
       ]
     };
