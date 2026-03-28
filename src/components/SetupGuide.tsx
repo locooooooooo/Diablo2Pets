@@ -100,35 +100,30 @@ export function SetupGuide(props: SetupGuideProps) {
   const coreReady = runtimeReady && dependencyReady && profilesReady;
   const desktopReady =
     props.settings.windowMode === 'floating' || props.settings.notificationsEnabled;
-  const completedSteps = [
-    runtimeReady,
-    dependencyReady,
-    profilesReady,
-    desktopReady
-  ].filter(Boolean).length;
+  const completedSteps = [runtimeReady, dependencyReady, profilesReady, desktopReady].filter(Boolean).length;
   const requiredCompletedSteps = [runtimeReady, dependencyReady, profilesReady].filter(Boolean).length;
   const installRuntimeBusy = props.busyKey === 'env-install-python-runtime';
   const installDepsBusy = props.busyKey === 'env-install-python-deps';
   const busyText = installRuntimeBusy
-    ? '正在准备内置 Python runtime，首次执行可能需要几十秒。'
+    ? '正在准备内置 Python runtime。首次执行可能需要几十秒，请先不要关闭桌宠。'
     : installDepsBusy
-      ? '正在安装 Python 依赖和 OCR 组件，完成后会自动重新诊断。'
+      ? '正在安装 Python 依赖和 OCR 组件。完成后我会自动重新诊断。'
       : '';
   const blockingSummary = [
-    !runtimeReady ? '内置 runtime 未就绪' : null,
-    !dependencyReady ? '依赖 / OCR 未就绪' : null,
+    !runtimeReady ? '内置 runtime 还没到位' : null,
+    !dependencyReady ? '依赖和 OCR 还没装齐' : null,
     !profilesReady ? '三条 Profile 还没录完' : null
   ].filter(Boolean) as string[];
 
   const steps: SetupStep[] = [
     {
       key: 'runtime',
-      title: '内置 Runtime 到位',
+      title: '让桌宠用上自己的 runtime',
       summary: runtimeReady
-        ? '桌宠已经在使用自己的 Python runtime。'
+        ? '桌宠已经在使用内置 Python runtime。'
         : runtimeBaseReady
-          ? '当前还能跑，但还在用系统 Python，建议切到内置 runtime。'
-          : '先把桌宠自己的 Python runtime 装好，后面的自动化才会稳。',
+          ? '当前还能跑，但还在使用系统 Python。切到内置 runtime 后会更稳。'
+          : '先把桌宠自带的 Python runtime 装好，后面的自动化才能真正开箱即用。',
       detail:
         runtimeBlockingCheck?.detail ??
         pythonSourceCheck?.detail ??
@@ -142,7 +137,7 @@ export function SetupGuide(props: SetupGuideProps) {
             return `${check.label} · ${label}`;
           }),
           pythonSourceCheck
-            ? `来源 · ${pythonSourceCheck.level === 'ok' ? '内置' : '系统'}`
+            ? `来源 · ${pythonSourceCheck.level === 'ok' ? '内置 runtime' : '系统 Python'}`
             : '来源 · 待识别'
         ].filter(Boolean),
       actions: runtimeReady
@@ -171,10 +166,10 @@ export function SetupGuide(props: SetupGuideProps) {
     },
     {
       key: 'deps',
-      title: '依赖与 OCR',
+      title: '补齐依赖和 OCR',
       summary: dependencyReady
-        ? '自动化依赖和 OCR 已经都能正常使用。'
-        : '先把依赖补齐，工坊任务和掉落识别才会完整可用。',
+        ? '自动化依赖和 OCR 已经可以正常工作。'
+        : '先把 Python 依赖装齐，工坊任务和掉落识别才会完整可用。',
       detail:
         dependencyCheck?.detail ??
         `当前已安装 ${installedDependencyCount}/${dependencyChecks.length || 0} 项运行时依赖。`,
@@ -187,7 +182,7 @@ export function SetupGuide(props: SetupGuideProps) {
         ? []
         : [
             {
-              label: installDepsBusy ? '安装中...' : '安装 Python 依赖',
+              label: installDepsBusy ? '安装中...' : '一键安装依赖',
               kind: 'primary',
               disabled: props.busyKey !== null && !installDepsBusy,
               onClick: () => void props.onInstallDependencies()
@@ -201,14 +196,14 @@ export function SetupGuide(props: SetupGuideProps) {
         tasks.length === 0
           ? '我还在读取工坊三条任务线的状态。'
           : profilesReady
-            ? '符文、宝石、金币三条任务线都能直接开跑。'
-            : '继续把缺失的 Profile 录完，工坊预检就会更接近全绿。',
+            ? '符文、宝石、金币三条任务线都能直接开跑了。'
+            : '继续把缺的 Profile 录完，工坊预检就会更接近全绿。',
       detail:
         tasks.length === 0
-          ? '如果这里长时间不更新，先点刷新诊断，或者直接进入工坊看全量预检。'
+          ? '如果这里长时间不更新，先点刷新诊断，或者直接进入工坊查看完整预检。'
           : profilesReady
-            ? '后面只需要按库存填数量或贴截图，就可以试运行或正式执行。'
-            : '点下面缺的任务，桌宠会直接带你跳到工坊对应卡片，并高亮那一项。',
+            ? '后面只要填数量、贴截图或输入金额，就可以直接试运行。'
+            : '点下面缺的那一项，我会直接带你跳到工坊对应任务卡并高亮它。',
       tone:
         tasks.length === 0
           ? 'attention'
@@ -223,7 +218,7 @@ export function SetupGuide(props: SetupGuideProps) {
               (task) =>
                 `${getIntegrationLabel(task.id)} · ${isTaskProfileReady(task) ? '已录制' : '待录制'}`
             )
-          : ['等待预检返回 Profile 状态'],
+          : ['等待工坊预检结果'],
       actions: profilesReady
         ? []
         : missingProfileTasks.map((task) => ({
@@ -235,18 +230,18 @@ export function SetupGuide(props: SetupGuideProps) {
     },
     {
       key: 'desktop',
-      title: '切到陪刷形态',
+      title: '切到更像桌宠的形态',
       summary: desktopReady
-        ? '桌宠已经更像真正的桌面陪刷伙伴。'
-        : '建议至少开启悬浮态或系统通知，让桌宠更像常驻助手。',
+        ? '桌宠现在已经像真正的桌面陪刷助手了。'
+        : '这一步只是体验增强，不会影响核心功能是否可用。',
       detail: props.settings.windowMode === 'floating'
         ? '当前已经切到悬浮态，适合一边刷图一边盯状态。'
         : props.settings.notificationsEnabled
-          ? '当前还是面板态，但已经会主动推送关键通知。'
-          : '切到悬浮态或打开通知后，桌宠的陪刷感会明显更完整。',
+          ? '当前还是面板态，但关键动作已经会主动弹系统通知。'
+          : '你可以开启悬浮态或系统通知，让桌宠更像常驻助手。',
       tone: desktopReady ? 'success' : 'attention',
       chips: [
-        props.settings.windowMode === 'floating' ? '悬浮态已启用' : '当前是面板态',
+        props.settings.windowMode === 'floating' ? '悬浮态已开启' : '当前是面板态',
         props.settings.notificationsEnabled ? '通知已开启' : '通知未开启'
       ],
       actions: [
@@ -264,7 +259,7 @@ export function SetupGuide(props: SetupGuideProps) {
           ? []
           : [
               {
-                label: '开启通知',
+                label: '打开系统通知',
                 kind: 'secondary' as const,
                 disabled: props.busyKey !== null,
                 onClick: props.onEnableNotifications
@@ -285,7 +280,7 @@ export function SetupGuide(props: SetupGuideProps) {
           </p>
         </div>
         <div className="setup-guide-meta">
-          <span className="status-pill warm">{completedSteps}/4 已就绪</span>
+          <span className="status-pill warm">{completedSteps}/4 已完成</span>
           <button className="ghost-button" onClick={props.onDismiss} type="button">
             稍后再说
           </button>
@@ -299,20 +294,20 @@ export function SetupGuide(props: SetupGuideProps) {
         <div>
           <p className="eyebrow">{coreReady ? 'Ready' : 'Not Ready Yet'}</p>
           <strong>
-            {coreReady ? '现在已经能用了' : `还差 ${3 - requiredCompletedSteps} 步才能真正开用`}
+            {coreReady ? '现在已经能用了' : `还差 ${3 - requiredCompletedSteps} 步才能正式开用`}
           </strong>
           <p>
             {coreReady
               ? desktopReady
-                ? '环境、依赖、Profile 和桌宠形态都已齐备，可以直接去工坊或开始陪刷。'
-                : '环境、依赖和 Profile 已齐备，现在就能用了；悬浮态和通知只是额外增强。'
+                ? '环境、依赖、Profile 和桌宠形态都已经齐了，可以直接去工坊或开始陪刷。'
+                : '环境、依赖和 Profile 已经齐了，现在就能用；悬浮态和通知只是额外增强。'
               : `当前阻塞项：${blockingSummary.join(' / ')}。`}
           </p>
         </div>
         <div className="setup-guide-status-side">
           <span className="status-pill warm">{requiredCompletedSteps}/3 核心可用项</span>
           <span className="helper-text">
-            核心三项齐了就能开用，桌宠形态属于可选优化。
+            runtime、依赖和 Profile 这三项齐了，就已经能正式开用了。
           </span>
         </div>
       </article>
@@ -364,17 +359,17 @@ export function SetupGuide(props: SetupGuideProps) {
         <article className="setup-progress-card">
           <span>核心可用度</span>
           <strong>{requiredCompletedSteps}/3</strong>
-          <p>只看 runtime、依赖和 Profile，这三项齐了就能正式开用。</p>
+          <p>只看 runtime、依赖和 Profile，这三项齐了就已经能正式开用。</p>
         </article>
         <article className="setup-progress-card">
-          <span>自动化任务</span>
+          <span>工坊任务线</span>
           <strong>{tasks.length - missingProfileTasks.length}/{tasks.length || 3}</strong>
-          <p>三条工坊任务线都录好 Profile 后，预检会更容易整体变绿。</p>
+          <p>三条任务线都录好 Profile 后，试运行和正式执行才会更顺。</p>
         </article>
         <article className="setup-progress-card">
           <span>依赖状态</span>
           <strong>{installedDependencyCount}/{dependencyChecks.length || 0}</strong>
-          <p>缺依赖时可以直接在这里一键补装。</p>
+          <p>缺依赖时可以直接在这里一键补齐，不需要手动敲命令。</p>
         </article>
       </div>
 
@@ -423,7 +418,7 @@ export function SetupGuide(props: SetupGuideProps) {
 
       <div className="setup-guide-footer">
         <button className="text-button" onClick={props.onOpenWorkshop} type="button">
-          直接进入工坊查看全量预检
+          直接进入工坊查看完整预检
         </button>
       </div>
     </article>

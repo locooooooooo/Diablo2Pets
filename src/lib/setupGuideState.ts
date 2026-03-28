@@ -50,9 +50,9 @@ export function buildSetupGuideHint(
 ): SetupGuideHint {
   if (!preflight) {
     return {
-      badge: '待读取状态',
-      title: '先读取当前可用性',
-      detail: '我会先检查环境、依赖和三条 Profile，再明确告诉你哪一步没补齐。',
+      badge: '等待诊断',
+      title: '先读取当前可用状态',
+      detail: '我会先检查 runtime、依赖和三条 Profile，再明确告诉你当前卡在哪一步。',
       actionLabel: '打开引导',
       action: 'open-guide',
       stepKey: 'runtime'
@@ -75,10 +75,10 @@ export function buildSetupGuideHint(
   if (!runtimeReady) {
     return {
       badge: '第 1 步',
-      title: runtimeBaseReady ? '切到内置 Python runtime' : '先装内置 Python runtime',
+      title: runtimeBaseReady ? '切换到内置 Python runtime' : '先安装内置 Python runtime',
       detail: runtimeBaseReady
-        ? '当前还能跑，但还在用系统 Python。装到桌宠自己的 runtime 后，后面的自动化和打包都会更稳。'
-        : '桌宠要先有自己的 Python、pip 和运行时目录，后面的自动化任务才会真正开箱即用。',
+        ? '当前还能跑，但还在使用系统 Python。切到桌宠自带的 runtime 后，后面的自动化和打包都会更稳。'
+        : '桌宠需要先准备好自己的 Python、pip 和运行时目录，后面的自动化任务才会真正开箱即用。',
       actionLabel: '安装内置 Runtime',
       action: 'install-runtime',
       stepKey: 'runtime'
@@ -93,7 +93,7 @@ export function buildSetupGuideHint(
     return {
       badge: '第 2 步',
       title: '先安装 Python 依赖',
-      detail: '依赖和 OCR 没到位前，工坊任务和掉落识别都不会完整可用。',
+      detail: '依赖和 OCR 还没到位前，工坊任务和掉落识别都不会完整可用。',
       actionLabel: '一键安装依赖',
       action: 'install-deps',
       stepKey: 'deps'
@@ -102,9 +102,9 @@ export function buildSetupGuideHint(
 
   if (tasks.length === 0) {
     return {
-      badge: '待读取工坊',
-      title: '还在确认三条任务线状态',
-      detail: '我还没拿到符文、宝石、金币三条任务线的预检结果，先打开完整引导或工坊刷新一次。',
+      badge: '等待工坊状态',
+      title: '还在读取三条任务线状态',
+      detail: '我还没拿到符文、宝石、金币三条任务线的预检结果。先打开完整引导，或者去工坊刷新一次。',
       actionLabel: '打开引导',
       action: 'open-guide',
       stepKey: 'profiles'
@@ -119,7 +119,7 @@ export function buildSetupGuideHint(
     return {
       badge: '第 3 步',
       title: `先录 ${label} Profile`,
-      detail: '录完这一项后，工坊预检会立刻更接近全绿，你也能更快开始试跑。',
+      detail: '录完这一条后，工坊预检会马上更新，你也能更快进入试运行。',
       actionLabel: `去录 ${label} Profile`,
       action: 'open-workshop-task',
       stepKey: 'profiles',
@@ -132,9 +132,9 @@ export function buildSetupGuideHint(
   if (!desktopReady) {
     return {
       badge: '已经可用',
-      title: '功能已经能用了，桌宠形态只是可选优化',
-      detail: '环境、依赖和 Profile 都齐了。现在就能去工坊执行任务；悬浮态和通知只是让陪刷体验更完整。',
-      actionLabel: '完成引导，开始使用',
+      title: '核心功能已经能用了',
+      detail: '环境、依赖和 Profile 都齐了。现在就能去工坊执行任务；悬浮态和通知只是额外增强。',
+      actionLabel: '完成引导',
       action: 'complete-guide',
       stepKey: 'finish'
     };
@@ -142,9 +142,9 @@ export function buildSetupGuideHint(
 
   return {
     badge: '已经可用',
-    title: '桌宠已经准备好，可以正式开用了',
-    detail: '运行环境、依赖和 Profile 都已经准备好了，现在只差把这段首启流程正式收尾。',
-    actionLabel: '完成引导，开始使用',
+    title: '桌宠已经准备好了',
+    detail: 'runtime、依赖和 Profile 都齐了，悬浮态和通知也已经就位，可以正式开始用了。',
+    actionLabel: '完成引导',
     action: 'complete-guide',
     stepKey: 'finish'
   };
