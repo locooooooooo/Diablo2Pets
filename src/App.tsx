@@ -21,6 +21,11 @@ import { formatDuration, getDayKey } from './lib/date';
 import { buildPetCodex } from './lib/petCodex';
 import { buildPetHabitat } from './lib/petHabitat';
 import {
+  buildPetFishingInteractionCue,
+  createPetFishingCatch,
+  type PetFishingCatch
+} from './lib/petFishing';
+import {
   createPetInteractionCue,
   type PetInteractionCue
 } from './lib/petPersona';
@@ -99,6 +104,7 @@ export default function App() {
   const [setupPreflightBusy, setSetupPreflightBusy] = useState(false);
   const [setupPreflightError, setSetupPreflightError] = useState('');
   const [petInteractionCue, setPetInteractionCue] = useState<PetInteractionCue | null>(null);
+  const [petFishingCatch, setPetFishingCatch] = useState<PetFishingCatch | null>(null);
   const [petCeremony, setPetCeremony] = useState<PetCeremony | null>(null);
   const [petEvent, setPetEvent] = useState<PetEvent | null>(null);
   const [floatingSnapPreview, setFloatingSnapPreview] = useState<FloatingSnapPreview>({
@@ -207,6 +213,20 @@ export default function App() {
 
     return () => window.clearTimeout(timer);
   }, [petInteractionCue]);
+
+  useEffect(() => {
+    if (!petFishingCatch) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPetFishingCatch((current) =>
+        current?.id === petFishingCatch.id ? null : current
+      );
+    }, 6_200);
+
+    return () => window.clearTimeout(timer);
+  }, [petFishingCatch]);
 
   useEffect(() => {
     if (!petEvent) {
@@ -442,13 +462,18 @@ export default function App() {
       data.activeRun ||
       Boolean(highlightedDropName) ||
       Boolean(busyKey) ||
-      Boolean(petInteractionCue)
+      Boolean(petInteractionCue) ||
+      Boolean(petFishingCatch) ||
+      showSetupGuide
     ) {
       return undefined;
     }
 
     const timer = window.setTimeout(() => {
-      setPetInteractionCue(createPetInteractionCue('idle-play', petPersonaInput));
+      const fishingCatch = createPetFishingCatch(petPersonaInput);
+      setPetFishingCatch(fishingCatch);
+      setPetEvent(null);
+      setPetInteractionCue(buildPetFishingInteractionCue(fishingCatch));
     }, 16_000 + Math.floor(Math.random() * 10_000));
 
     return () => window.clearTimeout(timer);
@@ -457,7 +482,9 @@ export default function App() {
     data,
     highlightedDropName,
     petInteractionCue,
-    petPersonaInput
+    petFishingCatch,
+    petPersonaInput,
+    showSetupGuide
   ]);
 
   useEffect(() => {
@@ -989,6 +1016,7 @@ export default function App() {
           event={petEvent}
           eventBusy={Boolean(busyKey)}
           ceremony={petCeremony}
+          fishingCatch={petFishingCatch}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           liveDurationText={activeDurationText}
@@ -1042,6 +1070,7 @@ export default function App() {
           event={petEvent}
           eventBusy={Boolean(busyKey)}
           ceremony={petCeremony}
+          fishingCatch={petFishingCatch}
           highlightDropName={highlightedDropName}
           interactionCue={petInteractionCue}
           launchOnStartup={data.settings.launchOnStartup}

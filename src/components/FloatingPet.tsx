@@ -3,10 +3,12 @@ import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
+import type { PetFishingCatch } from '../lib/petFishing';
 import type { SetupGuideHint } from '../lib/setupGuideState';
 import type { PetCeremony } from '../lib/petCeremony';
 import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
+import { FishingDiabloPet } from './FishingDiabloPet';
 import type {
   PetEvent,
   PetProgression,
@@ -32,6 +34,7 @@ interface FloatingPetProps {
   liveDurationText: string;
   highlightDropName: string;
   interactionCue: PetInteractionCue | null;
+  fishingCatch: PetFishingCatch | null;
   progression: PetProgression;
   rewards: PetRewardTrack;
   habitat: PetHabitat;
@@ -372,15 +375,12 @@ export function FloatingPet(props: FloatingPetProps) {
             title="摸头互动，双击庆祝"
             type="button"
           >
-            <div className="pet-ring pet-ring-outer" />
-            <div className="pet-ring pet-ring-inner" />
-            <div className="pet-core" />
-            <div className="pet-eyes">
-              <span />
-              <span />
-            </div>
-            <span className="pet-prop-badge floating-prop-badge">{props.scene.propLabel}</span>
-            {props.highlightDropName ? <div className="pet-spark" /> : null}
+            <FishingDiabloPet
+              fishingCatch={props.fishingCatch}
+              floating
+              highlightDropName={props.highlightDropName}
+              propLabel={props.scene.propLabel}
+            />
           </button>
 
           <div

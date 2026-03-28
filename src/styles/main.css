@@ -6218,3 +6218,547 @@ body {
     bottom: 8px;
   }
 }
+
+.pet-diablo-core {
+  overflow: hidden;
+  z-index: 3;
+  background:
+    radial-gradient(circle at 34% 28%, #ffe4ad 0%, #ffbb72 14%, #ff8044 30%, #c63c16 56%, #280405 100%);
+  box-shadow:
+    0 0 44px rgba(255, 112, 52, 0.4),
+    inset 0 -18px 24px rgba(20, 0, 0, 0.4);
+}
+
+.pet-diablo-body,
+.pet-diablo-horn,
+.pet-diablo-brow,
+.pet-diablo-cheek,
+.pet-diablo-mouth,
+.pet-diablo-tail,
+.pet-diablo-wing,
+.pet-fishing-scene,
+.pet-rune-catch,
+.pet-blessing-chip {
+  pointer-events: none;
+}
+
+.pet-diablo-body {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  width: 46%;
+  height: 34%;
+  border-radius: 48% 48% 36% 36%;
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 229, 160, 0.55) 0%, rgba(255, 135, 60, 0.82) 36%, rgba(132, 21, 11, 0.94) 100%);
+  box-shadow:
+    inset 0 10px 12px rgba(255, 210, 122, 0.2),
+    0 8px 14px rgba(40, 0, 0, 0.3);
+}
+
+.pet-diablo-horn {
+  position: absolute;
+  top: -8%;
+  width: 18%;
+  height: 28%;
+  border-radius: 70% 70% 22% 22%;
+  background:
+    linear-gradient(180deg, #ffd48d 0%, #c65f22 38%, #4a140f 100%);
+  box-shadow:
+    0 0 12px rgba(255, 164, 98, 0.22),
+    inset 0 -6px 8px rgba(32, 4, 0, 0.26);
+  z-index: 2;
+}
+
+.pet-diablo-horn.horn-left {
+  left: 18%;
+  transform: rotate(-26deg);
+}
+
+.pet-diablo-horn.horn-right {
+  right: 18%;
+  transform: rotate(26deg);
+}
+
+.pet-diablo-brow {
+  position: absolute;
+  top: 28%;
+  width: 16%;
+  height: 6%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(62, 8, 8, 0.2), rgba(62, 8, 8, 0.95));
+  z-index: 5;
+}
+
+.pet-diablo-brow.brow-left {
+  left: 26%;
+  transform: rotate(-14deg);
+}
+
+.pet-diablo-brow.brow-right {
+  right: 26%;
+  transform: rotate(14deg);
+}
+
+.pet-diablo-cheek {
+  position: absolute;
+  top: 48%;
+  width: 14%;
+  height: 12%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 208, 138, 0.28) 0%, rgba(255, 120, 66, 0.12) 58%, transparent 100%);
+  z-index: 4;
+}
+
+.pet-diablo-cheek.cheek-left {
+  left: 20%;
+}
+
+.pet-diablo-cheek.cheek-right {
+  right: 20%;
+}
+
+.pet-diablo-mouth {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  width: 18%;
+  height: 10%;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(61, 8, 6, 0.78);
+  border-radius: 0 0 999px 999px;
+  z-index: 5;
+}
+
+.pet-diablo-wings {
+  position: absolute;
+  inset: 12% 10% 18%;
+  z-index: 1;
+}
+
+.pet-diablo-wing {
+  position: absolute;
+  top: 24%;
+  width: 29%;
+  height: 38%;
+  border: 1px solid rgba(255, 158, 95, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 116, 59, 0.65) 0%, rgba(91, 12, 12, 0.9) 100%);
+  clip-path: polygon(12% 0%, 88% 6%, 100% 36%, 84% 44%, 98% 72%, 64% 64%, 72% 100%, 36% 76%, 18% 100%, 22% 60%, 0% 44%);
+  filter: drop-shadow(0 6px 14px rgba(42, 3, 4, 0.34));
+  opacity: 0.9;
+  animation: pet-wing-flutter 4.8s ease-in-out infinite;
+}
+
+.pet-diablo-wing.wing-left {
+  left: 2%;
+  transform: rotate(-18deg);
+}
+
+.pet-diablo-wing.wing-right {
+  right: 2%;
+  transform: scaleX(-1) rotate(-18deg);
+  animation-delay: -0.7s;
+}
+
+.pet-diablo-tail {
+  position: absolute;
+  right: 16%;
+  bottom: 20%;
+  width: 22%;
+  height: 7%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5a120e 0%, #cb4116 58%, #ffa058 100%);
+  box-shadow: 0 0 12px rgba(255, 124, 73, 0.18);
+  transform: rotate(24deg);
+  z-index: 2;
+}
+
+.pet-diablo-tail::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: -4px;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(180deg, #ffc87e 0%, #da5b1a 42%, #60120c 100%);
+  clip-path: polygon(50% 0%, 100% 36%, 64% 100%, 36% 100%, 0% 36%);
+}
+
+.pet-fishing-scene {
+  position: absolute;
+  inset: auto 8% 4% 8%;
+  height: 36%;
+  z-index: 4;
+}
+
+.pet-fishing-pond {
+  position: absolute;
+  left: 4%;
+  right: 8%;
+  bottom: 0;
+  height: 30%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(124, 244, 255, 0.58) 0%, rgba(40, 120, 165, 0.72) 30%, rgba(14, 33, 58, 0.96) 100%);
+  box-shadow:
+    inset 0 8px 16px rgba(171, 233, 255, 0.22),
+    inset 0 -10px 12px rgba(0, 0, 0, 0.44),
+    0 0 18px rgba(74, 188, 255, 0.16),
+    0 0 0 1px rgba(255, 193, 104, 0.1);
+}
+
+.pet-fishing-ripple {
+  position: absolute;
+  right: 27%;
+  bottom: 6%;
+  width: 18%;
+  height: 14%;
+  border-radius: 999px;
+  border: 1px solid rgba(174, 239, 255, 0.52);
+  opacity: 0.5;
+  animation: pet-water-ripple 2.8s ease-out infinite;
+}
+
+.pet-fishing-ripple.ripple-b {
+  animation-delay: -1.2s;
+}
+
+.pet-fishing-rod {
+  position: absolute;
+  right: 16%;
+  top: 12%;
+  width: 42%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4b2914 0%, #b87e46 44%, #f4d498 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 12px rgba(255, 193, 118, 0.12);
+  transform-origin: right center;
+  transform: rotate(-18deg);
+  animation: pet-rod-sway 3.8s ease-in-out infinite;
+}
+
+.pet-fishing-rod::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: -2px;
+  width: 12px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #8e4725 0%, #541d10 100%);
+}
+
+.pet-fishing-line {
+  position: absolute;
+  right: 31%;
+  top: 16%;
+  width: 2px;
+  height: 46%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.14));
+  transform-origin: top center;
+  transform: rotate(10deg);
+  animation: pet-line-sway 3.8s ease-in-out infinite;
+}
+
+.pet-fishing-line.is-catching {
+  animation: pet-line-hook 760ms ease-in-out infinite;
+}
+
+.pet-fishing-bobber {
+  position: absolute;
+  right: 27%;
+  top: 56%;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fff6cf 0%, #ff9a55 54%, #772516 100%);
+  box-shadow:
+    0 0 10px rgba(255, 167, 103, 0.34),
+    inset 0 -2px 4px rgba(34, 6, 0, 0.3);
+  animation: pet-bobber-bounce 2.5s ease-in-out infinite;
+}
+
+.pet-fishing-bobber.is-catching {
+  animation: pet-bobber-hook 760ms ease-in-out infinite;
+}
+
+.pet-rune-catch {
+  position: absolute;
+  top: -16%;
+  right: -12%;
+  min-width: 62px;
+  padding: 8px 10px 7px;
+  display: grid;
+  gap: 2px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(56, 21, 11, 0.96) 0%, rgba(24, 10, 8, 0.94) 100%);
+  border: 1px solid rgba(255, 194, 120, 0.24);
+  box-shadow:
+    0 12px 24px rgba(11, 3, 3, 0.34),
+    0 0 22px rgba(255, 159, 84, 0.12);
+  z-index: 8;
+  animation:
+    pet-rune-pop 720ms cubic-bezier(0.19, 1, 0.22, 1),
+    pet-rune-float 4.2s ease-in-out infinite;
+}
+
+.pet-rune-catch.tier-ember {
+  border-color: rgba(255, 171, 102, 0.28);
+}
+
+.pet-rune-catch.tier-glow {
+  border-color: rgba(134, 232, 255, 0.44);
+  box-shadow:
+    0 12px 24px rgba(7, 18, 24, 0.4),
+    0 0 24px rgba(108, 214, 255, 0.22);
+}
+
+.pet-rune-catch.tier-mythic {
+  border-color: rgba(255, 196, 125, 0.5);
+  box-shadow:
+    0 12px 24px rgba(24, 7, 6, 0.46),
+    0 0 28px rgba(255, 180, 83, 0.28);
+}
+
+.pet-rune-catch.tier-prime {
+  background:
+    linear-gradient(180deg, rgba(89, 22, 14, 0.98) 0%, rgba(37, 11, 11, 0.96) 100%);
+  border-color: rgba(255, 230, 150, 0.68);
+  box-shadow:
+    0 14px 26px rgba(35, 10, 8, 0.52),
+    0 0 34px rgba(255, 208, 88, 0.36);
+}
+
+.pet-rune-sigil {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff0c8;
+}
+
+.pet-rune-label {
+  font-size: 10px;
+  line-height: 1.15;
+  color: #e8c99e;
+}
+
+.pet-blessing-chip {
+  position: absolute;
+  left: -6%;
+  bottom: -8%;
+  max-width: 128px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(14, 38, 58, 0.94) 0%, rgba(12, 19, 31, 0.94) 100%);
+  border: 1px solid rgba(132, 219, 255, 0.26);
+  box-shadow:
+    0 10px 18px rgba(3, 12, 18, 0.32),
+    0 0 20px rgba(74, 188, 255, 0.14);
+  font-size: 10px;
+  line-height: 1.2;
+  color: #d6f1ff;
+  z-index: 8;
+  animation:
+    pet-blessing-rise 540ms cubic-bezier(0.19, 1, 0.22, 1),
+    pet-blessing-pulse 3.6s ease-in-out infinite;
+}
+
+.pet-blessing-chip.tier-mythic,
+.pet-blessing-chip.tier-prime {
+  background:
+    linear-gradient(180deg, rgba(63, 24, 14, 0.96) 0%, rgba(22, 10, 10, 0.96) 100%);
+  border-color: rgba(255, 194, 107, 0.32);
+  color: #ffe5ba;
+  box-shadow:
+    0 10px 18px rgba(30, 10, 9, 0.34),
+    0 0 20px rgba(255, 171, 92, 0.2);
+}
+
+.compact-avatar .pet-rune-catch {
+  right: -26%;
+  top: -18%;
+  min-width: 48px;
+  padding: 6px 8px;
+}
+
+.compact-avatar .pet-rune-sigil {
+  font-size: 10px;
+}
+
+.compact-avatar .pet-rune-label {
+  font-size: 9px;
+}
+
+.compact-avatar .pet-blessing-chip {
+  left: -18%;
+  bottom: -16%;
+  max-width: 92px;
+  padding: 5px 8px;
+  font-size: 9px;
+}
+
+.compact-avatar .pet-diablo-wing {
+  top: 28%;
+}
+
+.floating-avatar .pet-rune-catch {
+  right: -18%;
+  top: -14%;
+}
+
+.floating-avatar .pet-blessing-chip {
+  left: -10%;
+  bottom: -12%;
+  max-width: 118px;
+}
+
+@keyframes pet-wing-flutter {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-18deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(-25deg);
+  }
+}
+
+@keyframes pet-rod-sway {
+  0%,
+  100% {
+    transform: rotate(-18deg);
+  }
+
+  50% {
+    transform: rotate(-12deg);
+  }
+}
+
+@keyframes pet-line-sway {
+  0%,
+  100% {
+    transform: rotate(10deg) scaleY(1);
+  }
+
+  50% {
+    transform: rotate(4deg) scaleY(0.98);
+  }
+}
+
+@keyframes pet-line-hook {
+  0%,
+  100% {
+    transform: rotate(12deg) scaleY(1);
+  }
+
+  40% {
+    transform: rotate(-4deg) scaleY(0.92);
+  }
+
+  75% {
+    transform: rotate(18deg) scaleY(1.04);
+  }
+}
+
+@keyframes pet-bobber-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pet-bobber-hook {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  25% {
+    transform: translateY(-7px) scale(1.06);
+  }
+
+  60% {
+    transform: translateY(2px) scale(0.94);
+  }
+}
+
+@keyframes pet-water-ripple {
+  0% {
+    transform: scale(0.72);
+    opacity: 0.58;
+  }
+
+  100% {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+}
+
+@keyframes pet-rune-pop {
+  0% {
+    transform: translateY(18px) scale(0.72) rotate(-6deg);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pet-rune-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pet-blessing-rise {
+  0% {
+    transform: translateY(14px) scale(0.92);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pet-blessing-pulse {
+  0%,
+  100% {
+    filter: saturate(1);
+  }
+
+  50% {
+    filter: saturate(1.14) brightness(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-diablo-wing,
+  .pet-fishing-rod,
+  .pet-fishing-line,
+  .pet-fishing-bobber,
+  .pet-fishing-ripple,
+  .pet-rune-catch,
+  .pet-blessing-chip {
+    animation: none !important;
+  }
+}
