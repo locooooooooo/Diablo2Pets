@@ -3517,6 +3517,75 @@ select,
   pointer-events: none;
 }
 
+.workshop-card.task-tone-recording {
+  border-color: rgba(255, 192, 102, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(255, 192, 102, 0.1),
+    0 18px 32px rgba(96, 42, 20, 0.16);
+}
+
+.workshop-card.task-tone-next-step {
+  border-color: rgba(118, 201, 132, 0.24);
+  box-shadow:
+    0 0 0 1px rgba(118, 201, 132, 0.1),
+    0 18px 32px rgba(28, 84, 52, 0.14);
+}
+
+.task-live-guide {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 196, 107, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(10, 14, 18, 0.28);
+}
+
+.task-live-guide strong {
+  display: block;
+  color: #fff1cf;
+  font-size: 18px;
+}
+
+.task-live-guide p {
+  margin: 8px 0 0;
+  color: #d4bc97;
+  line-height: 1.6;
+}
+
+.task-live-guide.recording {
+  border-color: rgba(255, 192, 102, 0.22);
+}
+
+.task-live-guide.success {
+  border-color: rgba(118, 201, 132, 0.22);
+  background:
+    linear-gradient(180deg, rgba(118, 201, 132, 0.06), rgba(255, 255, 255, 0.01)),
+    rgba(10, 14, 18, 0.28);
+}
+
+.task-live-guide.error {
+  border-color: rgba(230, 116, 97, 0.22);
+  background:
+    linear-gradient(180deg, rgba(230, 116, 97, 0.05), rgba(255, 255, 255, 0.01)),
+    rgba(10, 14, 18, 0.28);
+}
+
+.task-live-guide.focus {
+  border-color: rgba(255, 192, 102, 0.2);
+}
+
+.task-live-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 176px;
+}
+
 .workshop-topbar {
   display: flex;
   align-items: flex-start;

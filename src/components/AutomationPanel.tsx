@@ -1536,6 +1536,173 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }
   }
 
+  function getTaskCardTone(id: IntegrationId): 'spotlight' | 'recording' | 'next-step' | 'idle' {
+    if (recordingGuide?.taskId === id) {
+      if (recordingGuide.status === 'recording') {
+        return 'recording';
+      }
+
+      if (recordingGuide.status === 'success') {
+        return 'next-step';
+      }
+    }
+
+    if (props.highlightedTaskId === id) {
+      return 'spotlight';
+    }
+
+    return 'idle';
+  }
+
+  function renderTaskLiveGuide(item: IntegrationConfig) {
+    const preflightTask = preflightMap.get(item.id) ?? null;
+    const profileReady = isTaskProfileReady(item);
+    const tone = getTaskCardTone(item.id);
+    const currentStepLabel =
+      recordingGuide && recordingGuide.taskId === item.id
+        ? getReadableRecordSteps(item.id)[
+            Math.min(recordingGuide.stepIndex, getReadableRecordSteps(item.id).length - 1)
+          ]
+        : null;
+
+    if (recordingGuide?.taskId === item.id && recordingGuide.status === 'recording') {
+      return (
+        <article className="task-live-guide recording">
+          <div>
+            <p className="eyebrow">Live Recording</p>
+            <strong>这张任务卡正在录 Profile</strong>
+            <p>
+              当前步骤：{currentStepLabel ?? '等待同步'}。把鼠标对到目标位置后，回到录制窗口按
+              <code> F10</code>。
+            </p>
+          </div>
+          <div className="task-live-actions">
+            <span className="mini-pill warm">录制中</span>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => setRecordingGuide((current) => (current ? { ...current } : current))}
+              type="button"
+            >
+              看顶部助手
+            </button>
+          </div>
+        </article>
+      );
+    }
+
+    if (recordingGuide?.taskId === item.id && recordingGuide.status === 'success') {
+      return (
+        <article className="task-live-guide success">
+          <div>
+            <p className="eyebrow">Next Move</p>
+            <strong>Profile 已录好，直接试运行这条线</strong>
+            <p>{getRecordingSuccessSummary(item.id)}</p>
+          </div>
+          <div className="task-live-actions">
+            <button
+              className="primary-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void runTask(item.id, 'dry-run')}
+              type="button"
+            >
+              立即试运行
+            </button>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void runAdmin(item, 'print-profile')}
+              type="button"
+            >
+              看 Profile
+            </button>
+          </div>
+        </article>
+      );
+    }
+
+    if (recordingGuide?.taskId === item.id && recordingGuide.status === 'error') {
+      return (
+        <article className="task-live-guide error">
+          <div>
+            <p className="eyebrow">Retry Suggested</p>
+            <strong>这条任务线刚刚录制失败了</strong>
+            <p>{recordingGuide.detail}</p>
+          </div>
+          <div className="task-live-actions">
+            <button
+              className="primary-button"
+              disabled={props.busyKey !== null}
+              onClick={() => {
+                openRecordingGuide(item);
+                void runAdmin(item, 'record-profile');
+              }}
+              type="button"
+            >
+              重新录 Profile
+            </button>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void openLogViewer(item.id, `${getTaskMeta(item.id).title} / 执行日志`)}
+              type="button"
+            >
+              看失败日志
+            </button>
+          </div>
+        </article>
+      );
+    }
+
+    if (props.highlightedTaskId === item.id) {
+      return (
+        <article className={`task-live-guide ${tone === 'spotlight' ? 'focus' : 'soft'}`}>
+          <div>
+            <p className="eyebrow">Guide Focus</p>
+            <strong>
+              {profileReady
+                ? '这条任务线已经就绪，下一步可以直接试运行'
+                : '这条任务线是当前推荐入口，先把 Profile 录好'}
+            </strong>
+            <p>
+              {profileReady
+                ? preflightTask?.status === 'ready'
+                  ? '预检也已经通过了，先跑一遍试运行最稳。'
+                  : 'Profile 已有了，但还有别的条件没补齐，先看诊断卡。'
+                : '顺着这张卡往下点，先录 Profile，再试运行。'}
+            </p>
+          </div>
+          <div className="task-live-actions">
+            {profileReady ? (
+              <button
+                className="primary-button"
+                disabled={props.busyKey !== null}
+                onClick={() => void runTask(item.id, 'dry-run')}
+                type="button"
+              >
+                试运行这条线
+              </button>
+            ) : (
+              <button
+                className="primary-button"
+                disabled={props.busyKey !== null}
+                onClick={() => {
+                  openRecordingGuide(item);
+                  void runAdmin(item, 'record-profile');
+                }}
+                type="button"
+              >
+                先录 Profile
+              </button>
+            )}
+          </div>
+        </article>
+      );
+    }
+
+    return null;
+  }
+
   function renderRunButtons(id: IntegrationId) {
     return (
       <>
@@ -1890,6 +2057,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }
 
   function renderAdminButtons(item: IntegrationConfig) {
+    const recordingState =
+      recordingGuide?.taskId === item.id ? recordingGuide.status : null;
+
     return (
       <>
         <button
@@ -1903,7 +2073,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             : '看 Profile'}
         </button>
         <button
-          className="ghost-button"
+          className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
           disabled={props.busyKey !== null}
           onClick={() => {
             openRecordingGuide(item);
@@ -1914,6 +2084,61 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
             ? '录制中...'
             : '录 Profile'}
+        </button>
+        {item.supportsLegacyImport ? (
+          <button
+            className="ghost-button"
+            disabled={props.busyKey !== null}
+            onClick={() => void runAdmin(item, 'import-legacy-config')}
+            type="button"
+          >
+            {props.busyKey === getAdminBusyKey(item.id, 'import-legacy-config')
+              ? '导入中...'
+              : '导旧配置'}
+          </button>
+        ) : null}
+        <button
+          className="ghost-button"
+          disabled={props.busyKey !== null || logBusyId === item.id}
+          onClick={() => void openLogViewer(item.id, `${getTaskMeta(item.id).title} / 执行日志`)}
+          type="button"
+        >
+          {logBusyId === item.id ? '读取日志中...' : '看日志'}
+        </button>
+      </>
+    );
+  }
+
+  function renderAdminButtonsSmart(item: IntegrationConfig) {
+    const recordingState =
+      recordingGuide?.taskId === item.id ? recordingGuide.status : null;
+
+    return (
+      <>
+        <button
+          className="ghost-button"
+          disabled={props.busyKey !== null}
+          onClick={() => void runAdmin(item, 'print-profile')}
+          type="button"
+        >
+          {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
+            ? '读取中...'
+            : '看 Profile'}
+        </button>
+        <button
+          className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
+          disabled={props.busyKey !== null}
+          onClick={() => {
+            openRecordingGuide(item);
+            void runAdmin(item, 'record-profile');
+          }}
+          type="button"
+        >
+          {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
+            ? '录制中...'
+            : recordingState === 'success' || recordingState === 'error'
+              ? '重录 Profile'
+              : '录 Profile'}
         </button>
         {item.supportsLegacyImport ? (
           <button
@@ -2584,7 +2809,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
       <div className="workshop-grid">
         <article
-          className={`card workshop-card ${props.highlightedTaskId === 'rune-cube' ? 'spotlight' : ''}`}
+          className={`card workshop-card task-tone-${getTaskCardTone('rune-cube')} ${props.highlightedTaskId === 'rune-cube' ? 'spotlight' : ''}`}
           ref={runeCardRef}
         >
           <div className="workshop-topbar">
@@ -2604,13 +2829,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </span>
           </div>
 
+          {renderTaskLiveGuide(runeTask)}
+
           <div className="task-section">
             <span className="task-section-label">运行</span>
             <div className="task-toolbar">{renderRunButtons('rune-cube')}</div>
           </div>
           <div className="task-section">
             <span className="task-section-label">维护</span>
-            <div className="task-toolbar secondary">{renderAdminButtons(runeTask)}</div>
+            <div className="task-toolbar secondary">{renderAdminButtonsSmart(runeTask)}</div>
           </div>
 
           <label className="field">
@@ -2643,7 +2870,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </article>
 
         <article
-          className={`card workshop-card ${props.highlightedTaskId === 'gem-cube' ? 'spotlight' : ''}`}
+          className={`card workshop-card task-tone-${getTaskCardTone('gem-cube')} ${props.highlightedTaskId === 'gem-cube' ? 'spotlight' : ''}`}
           ref={gemCardRef}
         >
           <div className="workshop-topbar">
@@ -2663,13 +2890,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </span>
           </div>
 
+          {renderTaskLiveGuide(gemTask)}
+
           <div className="task-section">
             <span className="task-section-label">运行</span>
             <div className="task-toolbar">{renderRunButtons('gem-cube')}</div>
           </div>
           <div className="task-section">
             <span className="task-section-label">维护</span>
-            <div className="task-toolbar secondary">{renderAdminButtons(gemTask)}</div>
+            <div className="task-toolbar secondary">{renderAdminButtonsSmart(gemTask)}</div>
           </div>
 
           <div className="mode-switch">
@@ -2760,7 +2989,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </article>
 
         <article
-          className={`card workshop-card ${props.highlightedTaskId === 'drop-shared-gold' ? 'spotlight' : ''}`}
+          className={`card workshop-card task-tone-${getTaskCardTone('drop-shared-gold')} ${props.highlightedTaskId === 'drop-shared-gold' ? 'spotlight' : ''}`}
           ref={goldCardRef}
         >
           <div className="workshop-topbar">
@@ -2780,13 +3009,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </span>
           </div>
 
+          {renderTaskLiveGuide(goldTask)}
+
           <div className="task-section">
             <span className="task-section-label">运行</span>
             <div className="task-toolbar">{renderRunButtons('drop-shared-gold')}</div>
           </div>
           <div className="task-section">
             <span className="task-section-label">维护</span>
-            <div className="task-toolbar secondary">{renderAdminButtons(goldTask)}</div>
+            <div className="task-toolbar secondary">{renderAdminButtonsSmart(goldTask)}</div>
           </div>
 
           <div className="task-grid">
