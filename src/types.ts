@@ -6,7 +6,7 @@ export type AutomationAdminAction =
   | 'record-profile'
   | 'print-profile'
   | 'import-legacy-config';
-export type EnvironmentAction = 'install-python-deps';
+export type EnvironmentAction = 'install-python-runtime' | 'install-python-deps';
 
 export interface ActiveRun {
   id: string;

@@ -826,6 +826,67 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const parsedEnvironmentLog = useMemo(() => {
     return environmentLog ? parseAutomationLog(environmentLog.content) : null;
   }, [environmentLog]);
+  const pythonCheck = useMemo(
+    () => findGlobalCheck(globalChecks, 'python-command'),
+    [globalChecks]
+  );
+  const pythonSourceCheck = useMemo(
+    () => findGlobalCheck(globalChecks, 'python-source'),
+    [globalChecks]
+  );
+  const pipCheck = useMemo(
+    () => findGlobalCheck(globalChecks, 'pip-command'),
+    [globalChecks]
+  );
+  const dependencyCheck = useMemo(
+    () => findGlobalCheck(globalChecks, 'python-dependencies'),
+    [globalChecks]
+  );
+  const ocrCheck = useMemo(
+    () => findGlobalCheck(globalChecks, 'ocr-engine'),
+    [globalChecks]
+  );
+  const needsEmbeddedRuntime =
+    pythonCheck?.level === 'error' || pythonSourceCheck?.level === 'warning';
+  const needsDependencyInstall =
+    dependencyCheck?.level === 'error' || ocrCheck?.level === 'warning';
+  const environmentPrimaryAction = useMemo(() => {
+    if (needsEmbeddedRuntime) {
+      return {
+        action: 'install-python-runtime' as const,
+        label: props.busyKey === getEnvironmentBusyKey('install-python-runtime')
+          ? '安装内置 Runtime 中...'
+          : '安装内置 Runtime',
+        detail:
+          pythonSourceCheck?.level === 'warning'
+            ? '当前还在使用系统 Python，切到桌宠自己的 runtime 会更稳。'
+            : '先把桌宠自己的 Python runtime 装好，再继续后面的自动化。'
+      };
+    }
+
+    if (needsDependencyInstall) {
+      return {
+        action: 'install-python-deps' as const,
+        label: props.busyKey === getEnvironmentBusyKey('install-python-deps')
+          ? '安装依赖中...'
+          : '安装 Python 依赖',
+        detail: '依赖和 OCR 补齐后，工坊任务与截图识别才会完整可用。'
+      };
+    }
+
+    return {
+      action: null,
+      label: preflightBusy ? '刷新诊断中...' : '刷新环境诊断',
+      detail: '当前环境已经基本就绪，随时可以重新做一次预检。'
+    };
+  }, [
+    needsEmbeddedRuntime,
+    needsDependencyInstall,
+    ocrCheck?.level,
+    preflightBusy,
+    props.busyKey,
+    pythonSourceCheck?.level
+  ]);
 
   useEffect(() => {
     if (!props.highlightedTaskId) {
@@ -1123,14 +1184,24 @@ export function AutomationPanel(props: AutomationPanelProps) {
       const nextParsedLog = parseAutomationLog(response.log.content);
       setEnvironmentLog(response.log);
       setViewer({
-        title: action === 'install-python-deps' ? '环境修复 / 安装 Python 依赖日志' : '环境修复日志',
+        title:
+          action === 'install-python-runtime'
+            ? '环境修复 / 安装内置 Runtime 日志'
+            : action === 'install-python-deps'
+              ? '环境修复 / 安装 Python 依赖日志'
+              : '环境修复日志',
         path: response.log.path,
         content: response.log.content
       });
       appendEnvironmentTimeline({
         time: new Date().toISOString(),
         tone: response.result.success ? 'success' : 'error',
-        title: action === 'install-python-deps' ? '安装 Python 依赖' : '执行环境修复动作',
+        title:
+          action === 'install-python-runtime'
+            ? '安装内置 Runtime'
+            : action === 'install-python-deps'
+              ? '安装 Python 依赖'
+              : '执行环境修复动作',
         detail: response.result.success
           ? nextParsedLog?.headline || '环境修复动作已经完成。'
           : nextParsedLog?.headline || response.result.stderr || '环境修复动作执行失败。',
@@ -1330,6 +1401,42 @@ export function AutomationPanel(props: AutomationPanelProps) {
             )}
           </div>
         </div>
+
+        <article className="environment-entry-banner">
+          <div>
+            <p className="eyebrow">Start Here</p>
+            <strong>{environmentPrimaryAction.label.replace('中...', '').replace('...', '')}</strong>
+            <p className="secondary-text">{environmentPrimaryAction.detail}</p>
+          </div>
+          <div className="tool-row">
+            <button
+              className="primary-button"
+              disabled={
+                props.busyKey !== null ||
+                (environmentPrimaryAction.action === null && preflightBusy)
+              }
+              onClick={() => {
+                if (environmentPrimaryAction.action) {
+                  void runEnvironmentAction(environmentPrimaryAction.action);
+                  return;
+                }
+
+                requestPreflightRefresh();
+              }}
+              type="button"
+            >
+              {environmentPrimaryAction.label}
+            </button>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null || preflightBusy}
+              onClick={requestPreflightRefresh}
+              type="button"
+            >
+              {preflightBusy ? '刷新中...' : '刷新诊断'}
+            </button>
+          </div>
+        </article>
 
         <div className="diagnosis-actions">
           {diagnosis.actions.map((action, index) => (

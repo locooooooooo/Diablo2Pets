@@ -11,7 +11,12 @@ export interface SetupGuideHint {
   title: string;
   detail: string;
   actionLabel: string;
-  action: 'open-guide' | 'open-workshop-task' | 'enable-floating';
+  action:
+    | 'open-guide'
+    | 'open-workshop-task'
+    | 'enable-floating'
+    | 'install-runtime'
+    | 'install-deps';
   stepKey: 'runtime' | 'deps' | 'profiles' | 'desktop' | 'finish';
   integrationId?: IntegrationId;
 }
@@ -46,7 +51,7 @@ export function buildSetupGuideHint(
     return {
       badge: '下一步',
       title: '先打开完整引导',
-      detail: '我会把环境、依赖和 Profile 的缺口列出来，你只要从第一步往下补就行。',
+      detail: '我会把运行环境、依赖和 Profile 的缺口列出来，你只要从第一步往下补就行。',
       actionLabel: '打开引导',
       action: 'open-guide',
       stepKey: 'runtime'
@@ -61,16 +66,20 @@ export function buildSetupGuideHint(
     findGlobalCheck(globalChecks, 'requirements-file'),
     findGlobalCheck(globalChecks, 'pip-command')
   ].filter(Boolean) as AutomationCheckItem[];
-  const runtimeReady =
+  const pythonSourceCheck = findGlobalCheck(globalChecks, 'python-source');
+  const runtimeBaseReady =
     runtimeChecks.length > 0 && runtimeChecks.every((check) => check.level === 'ok');
+  const runtimeReady = runtimeBaseReady && pythonSourceCheck?.level === 'ok';
 
   if (!runtimeReady) {
     return {
       badge: '先补环境',
-      title: '先确认 Python runtime',
-      detail: '桌宠要先找到 Python、pip 和 runtime 目录，后面的自动化才能稳定跑起来。',
-      actionLabel: '打开引导看环境',
-      action: 'open-guide',
+      title: runtimeBaseReady ? '切到内置 Python runtime' : '先装内置 Python runtime',
+      detail: runtimeBaseReady
+        ? '当前还能跑，但还在用系统 Python。装到桌宠自己的 runtime 后，后面的自动化和打包都会更稳。'
+        : '桌宠要先有自己的 Python、pip 和运行时目录，后面的自动化任务才会真正开箱即用。',
+      actionLabel: '安装内置 Runtime',
+      action: 'install-runtime',
       stepKey: 'runtime'
     };
   }
@@ -84,8 +93,8 @@ export function buildSetupGuideHint(
       badge: '先补依赖',
       title: '先安装 Python 依赖',
       detail: '依赖和 OCR 没到位前，工坊任务和掉落识别都不会完整可用。',
-      actionLabel: '打开引导装依赖',
-      action: 'open-guide',
+      actionLabel: '一键安装依赖',
+      action: 'install-deps',
       stepKey: 'deps'
     };
   }
@@ -98,7 +107,7 @@ export function buildSetupGuideHint(
     return {
       badge: '先录坐标',
       title: `先录 ${label} Profile`,
-      detail: '录完这一项后，工坊预检会马上更接近全绿，你也能更快试跑。',
+      detail: '录完这一项后，工坊预检会立刻更接近全绿，你也能更快开始试跑。',
       actionLabel: `去录 ${label} Profile`,
       action: 'open-workshop-task',
       stepKey: 'profiles',
@@ -122,7 +131,7 @@ export function buildSetupGuideHint(
   return {
     badge: '最后收口',
     title: '回到引导完成收尾',
-    detail: '环境、依赖和 Profile 已经都准备好了，现在只差把这段首启流程正式收口。',
+    detail: '运行环境、依赖和 Profile 都已经准备好了，现在只差把这段首启流程正式收尾。',
     actionLabel: '打开引导收尾',
     action: 'open-guide',
     stepKey: 'finish'

@@ -88,8 +88,21 @@ const dataFilePath = () => join(app.getPath('userData'), 'd2-pet', 'data.json');
 const screenshotRoot = () => join(app.getPath('userData'), 'd2-pet', 'screenshots');
 const automationLogRoot = () => join(app.getPath('userData'), 'd2-pet', 'automation-logs');
 const reportPreviewRoot = () => join(app.getPath('userData'), 'd2-pet', 'report-previews');
+const managedPythonRoot = () => join(app.getPath('userData'), 'd2-pet', 'python-runtime');
 const runtimeRequirementsPath = () => join(pythonRuntimeRoot, 'requirements.txt');
 const runtimeReadmePath = () => join(pythonRuntimeRoot, 'README.md');
+
+function getProjectBundledPythonRoot(): string {
+  return join(workspaceRoot, 'vendor', 'python-runtime', 'win32-x64');
+}
+
+function getPackagedPythonRoot(): string {
+  return join(process.resourcesPath, 'python');
+}
+
+function getPythonExecutablesFromRoot(rootPath: string): string[] {
+  return [join(rootPath, 'Scripts', 'python.exe'), join(rootPath, 'python.exe')];
+}
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -329,8 +342,29 @@ function emitFloatingSnapPreview(bounds?: WindowBounds): void {
 function getPythonCandidates(): string[] {
   const home = app.getPath('home');
 
+  return Array.from(
+    new Set([
+      ...getPythonExecutablesFromRoot(managedPythonRoot()),
+      ...getPythonExecutablesFromRoot(getPackagedPythonRoot()),
+      ...getPythonExecutablesFromRoot(getProjectBundledPythonRoot()),
+      join(process.resourcesPath, 'python', 'python.exe'),
+      join(getProjectBundledPythonRoot(), 'python.exe'),
+      join(getProjectBundledPythonRoot(), 'Scripts', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python314', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python313', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python312', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python311', 'python.exe'),
+      join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python310', 'python.exe'),
+      'python'
+    ])
+  );
+}
+
+function getBootstrapPythonCandidates(): string[] {
+  const home = app.getPath('home');
+
   return [
-    join(process.resourcesPath, 'python', 'python.exe'),
     join(home, 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
     join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python314', 'python.exe'),
     join(home, 'AppData', 'Local', 'Programs', 'Python', 'Python313', 'python.exe'),
@@ -352,6 +386,54 @@ function resolvePythonCommand(): string {
 
   resolvedPythonCommand = candidate ?? 'python';
   return resolvedPythonCommand;
+}
+
+function resolveBootstrapPythonCommand(): string {
+  const candidate = getBootstrapPythonCandidates().find((item) => {
+    return item === 'python' || existsSync(item);
+  });
+
+  return candidate ?? 'python';
+}
+
+function normalizeWindowsPath(input: string): string {
+  return input.replace(/\//g, '\\').toLowerCase();
+}
+
+function getPythonSourceStatus(command: string): {
+  level: 'ok' | 'warning';
+  detail: string;
+} {
+  if (!isAbsolute(command)) {
+    return {
+      level: 'warning',
+      detail: `当前使用系统 Python：${command}`
+    };
+  }
+
+  const normalizedCommand = normalizeWindowsPath(command);
+  const managedRoot = normalizeWindowsPath(managedPythonRoot());
+  const packagedRoot = normalizeWindowsPath(getPackagedPythonRoot());
+  const projectBundledRoot = normalizeWindowsPath(getProjectBundledPythonRoot());
+
+  if (normalizedCommand.startsWith(managedRoot)) {
+    return {
+      level: 'ok',
+      detail: `当前使用桌宠私有 Runtime：${command}`
+    };
+  }
+
+  if (normalizedCommand.startsWith(packagedRoot) || normalizedCommand.startsWith(projectBundledRoot)) {
+    return {
+      level: 'ok',
+      detail: `当前使用桌宠内置 Runtime：${command}`
+    };
+  }
+
+  return {
+    level: 'warning',
+    detail: `当前仍在使用系统 Python：${command}`
+  };
 }
 
 const pythonDependencyModules: Array<{ module: string; package: string }> = [
@@ -1435,6 +1517,51 @@ function executeFileCommand(
   });
 }
 
+async function extractRuntimeInstallerScript(): Promise<string> {
+  const sourcePath = join(workspaceRoot, 'scripts', 'prepare-python-runtime.ps1');
+  const targetDirectory = join(app.getPath('temp'), 'd2-pet-runtime');
+  const targetPath = join(targetDirectory, 'prepare-python-runtime.ps1');
+  const content = await readFile(sourcePath, 'utf8');
+  await mkdir(targetDirectory, { recursive: true });
+  await writeFile(targetPath, content, 'utf8');
+  return targetPath;
+}
+
+async function installManagedPythonRuntime(): Promise<{
+  command: string;
+  args: string[];
+  result: IntegrationRunResult;
+}> {
+  const bootstrapPython = resolveBootstrapPythonCommand();
+  const scriptPath = await extractRuntimeInstallerScript();
+  const command = 'powershell.exe';
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    scriptPath,
+    '-PythonCommand',
+    bootstrapPython,
+    '-RuntimeRoot',
+    managedPythonRoot(),
+    '-RequirementsPath',
+    runtimeRequirementsPath()
+  ];
+  const result = await executeFileCommand(command, args, workspaceRoot);
+
+  if (result.success) {
+    resolvedPythonCommand = null;
+    invalidatePythonEnvironmentProbe();
+  }
+
+  return {
+    command,
+    args,
+    result
+  };
+}
+
 function quoteArg(value: string): string {
   return value.includes(' ') ? `"${value}"` : value;
 }
@@ -1847,6 +1974,21 @@ async function buildAutomationPreflight(
     ) ?? [])
   ];
 
+  if (pythonVersion.success) {
+    const pythonSource = getPythonSourceStatus(pythonCommand);
+    globalChecks.splice(
+      2,
+      0,
+      createCheck('python-source', pythonSource.level, 'Python 来源', pythonSource.detail)
+    );
+  } else {
+    globalChecks.splice(
+      2,
+      0,
+      createCheck('python-source', 'warning', 'Python 来源', '等待 Python 解释器先通过预检。')
+    );
+  }
+
   const tasks = data.integrations.map((integration) => {
     const taskChecks: AutomationCheckItem[] = [
       createCheck(
@@ -2088,21 +2230,33 @@ async function runBuiltinAutomation(
 async function runEnvironmentAction(
   payload: RunEnvironmentActionInput
 ): Promise<EnvironmentActionResponse> {
-  const pythonCommand = resolvePythonCommand();
-  const requirementsPath = runtimeRequirementsPath();
+  let command: string;
   let args: string[];
+  let result: IntegrationRunResult;
 
   switch (payload.action) {
-    case 'install-python-deps':
+    case 'install-python-runtime': {
+      const runtimeInstall = await installManagedPythonRuntime();
+      command = runtimeInstall.command;
+      args = runtimeInstall.args;
+      result = runtimeInstall.result;
+      break;
+    }
+    case 'install-python-deps': {
+      const pythonCommand = resolvePythonCommand();
+      const requirementsPath = runtimeRequirementsPath();
       if (!existsSync(requirementsPath)) {
         throw new Error(`未找到依赖清单：${requirementsPath}`);
       }
+      command = pythonCommand;
       args = ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', requirementsPath];
+      result = await executeFileCommand(pythonCommand, args, pythonRuntimeRoot);
       break;
+    }
   }
 
-  const result = await executeFileCommand(pythonCommand, args, pythonRuntimeRoot);
-  const logPath = await writeAutomationLog('environment', payload.action, pythonCommand, args, result);
+  const logPath = await writeAutomationLog('environment', payload.action, command, args, result);
+  resolvedPythonCommand = null;
   invalidatePythonEnvironmentProbe();
 
   return {
@@ -2503,6 +2657,18 @@ ipcMain.handle(
   'environment:run-action',
   async (_event, payload: RunEnvironmentActionInput): Promise<EnvironmentActionResponse> => {
     const response = await runEnvironmentAction(payload);
+    const notificationBody =
+      payload.action === 'install-python-runtime'
+        ? response.result.success
+          ? '内置 Python runtime 已经安装完成。'
+          : '内置 Python runtime 安装失败，请查看日志。'
+        : payload.action === 'install-python-deps'
+          ? response.result.success
+            ? 'Python 运行时依赖已经安装完成。'
+            : 'Python 运行时依赖安装失败，请查看日志。'
+          : response.result.success
+            ? '环境修复动作已完成。'
+            : '环境修复动作执行失败。';
     void sendDesktopNotification(
       response.result.success ? '环境修复完成' : '环境修复失败',
       payload.action === 'install-python-deps'

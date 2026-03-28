@@ -18,6 +18,7 @@ interface SetupGuideProps {
   settings: AppSettings;
   nextAction: SetupGuideHint;
   onRefresh: () => void;
+  onInstallRuntime: () => Promise<void>;
   onInstallDependencies: () => Promise<void>;
   onNextAction: () => void;
   onOpenWorkshop: () => void;
@@ -80,8 +81,10 @@ export function SetupGuide(props: SetupGuideProps) {
     runtimeChecks.find((check) => check.level === 'error') ??
     runtimeChecks.find((check) => check.level === 'warning') ??
     null;
-  const runtimeReady =
+  const pythonSourceCheck = findGlobalCheck(globalChecks, 'python-source');
+  const runtimeBaseReady =
     runtimeChecks.length > 0 && runtimeChecks.every((check) => check.level === 'ok');
+  const runtimeReady = runtimeBaseReady && pythonSourceCheck?.level === 'ok';
   const dependencyCheck = findGlobalCheck(globalChecks, 'python-dependencies');
   const ocrCheck = findGlobalCheck(globalChecks, 'ocr-engine');
   const dependencyReady = dependencyCheck?.level === 'ok' && ocrCheck?.level === 'ok';
@@ -95,41 +98,67 @@ export function SetupGuide(props: SetupGuideProps) {
     profilesReady,
     desktopReady
   ].filter(Boolean).length;
-  const installBusy = props.busyKey === 'env-install-python-deps';
+  const installRuntimeBusy = props.busyKey === 'env-install-python-runtime';
+  const installDepsBusy = props.busyKey === 'env-install-python-deps';
 
   const steps: SetupStep[] = [
     {
       key: 'runtime',
-      title: '运行环境到位',
-      summary: runtimeReady ? 'Python、runtime 和 pip 都已经准备好。' : '先确认这台机器能稳定跑 Python runtime。',
+      title: '内置 Runtime 到位',
+      summary: runtimeReady
+        ? '桌宠已经在使用自己的 Python runtime。'
+        : runtimeBaseReady
+          ? '当前还能跑，但还在用系统 Python，建议切到内置 runtime。'
+          : '先把桌宠自己的 Python runtime 装好，后面的自动化才会稳。',
       detail:
         runtimeBlockingCheck?.detail ??
-        '桌宠已经能找到 Python 解释器、runtime 目录和 requirements 清单，后面的自动化会更稳。',
+        pythonSourceCheck?.detail ??
+        '桌宠已经能稳定找到 Python、pip 和运行时目录。',
       tone: runtimeReady ? 'success' : runtimeBlockingCheck?.level === 'error' ? 'error' : 'attention',
       chips:
-        runtimeChecks.length > 0
-          ? runtimeChecks.map((check) => {
-              const label =
-                check.level === 'ok' ? '正常' : check.level === 'warning' ? '提醒' : '阻塞';
-              return `${check.label} · ${label}`;
-            })
-          : ['等待预检返回运行环境状态'],
-      actions: [
-        {
-          label: props.loading ? '刷新中...' : '刷新诊断',
-          kind: 'secondary',
-          disabled: props.loading || props.busyKey !== null,
-          onClick: props.onRefresh
-        }
-      ]
+        [
+          ...runtimeChecks.map((check) => {
+            const label =
+              check.level === 'ok' ? '正常' : check.level === 'warning' ? '提醒' : '阻塞';
+            return `${check.label} · ${label}`;
+          }),
+          pythonSourceCheck
+            ? `来源 · ${pythonSourceCheck.level === 'ok' ? '内置' : '系统'}`
+            : '来源 · 待识别'
+        ].filter(Boolean),
+      actions: runtimeReady
+        ? [
+            {
+              label: props.loading ? '刷新中...' : '刷新诊断',
+              kind: 'secondary',
+              disabled: props.loading || props.busyKey !== null,
+              onClick: props.onRefresh
+            }
+          ]
+        : [
+            {
+              label: installRuntimeBusy ? '安装中...' : '安装内置 Runtime',
+              kind: 'primary',
+              disabled: props.busyKey !== null && !installRuntimeBusy,
+              onClick: () => void props.onInstallRuntime()
+            },
+            {
+              label: props.loading ? '刷新中...' : '刷新诊断',
+              kind: 'secondary',
+              disabled: props.loading || props.busyKey !== null,
+              onClick: props.onRefresh
+            }
+          ]
     },
     {
       key: 'deps',
       title: '依赖与 OCR',
-      summary: dependencyReady ? '自动化依赖和 OCR 能力都已经可用。' : '先把依赖补齐，工坊和掉落识别才会完整运转。',
+      summary: dependencyReady
+        ? '自动化依赖和 OCR 已经都能正常使用。'
+        : '先把依赖补齐，工坊任务和掉落识别才会完整可用。',
       detail:
         dependencyCheck?.detail ??
-        `当前已安装 ${installedDependencyCount}/${dependencyChecks.length || 0} 个运行时依赖。`,
+        `当前已安装 ${installedDependencyCount}/${dependencyChecks.length || 0} 项运行时依赖。`,
       tone: dependencyReady ? 'success' : dependencyCheck?.level === 'error' ? 'error' : 'attention',
       chips: [
         `依赖 ${installedDependencyCount}/${dependencyChecks.length || 0}`,
@@ -139,9 +168,9 @@ export function SetupGuide(props: SetupGuideProps) {
         ? []
         : [
             {
-              label: installBusy ? '安装中...' : '安装 Python 依赖',
+              label: installDepsBusy ? '安装中...' : '安装 Python 依赖',
               kind: 'primary',
-              disabled: props.busyKey !== null && !installBusy,
+              disabled: props.busyKey !== null && !installDepsBusy,
               onClick: () => void props.onInstallDependencies()
             }
           ]
@@ -149,16 +178,20 @@ export function SetupGuide(props: SetupGuideProps) {
     {
       key: 'profiles',
       title: '录好三条 Profile',
-      summary: profilesReady ? '符文、宝石、金币三条任务线都能直接开跑。' : '继续把缺失的 profile 录完，工坊预检就会更接近全绿。',
-      detail:
-        profilesReady
-          ? '后面只需要根据实际库存输入数量或截图，就可以试运行或正式执行。'
-          : '点下面的缺失任务，桌宠会直接带你跳到工坊对应卡片，并高亮那一项。',
+      summary: profilesReady
+        ? '符文、宝石、金币三条任务线都能直接开跑。'
+        : '继续把缺失的 Profile 录完，工坊预检就会更接近全绿。',
+      detail: profilesReady
+        ? '后面只需要按库存填数量或贴截图，就可以试运行或正式执行。'
+        : '点下面缺的任务，桌宠会直接带你跳到工坊对应卡片，并高亮那一项。',
       tone: profilesReady ? 'success' : missingProfileTasks.length === tasks.length ? 'error' : 'attention',
       chips:
         tasks.length > 0
-          ? tasks.map((task) => `${getIntegrationLabel(task.id)} · ${isTaskProfileReady(task) ? '已录制' : '待录制'}`)
-          : ['等待预检返回 profile 状态'],
+          ? tasks.map(
+              (task) =>
+                `${getIntegrationLabel(task.id)} · ${isTaskProfileReady(task) ? '已录制' : '待录制'}`
+            )
+          : ['等待预检返回 Profile 状态'],
       actions: profilesReady
         ? []
         : missingProfileTasks.map((task) => ({
@@ -171,13 +204,14 @@ export function SetupGuide(props: SetupGuideProps) {
     {
       key: 'desktop',
       title: '切到陪刷形态',
-      summary: desktopReady ? '桌宠已经更像真正的桌面陪刷伙伴。' : '建议至少开启悬浮态或系统通知，让桌宠更像常驻助手。',
-      detail:
-        props.settings.windowMode === 'floating'
-          ? '当前已经切到悬浮态，适合一边刷图一边盯状态。'
-          : props.settings.notificationsEnabled
-            ? '当前还是面板态，但已经会主动推送关键通知。'
-            : '切到悬浮态或打开通知后，桌宠的陪刷感会明显更完整。',
+      summary: desktopReady
+        ? '桌宠已经更像真正的桌面陪刷伙伴。'
+        : '建议至少开启悬浮态或系统通知，让桌宠更像常驻助手。',
+      detail: props.settings.windowMode === 'floating'
+        ? '当前已经切到悬浮态，适合一边刷图一边盯状态。'
+        : props.settings.notificationsEnabled
+          ? '当前还是面板态，但已经会主动推送关键通知。'
+          : '切到悬浮态或打开通知后，桌宠的陪刷感会明显更完整。',
       tone: desktopReady ? 'success' : 'attention',
       chips: [
         props.settings.windowMode === 'floating' ? '悬浮态已启用' : '当前是面板态',
@@ -188,7 +222,7 @@ export function SetupGuide(props: SetupGuideProps) {
           ? []
           : [
               {
-                label: '切换悬浮态',
+                label: '切到悬浮态',
                 kind: 'secondary' as const,
                 disabled: props.busyKey !== null,
                 onClick: props.onEnableFloating
@@ -215,7 +249,7 @@ export function SetupGuide(props: SetupGuideProps) {
           <p className="eyebrow">First Launch</p>
           <h3>首次启动引导</h3>
           <p className="secondary-text">
-            把 runtime、依赖、profile 和桌宠形态收好，后面就能稳定进入陪刷状态。
+            先把内置 runtime、依赖、Profile 和桌宠形态安顿好，后面就能更稳地陪你刷。
           </p>
         </div>
         <div className="setup-guide-meta">
@@ -251,12 +285,12 @@ export function SetupGuide(props: SetupGuideProps) {
         <article className="setup-progress-card">
           <span>核心准备</span>
           <strong>{completedSteps}/4</strong>
-          <p>覆盖运行环境、依赖、profile 和桌面陪刷形态。</p>
+          <p>覆盖内置 runtime、依赖、Profile 和桌面陪刷形态。</p>
         </article>
         <article className="setup-progress-card">
           <span>自动化任务</span>
           <strong>{tasks.length - missingProfileTasks.length}/{tasks.length || 3}</strong>
-          <p>三条工坊任务线都录好 profile 后，预检会更容易整体变绿。</p>
+          <p>三条工坊任务线都录好 Profile 后，预检会更容易整体变绿。</p>
         </article>
         <article className="setup-progress-card">
           <span>依赖状态</span>

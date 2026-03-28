@@ -1834,6 +1834,33 @@ select,
   line-height: 1.6;
 }
 
+.environment-entry-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 197, 112, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(114, 171, 211, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 210, 136, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(13, 24, 32, 0.68);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 231, 186, 0.08),
+    0 18px 32px rgba(10, 18, 24, 0.22);
+}
+
+.environment-entry-banner strong {
+  display: block;
+  color: #fff3d4;
+  font-size: 18px;
+}
+
+.environment-entry-banner p {
+  margin: 6px 0 0;
+}
+
 .environment-dependency-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4422,6 +4449,7 @@ body {
   .pet-habitat-head,
   .setup-guide-head,
   .setup-guide-reminder,
+  .environment-entry-banner,
   .workshop-spotlight-banner,
   .workshop-topbar,
   .panel-header {

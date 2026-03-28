@@ -259,11 +259,20 @@ export default function App() {
   }, [workshopFocusId]);
 
   useEffect(() => {
-    if (activeTab !== 'companion' || !showSetupGuide) {
+    const container = panelStackRef.current;
+    if (!container) {
       return;
     }
 
-    panelStackRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (activeTab === 'companion' && !showSetupGuide) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [activeTab, showSetupGuide]);
 
   useEffect(() => {
@@ -833,18 +842,44 @@ export default function App() {
     setShowPetCodex(false);
   }
 
-  function handleCompanionWheel(event: ReactWheelEvent<HTMLDivElement>) {
-    if (activeTab !== 'companion' || showPetCodex) {
-      return;
+  function getWheelScrollContainer(target: HTMLElement | null): HTMLElement | null {
+    const root = panelStackRef.current;
+    if (!root) {
+      return null;
     }
 
-    const container = panelStackRef.current;
-    if (!container || container.scrollHeight <= container.clientHeight + 1) {
+    let current = target;
+    while (current && current !== root) {
+      if (current.scrollHeight > current.clientHeight + 1) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+
+    if (root.scrollHeight > root.clientHeight + 1) {
+      return root;
+    }
+
+    const nestedPanel = root.querySelector<HTMLElement>('.panel');
+    if (nestedPanel && nestedPanel.scrollHeight > nestedPanel.clientHeight + 1) {
+      return nestedPanel;
+    }
+
+    return null;
+  }
+
+  function handlePanelWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    if (showPetCodex) {
       return;
     }
 
     const target = event.target as HTMLElement | null;
     if (target?.closest('.pet-codex-overlay')) {
+      return;
+    }
+
+    const container = getWheelScrollContainer(target);
+    if (!container) {
       return;
     }
 
@@ -881,6 +916,12 @@ export default function App() {
 
   function handleFollowSetupGuideHint() {
     switch (setupGuideHint.action) {
+      case 'install-runtime':
+        void handleRunEnvironmentAction({ action: 'install-python-runtime' });
+        return;
+      case 'install-deps':
+        void handleRunEnvironmentAction({ action: 'install-python-deps' });
+        return;
       case 'open-workshop-task':
         if (setupGuideHint.integrationId) {
           handleOpenWorkshopTaskFromGuide(setupGuideHint.integrationId);
@@ -898,11 +939,11 @@ export default function App() {
   }
 
   function handleOpenWorkshopFromGuide() {
-    handleSelectTab('workshop');
+    handleOpenPanel('workshop');
   }
 
   function handleOpenWorkshopTaskFromGuide(id: IntegrationId) {
-    handleSelectTab('workshop');
+    handleOpenPanel('workshop');
     setWorkshopFocusId(id);
   }
 
@@ -1067,7 +1108,7 @@ export default function App() {
 
         <div
           className={activeTab === 'companion' ? 'panel-stack panel-stack-companion' : 'panel-stack'}
-          onWheelCapture={activeTab === 'companion' ? handleCompanionWheel : undefined}
+          onWheelCapture={handlePanelWheel}
           ref={panelStackRef}
         >
           {activeTab === 'companion' ? (
@@ -1081,6 +1122,11 @@ export default function App() {
                   onDismiss={() => setShowSetupGuide(false)}
                   onEnableFloating={handleEnableFloatingFromGuide}
                   onEnableNotifications={handleEnableNotificationsFromGuide}
+                  onInstallRuntime={() =>
+                    handleRunEnvironmentAction({ action: 'install-python-runtime' }).then(
+                      () => undefined
+                    )
+                  }
                   onInstallDependencies={() =>
                     handleRunEnvironmentAction({ action: 'install-python-deps' }).then(() => undefined)
                   }
