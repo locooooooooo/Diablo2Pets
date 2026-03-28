@@ -6960,3 +6960,120 @@ body {
     align-items: flex-start;
   }
 }
+
+.recording-guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-color: rgba(255, 196, 107, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(96, 180, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(30, 18, 14, 0.92), rgba(12, 10, 12, 0.96));
+}
+
+.recording-guide-card.success {
+  border-color: rgba(116, 194, 126, 0.28);
+}
+
+.recording-guide-card.error {
+  border-color: rgba(230, 116, 97, 0.3);
+}
+
+.recording-guide-focus {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 196, 107, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(12, 16, 22, 0.42);
+}
+
+.recording-guide-focus.success {
+  border-color: rgba(116, 194, 126, 0.24);
+}
+
+.recording-guide-focus.error {
+  border-color: rgba(230, 116, 97, 0.26);
+}
+
+.recording-guide-focus strong {
+  display: block;
+  color: #fff2d1;
+  font-size: 20px;
+}
+
+.recording-guide-focus p {
+  margin: 8px 0 0;
+  color: #d8bf97;
+  line-height: 1.6;
+}
+
+.recording-guide-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.recording-guide-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(228, 178, 102, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02)),
+    rgba(12, 10, 10, 0.34);
+}
+
+.recording-guide-step.done {
+  border-color: rgba(116, 194, 126, 0.2);
+  background:
+    linear-gradient(180deg, rgba(116, 194, 126, 0.08), rgba(255, 255, 255, 0.02)),
+    rgba(12, 18, 12, 0.36);
+}
+
+.recording-guide-step.current {
+  border-color: rgba(255, 196, 107, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(255, 196, 107, 0.12),
+    0 18px 32px rgba(75, 40, 18, 0.14);
+}
+
+.recording-guide-step.upcoming {
+  opacity: 0.88;
+}
+
+.recording-guide-step strong {
+  color: #fff2d1;
+  font-size: 16px;
+}
+
+.recording-guide-step p {
+  margin: 0;
+  color: #d8bf97;
+  line-height: 1.55;
+}
+
+.recording-guide-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .recording-guide-focus,
+  .recording-guide-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .recording-guide-step-grid {
+    grid-template-columns: 1fr;
+  }
+}

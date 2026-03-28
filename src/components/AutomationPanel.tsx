@@ -101,6 +101,16 @@ interface ProfileGuideStep {
   detail: string;
 }
 
+type RecordingGuideStatus = 'recording' | 'success' | 'error';
+
+interface RecordingGuideState {
+  taskId: IntegrationId;
+  stepIndex: number;
+  status: RecordingGuideStatus;
+  detail: string;
+  updatedAt: string;
+}
+
 function getIntegration(
   integrations: IntegrationConfig[],
   id: IntegrationId
@@ -765,6 +775,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [preflightError, setPreflightError] = useState('');
   const [preflightTick, setPreflightTick] = useState(0);
+  const [recordingGuide, setRecordingGuide] = useState<RecordingGuideState | null>(null);
   const environmentSnapshotRef = useRef('');
   const runeCardRef = useRef<HTMLElement | null>(null);
   const gemCardRef = useRef<HTMLElement | null>(null);
@@ -1020,6 +1031,17 @@ export function AutomationPanel(props: AutomationPanelProps) {
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function openRecordingGuide(item: IntegrationConfig) {
+    setRecordingGuide({
+      taskId: item.id,
+      stepIndex: 0,
+      status: 'recording',
+      detail: 'Python 录制窗口已经打开。请看弹出的控制台，按顺序对准游戏界面并按 F10 捕获当前点位。',
+      updatedAt: new Date().toISOString()
+    });
+    scrollToTask(item.id);
+  }
+
   function appendEnvironmentTimeline(
     entry: Omit<EnvironmentTimelineEntry, 'id'>
   ) {
@@ -1223,11 +1245,32 @@ export function AutomationPanel(props: AutomationPanelProps) {
         action
       });
 
+      if (action === 'record-profile') {
+        setRecordingGuide({
+          taskId: item.id,
+          stepIndex: Math.max(0, getRecordSteps(item.id).length - 1),
+          status: response.result.success ? 'success' : 'error',
+          detail: response.result.success
+            ? `${getIntegrationLabel(item.id)} Profile 录制完成，预检会自动刷新。你现在可以看 Profile，或者直接试运行这条任务。`
+            : response.result.stderr || 'Profile 录制失败，请查看日志或重新录制。',
+          updatedAt: new Date().toISOString()
+        });
+      }
+
       if (response.result.success) {
         await openLogViewer(item.id, `${getTaskMeta(item.id).title} / ${getAdminLabel(action)}日志`);
       }
       requestPreflightRefresh();
-    } catch {
+    } catch (error) {
+      if (action === 'record-profile') {
+        setRecordingGuide({
+          taskId: item.id,
+          stepIndex: 0,
+          status: 'error',
+          detail: getErrorMessage(error),
+          updatedAt: new Date().toISOString()
+        });
+      }
       return;
     }
   }
@@ -1274,6 +1317,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
     switch (action.kind) {
       case 'admin':
         if (action.adminAction) {
+          if (action.adminAction === 'record-profile') {
+            openRecordingGuide(item);
+          }
           await runAdmin(item, action.adminAction);
         }
         return;
@@ -1332,6 +1378,153 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
+  function renderRecordingGuide() {
+    if (!recordingGuide) {
+      return null;
+    }
+
+    const item = getIntegration(props.integrations, recordingGuide.taskId);
+    const steps = getRecordSteps(recordingGuide.taskId);
+    const currentStep = steps[Math.min(recordingGuide.stepIndex, steps.length - 1)] ?? steps[0];
+    const busy =
+      props.busyKey === getAdminBusyKey(recordingGuide.taskId, 'record-profile') ||
+      recordingGuide.status === 'recording';
+
+    return (
+      <article className={`card recording-guide-card ${recordingGuide.status}`}>
+        <div className="integration-head">
+          <div>
+            <p className="eyebrow">Recording Assistant</p>
+            <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} Profile</div>
+            <p className="secondary-text">
+              这块会一直留在工坊顶部，告诉你当前在录哪一条、下一步看哪里、结束后会发生什么。
+            </p>
+          </div>
+          <div className="tool-row">
+            <span className={`status-pill ${recordingGuide.status === 'success' ? 'success' : recordingGuide.status === 'error' ? 'error' : 'warm'}`}>
+              {recordingGuide.status === 'success'
+                ? '录制完成'
+                : recordingGuide.status === 'error'
+                  ? '录制失败'
+                  : '录制中'}
+            </span>
+            <button
+              className="ghost-button"
+              onClick={() => setRecordingGuide(null)}
+              type="button"
+            >
+              收起助手
+            </button>
+          </div>
+        </div>
+
+        <article className={`recording-guide-focus ${recordingGuide.status}`}>
+          <div>
+            <p className="eyebrow">Current Step</p>
+            <strong>{currentStep}</strong>
+            <p>{recordingGuide.detail}</p>
+            <span className="helper-text">
+              热键：按 <code>F10</code> 捕获当前位置，按 <code>F12</code> 提前结束录制。时间：{formatCompactDateTime(recordingGuide.updatedAt)}
+            </span>
+          </div>
+          <div className="tool-row">
+            <button
+              className="ghost-button"
+              disabled={recordingGuide.stepIndex <= 0}
+              onClick={() =>
+                setRecordingGuide((current) =>
+                  current
+                    ? { ...current, stepIndex: Math.max(0, current.stepIndex - 1) }
+                    : current
+                )
+              }
+              type="button"
+            >
+              上一步提示
+            </button>
+            <button
+              className="primary-button"
+              disabled={recordingGuide.stepIndex >= steps.length - 1}
+              onClick={() =>
+                setRecordingGuide((current) =>
+                  current
+                    ? {
+                        ...current,
+                        stepIndex: Math.min(steps.length - 1, current.stepIndex + 1),
+                        updatedAt: new Date().toISOString()
+                      }
+                    : current
+                )
+              }
+              type="button"
+            >
+              下一步提示
+            </button>
+            <button
+              className="ghost-button"
+              onClick={() => scrollToTask(recordingGuide.taskId)}
+              type="button"
+            >
+              回到任务卡
+            </button>
+          </div>
+        </article>
+
+        <div className="recording-guide-step-grid">
+          {steps.map((step, index) => {
+            const state =
+              index < recordingGuide.stepIndex
+                ? 'done'
+                : index === recordingGuide.stepIndex
+                  ? 'current'
+                  : 'upcoming';
+            return (
+              <article className={`recording-guide-step ${state}`} key={`${recordingGuide.taskId}-${step}`}>
+                <span className="mini-pill">步骤 {index + 1}</span>
+                <strong>{step}</strong>
+                <p>
+                  {state === 'done'
+                    ? '如果这一步已经按过 F10，就继续看下一步。'
+                    : state === 'current'
+                      ? '把鼠标对准当前目标点，切回控制台后按 F10。'
+                      : '先不用急，录完当前高亮步骤再继续。'}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="recording-guide-footer">
+          <span className="helper-text">
+            {busy
+              ? `录制窗口进行中：${getTaskMeta(item.id).title}`
+              : recordingGuide.status === 'success'
+                ? '录制已经结束。你可以直接看 Profile、看日志，或者试运行。'
+                : '录制已中断或失败，建议看日志后重新录一次。'}
+          </span>
+          <div className="tool-row">
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void runAdmin(item, 'print-profile')}
+              type="button"
+            >
+              看 Profile
+            </button>
+            <button
+              className="ghost-button"
+              disabled={props.busyKey !== null}
+              onClick={() => void openLogViewer(item.id, `${getTaskMeta(item.id).title} / 执行日志`)}
+              type="button"
+            >
+              看日志
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   function renderAdminButtons(item: IntegrationConfig) {
     return (
       <>
@@ -1348,7 +1541,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <button
           className="ghost-button"
           disabled={props.busyKey !== null}
-          onClick={() => void runAdmin(item, 'record-profile')}
+          onClick={() => {
+            openRecordingGuide(item);
+            void runAdmin(item, 'record-profile');
+          }}
           type="button"
         >
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
@@ -1869,6 +2065,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 onClick={() => {
                   scrollToTask(nextProfileStep.id);
                   const targetItem = getIntegration(props.integrations, nextProfileStep.id);
+                  openRecordingGuide(targetItem);
                   void runAdmin(targetItem, 'record-profile');
                 }}
                 type="button"
@@ -1935,6 +2132,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                       disabled={props.busyKey !== null}
                       onClick={() => {
                         scrollToTask(step.id);
+                        openRecordingGuide(item);
                         void runAdmin(item, 'record-profile');
                       }}
                       type="button"
@@ -1992,6 +2190,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       ) : null}
 
       {renderProfileGuide()}
+      {renderRecordingGuide()}
 
       <article className="card safety-card">
         <div className="integration-head">
