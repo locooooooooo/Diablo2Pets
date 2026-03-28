@@ -73,6 +73,19 @@ function getToneLabel(tone: StepTone): string {
   }
 }
 
+function getStepKeyLabel(key: SetupStep['key']): string {
+  switch (key) {
+    case 'runtime':
+      return 'Python 环境';
+    case 'deps':
+      return '依赖与识别';
+    case 'profiles':
+      return '坐标配置';
+    case 'desktop':
+      return '桌宠形态';
+  }
+}
+
 export function SetupGuide(props: SetupGuideProps) {
   const globalChecks = props.preflight?.globalChecks ?? [];
   const tasks = props.preflight?.tasks ?? [];
@@ -105,25 +118,25 @@ export function SetupGuide(props: SetupGuideProps) {
   const installRuntimeBusy = props.busyKey === 'env-install-python-runtime';
   const installDepsBusy = props.busyKey === 'env-install-python-deps';
   const busyText = installRuntimeBusy
-    ? '正在准备内置 Python runtime。首次执行可能需要几十秒，请先不要关闭桌宠。'
+    ? '正在准备内置 Python 运行环境。首次执行可能需要几十秒，请先不要关闭桌宠。'
     : installDepsBusy
       ? '正在安装 Python 依赖和 OCR 组件。完成后我会自动重新诊断。'
       : '';
   const blockingSummary = [
-    !runtimeReady ? '内置 runtime 还没到位' : null,
+    !runtimeReady ? '内置运行环境还没到位' : null,
     !dependencyReady ? '依赖和 OCR 还没装齐' : null,
-    !profilesReady ? '三条 Profile 还没录完' : null
+    !profilesReady ? '三条坐标配置还没录完' : null
   ].filter(Boolean) as string[];
 
   const steps: SetupStep[] = [
     {
       key: 'runtime',
-      title: '让桌宠用上自己的 runtime',
+      title: '让桌宠用上自己的 Python 运行环境',
       summary: runtimeReady
-        ? '桌宠已经在使用内置 Python runtime。'
+        ? '桌宠已经在使用内置 Python 运行环境。'
         : runtimeBaseReady
-          ? '当前还能跑，但还在使用系统 Python。切到内置 runtime 后会更稳。'
-          : '先把桌宠自带的 Python runtime 装好，后面的自动化才能真正开箱即用。',
+          ? '当前还能跑，但还在使用系统 Python。切到内置运行环境后会更稳。'
+          : '先把桌宠自带的 Python 运行环境装好，后面的自动化才能真正开箱即用。',
       detail:
         runtimeBlockingCheck?.detail ??
         pythonSourceCheck?.detail ??
@@ -137,7 +150,7 @@ export function SetupGuide(props: SetupGuideProps) {
             return `${check.label} · ${label}`;
           }),
           pythonSourceCheck
-            ? `来源 · ${pythonSourceCheck.level === 'ok' ? '内置 runtime' : '系统 Python'}`
+            ? `来源 · ${pythonSourceCheck.level === 'ok' ? '内置运行环境' : '系统 Python'}`
             : '来源 · 待识别'
         ].filter(Boolean),
       actions: runtimeReady
@@ -151,7 +164,7 @@ export function SetupGuide(props: SetupGuideProps) {
           ]
         : [
             {
-              label: installRuntimeBusy ? '安装中...' : '安装内置 Runtime',
+              label: installRuntimeBusy ? '安装中...' : '安装内置 Python 运行环境',
               kind: 'primary',
               disabled: props.busyKey !== null && !installRuntimeBusy,
               onClick: () => void props.onInstallRuntime()
@@ -166,9 +179,9 @@ export function SetupGuide(props: SetupGuideProps) {
     },
     {
       key: 'deps',
-      title: '补齐依赖和 OCR',
+      title: '补齐依赖和识别能力',
       summary: dependencyReady
-        ? '自动化依赖和 OCR 已经可以正常工作。'
+        ? '自动化依赖和图像识别已经可以正常工作。'
         : '先把 Python 依赖装齐，工坊任务和掉落识别才会完整可用。',
       detail:
         dependencyCheck?.detail ??
@@ -176,7 +189,7 @@ export function SetupGuide(props: SetupGuideProps) {
       tone: dependencyReady ? 'success' : dependencyCheck?.level === 'error' ? 'error' : 'attention',
       chips: [
         `依赖 ${installedDependencyCount}/${dependencyChecks.length || 0}`,
-        ocrCheck?.level === 'ok' ? 'OCR 已就绪' : 'OCR 待补齐'
+        ocrCheck?.level === 'ok' ? '图像识别已就绪' : '图像识别待补齐'
       ],
       actions: dependencyReady
         ? []
@@ -191,13 +204,13 @@ export function SetupGuide(props: SetupGuideProps) {
     },
     {
       key: 'profiles',
-      title: '录好三条 Profile',
+      title: '录好三条坐标配置',
       summary:
         tasks.length === 0
           ? '我还在读取工坊三条任务线的状态。'
           : profilesReady
             ? '符文、宝石、金币三条任务线都能直接开跑了。'
-            : '继续把缺的 Profile 录完，工坊预检就会更接近全绿。',
+            : '继续把缺的坐标配置录完，工坊预检就会更接近全绿。',
       detail:
         tasks.length === 0
           ? '如果这里长时间不更新，先点刷新诊断，或者直接进入工坊查看完整预检。'
@@ -222,7 +235,7 @@ export function SetupGuide(props: SetupGuideProps) {
       actions: profilesReady
         ? []
         : missingProfileTasks.map((task) => ({
-            label: `去录 ${getIntegrationLabel(task.id)} Profile`,
+            label: `去录 ${getIntegrationLabel(task.id)} 坐标配置`,
             kind: missingProfileTasks.length === 1 ? 'primary' : 'secondary',
             disabled: props.busyKey !== null,
             onClick: () => props.onOpenWorkshopTask(task.id)
@@ -273,7 +286,7 @@ export function SetupGuide(props: SetupGuideProps) {
     <article className="card setup-guide">
       <div className="setup-guide-head">
         <div>
-          <p className="eyebrow">First Launch</p>
+          <p className="eyebrow">首次引导</p>
           <h3>首次启动引导</h3>
           <p className="secondary-text">
             我会明确告诉你现在能不能用、卡在哪一步、下一步该点什么。
@@ -292,29 +305,29 @@ export function SetupGuide(props: SetupGuideProps) {
 
       <article className={`setup-guide-status ${coreReady ? 'success' : 'attention'}`}>
         <div>
-          <p className="eyebrow">{coreReady ? 'Ready' : 'Not Ready Yet'}</p>
+          <p className="eyebrow">{coreReady ? '已可用' : '尚未就绪'}</p>
           <strong>
             {coreReady ? '现在已经能用了' : `还差 ${3 - requiredCompletedSteps} 步才能正式开用`}
           </strong>
           <p>
             {coreReady
               ? desktopReady
-                ? '环境、依赖、Profile 和桌宠形态都已经齐了，可以直接去工坊或开始陪刷。'
-                : '环境、依赖和 Profile 已经齐了，现在就能用；悬浮态和通知只是额外增强。'
+                ? '环境、依赖、坐标配置和桌宠形态都已经齐了，可以直接去工坊或开始陪刷。'
+                : '环境、依赖和坐标配置已经齐了，现在就能用；悬浮态和通知只是额外增强。'
               : `当前阻塞项：${blockingSummary.join(' / ')}。`}
           </p>
         </div>
         <div className="setup-guide-status-side">
           <span className="status-pill warm">{requiredCompletedSteps}/3 核心可用项</span>
           <span className="helper-text">
-            runtime、依赖和 Profile 这三项齐了，就已经能正式开用了。
+            Python 运行环境、依赖和坐标配置这三项齐了，就已经能正式开用了。
           </span>
         </div>
       </article>
 
       <article className="setup-guide-next">
         <div>
-          <p className="eyebrow">Next Step</p>
+          <p className="eyebrow">建议下一步</p>
           <strong>{props.nextAction.title}</strong>
           <p>{props.nextAction.detail}</p>
         </div>
@@ -359,12 +372,12 @@ export function SetupGuide(props: SetupGuideProps) {
         <article className="setup-progress-card">
           <span>核心可用度</span>
           <strong>{requiredCompletedSteps}/3</strong>
-          <p>只看 runtime、依赖和 Profile，这三项齐了就已经能正式开用。</p>
+          <p>只看 Python 运行环境、依赖和坐标配置，这三项齐了就已经能正式开用。</p>
         </article>
         <article className="setup-progress-card">
           <span>工坊任务线</span>
           <strong>{tasks.length - missingProfileTasks.length}/{tasks.length || 3}</strong>
-          <p>三条任务线都录好 Profile 后，试运行和正式执行才会更顺。</p>
+          <p>三条任务线都录好坐标后，试运行和正式执行才会更顺。</p>
         </article>
         <article className="setup-progress-card">
           <span>依赖状态</span>
@@ -378,7 +391,7 @@ export function SetupGuide(props: SetupGuideProps) {
           <article className={`setup-step-card ${step.tone}`} key={step.key}>
             <div className="setup-step-head">
               <div>
-                <span className="eyebrow">{step.key}</span>
+                <span className="eyebrow">{getStepKeyLabel(step.key)}</span>
                 <strong>{step.title}</strong>
               </div>
               <span className={`status-pill ${step.tone}`}>{getToneLabel(step.tone)}</span>

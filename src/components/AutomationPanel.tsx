@@ -173,9 +173,9 @@ function getInputModeLabel(mode: GemInputMode): string {
 function getAdminLabel(action: AutomationAdminAction): string {
   switch (action) {
     case 'record-profile':
-      return '录 Profile';
+      return '录坐标';
     case 'print-profile':
-      return '看 Profile';
+      return '看坐标';
     case 'import-legacy-config':
       return '导旧配置';
   }
@@ -207,7 +207,7 @@ function getProfileNote(item: IntegrationConfig): string {
     return `默认旧配置路径：${item.legacyConfigPath}`;
   }
 
-  return '这条任务线没有独立旧配置，建议直接录新的 profile。';
+  return '这条任务线没有独立旧配置，建议直接录新的坐标配置。';
 }
 
 function getTaskMetaText(id: IntegrationId): { title: string; description: string } {
@@ -245,9 +245,9 @@ function getInputModeLabelText(mode: GemInputMode): string {
 function getAdminLabelText(action: AutomationAdminAction): string {
   switch (action) {
     case 'record-profile':
-      return '录 Profile';
+      return '录坐标';
     case 'print-profile':
-      return '看 Profile';
+      return '看坐标';
     case 'import-legacy-config':
       return '导入旧配置';
   }
@@ -279,7 +279,7 @@ function getProfileNoteText(item: IntegrationConfig): string {
     return `默认旧配置路径：${item.legacyConfigPath}`;
   }
 
-  return '这条任务线没有独立旧配置，建议直接录新的 Profile。';
+  return '这条任务线没有独立旧配置，建议直接录新的坐标配置。';
 }
 
 function getTaskHintText(message?: string): string {
@@ -290,7 +290,7 @@ function getTaskHintText(message?: string): string {
   const normalized = message.toLowerCase();
 
   if (message.includes('未找到') || normalized.includes('not found')) {
-    return '通常是脚本、Profile、旧配置或截图路径不存在，先看预检里哪一项变红了。';
+    return '通常是脚本、坐标配置、旧配置或截图路径不存在，先看预检里哪一项变红了。';
   }
 
   if (message.includes('整数')) {
@@ -358,7 +358,7 @@ function buildTaskDiagnosisText(
     return {
       tone: 'attention',
       title: '诊断准备中',
-      description: '正在重新扫描这条任务线的环境、Profile 和输入条件。',
+      description: '正在重新扫描这条任务线的环境、坐标配置和输入条件。',
       actions: [{ key: 'refresh', label: '立即刷新', kind: 'refresh' }]
     };
   }
@@ -392,13 +392,13 @@ function buildTaskDiagnosisText(
   if (profileCheck?.level === 'error') {
     pushAction(actions, {
       key: 'record-profile',
-      label: '重录 Profile',
+        label: '重录坐标',
       kind: 'admin',
       adminAction: 'record-profile'
     });
     pushAction(actions, {
       key: 'open-profile-dir',
-      label: '打开 Profile 目录',
+        label: '打开坐标目录',
       kind: 'open-path',
       path: getParentPath(item.profilePath)
     });
@@ -414,7 +414,7 @@ function buildTaskDiagnosisText(
 
     return {
       tone: 'error',
-      title: 'Profile 还没准备好',
+      title: '坐标配置还没准备好',
       description: profileCheck.detail,
       actions
     };
@@ -510,7 +510,7 @@ function buildTaskDiagnosisText(
   if (task.status === 'ready') {
     pushAction(actions, {
       key: 'print-profile',
-      label: '查看当前 Profile',
+        label: '查看当前坐标',
       kind: 'admin',
       adminAction: 'print-profile'
     });
@@ -561,7 +561,7 @@ function translateRecordConsoleLine(id: IntegrationId, line: string): string {
   }
 
   if (normalized.startsWith('saved recorded')) {
-    return `${getIntegrationLabel(id)} Profile 已保存，预检会自动刷新。`;
+    return `${getIntegrationLabel(id)} 坐标配置已保存，预检会自动刷新。`;
   }
 
   return line;
@@ -661,7 +661,7 @@ function getRecordingFailureSummary(rawText: string): string {
 }
 
 function getRecordingSuccessSummary(id: IntegrationId): string {
-  return `${getIntegrationLabel(id)} 的 Profile 已经录好。下一步建议先试运行，确认点击点和流程都对。`;
+  return `${getIntegrationLabel(id)} 的坐标配置已经录好。下一步建议先试运行，确认点击点和流程都对。`;
 }
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
@@ -718,7 +718,7 @@ function getTaskHint(message?: string): string {
   }
 
   if (message.includes('未找到')) {
-    return '通常是脚本、profile、旧配置或截图路径不存在，先看预检项里哪一条红了。';
+    return '通常是脚本、坐标配置、旧配置或截图路径不存在，先看预检项里哪一条红了。';
   }
 
   if (message.includes('整数')) {
@@ -797,7 +797,7 @@ function buildTaskDiagnosis(
     return {
       tone: 'attention',
       title: '诊断准备中',
-      description: '我还在重新扫描这条任务的环境、Profile 和输入条件。',
+      description: '我还在重新扫描这条任务的环境、坐标配置和输入条件。',
       actions: [{ key: 'refresh', label: '立即刷新', kind: 'refresh' }]
     };
   }
@@ -831,13 +831,13 @@ function buildTaskDiagnosis(
   if (profileCheck?.level === 'error') {
     pushAction(actions, {
       key: 'record-profile',
-      label: '重录 Profile',
+      label: '重录坐标',
       kind: 'admin',
       adminAction: 'record-profile'
     });
     pushAction(actions, {
       key: 'open-profile-dir',
-      label: '打开 Profile 目录',
+      label: '打开坐标目录',
       kind: 'open-path',
       path: getParentPath(item.profilePath)
     });
@@ -853,7 +853,7 @@ function buildTaskDiagnosis(
 
     return {
       tone: 'error',
-      title: 'Profile 还没就位',
+      title: '坐标配置还没就位',
       description: profileCheck.detail,
       actions
     };
@@ -949,7 +949,7 @@ function buildTaskDiagnosis(
   if (task.status === 'ready') {
     pushAction(actions, {
       key: 'print-profile',
-      label: '查看当前 Profile',
+      label: '查看当前坐标',
       kind: 'admin',
       adminAction: 'print-profile'
     });
@@ -1000,7 +1000,7 @@ function buildEnvironmentDiagnosis(
 
   pushAction(actions, {
     key: 'open-runtime-readme',
-    label: '打开 Runtime 说明',
+    label: '打开运行环境说明',
     kind: 'open-path',
     path: readmePath
   });
@@ -1019,13 +1019,13 @@ function buildEnvironmentDiagnosis(
   if (runtimeCheck?.level === 'error') {
     pushAction(actions, {
       key: 'open-runtime-root',
-      label: '打开 Runtime 目录',
+      label: '打开运行环境目录',
       kind: 'open-path',
       path: runtimeRoot
     });
     return {
       tone: 'error',
-      title: 'Python Runtime 缺失',
+      title: '内置运行环境缺失',
       description: runtimeCheck.detail,
       actions
     };
@@ -1043,7 +1043,7 @@ function buildEnvironmentDiagnosis(
   if (requirementsCheck?.level === 'error') {
     pushAction(actions, {
       key: 'open-runtime-root',
-      label: '打开 Runtime 目录',
+      label: '打开运行环境目录',
       kind: 'open-path',
       path: runtimeRoot
     });
@@ -1125,9 +1125,9 @@ function getActionSummaryLabel(action: string): string {
     case 'execute':
       return '立即执行';
     case 'record-profile':
-      return '录 Profile';
+      return '录坐标';
     case 'print-profile':
-      return '看 Profile';
+      return '看坐标';
     case 'import-legacy-config':
       return '导旧配置';
     case 'install-python-deps':
@@ -1373,12 +1373,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return {
         action: 'install-python-runtime' as const,
         label: props.busyKey === getEnvironmentBusyKey('install-python-runtime')
-          ? '安装内置 Runtime 中...'
-          : '安装内置 Runtime',
+          ? '安装内置运行环境中...'
+          : '安装内置运行环境',
         detail:
           pythonSourceCheck?.level === 'warning'
-            ? '当前还在使用系统 Python，切到桌宠自己的 runtime 会更稳。'
-            : '先把桌宠自己的 Python runtime 装好，再继续后面的自动化。'
+            ? '当前还在使用系统 Python，切到桌宠自己的运行环境会更稳。'
+            : '先把桌宠自己的 Python 运行环境装好，再继续后面的自动化。'
       };
     }
 
@@ -1411,14 +1411,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
       const ready = task ? isTaskProfileReady(task) : false;
       return {
         id: item.id,
-        title: `${getIntegrationLabel(item.id)} Profile`,
+        title: `${getIntegrationLabel(item.id)} 坐标配置`,
         ready,
         summary: ready ? '这条坐标已经录好。' : '还没录制，当前不能稳定执行这条任务。',
         detail: ready
-          ? '可以直接试运行，或者点“看 Profile”确认当前配置。'
+          ? '可以直接试运行，或者点“看坐标”确认当前配置。'
           : task
             ? getProfileGuideDetailText(item.id)
-            : '我还在等预检返回这条任务的 Profile 状态。'
+            : '我还在等预检返回这条任务的坐标状态。'
       };
     });
   }, [preflightMap, taskItems]);
@@ -1626,7 +1626,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       `- 说明：${environmentDiagnosis.description}`,
       `- 依赖安装：${installedDependencies}/${dependencyChecks.length || 0}`,
       `- OCR：${ocrReady ? '已就绪' : '待补齐'}`,
-      `- Runtime 目录：${runeTask.workingDirectory}`,
+      `- 运行环境目录：${runeTask.workingDirectory}`,
       '',
       '## 全局预检',
       globalSection,
@@ -1736,8 +1736,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           stepIndex: Math.max(0, getReadableRecordStepsText(item.id).length - 1),
           status: response.result.success ? 'success' : 'error',
           detail: response.result.success
-            ? `${getIntegrationLabel(item.id)} Profile 录制完成，预检会自动刷新。你现在可以看 Profile，或者直接试运行这条任务。`
-            : response.result.stderr || 'Profile 录制失败，请查看日志或重新录制。',
+            ? `${getIntegrationLabel(item.id)} 坐标配置录制完成，预检会自动刷新。你现在可以看坐标，或者直接试运行这条任务。`
+            : response.result.stderr || '坐标配置录制失败，请查看日志或重新录制。',
           updatedAt: new Date().toISOString(),
           lastLine: response.result.stderr || response.result.stdout || '录制流程已结束。',
           live: true
@@ -1798,7 +1798,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       setViewer({
         title:
           action === 'install-python-runtime'
-            ? '环境修复 / 安装内置 Runtime 日志'
+            ? '环境修复 / 安装内置运行环境日志'
             : action === 'install-python-deps'
               ? '环境修复 / 安装 Python 依赖日志'
               : '环境修复日志',
@@ -1810,7 +1810,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         tone: response.result.success ? 'success' : 'error',
         title:
           action === 'install-python-runtime'
-            ? '安装内置 Runtime'
+            ? '安装内置运行环境'
             : action === 'install-python-deps'
               ? '安装 Python 依赖'
               : '执行环境修复动作',
@@ -1904,8 +1904,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return (
         <article className="task-live-guide recording">
           <div>
-            <p className="eyebrow">Live Recording</p>
-            <strong>这张任务卡正在录 Profile</strong>
+            <p className="eyebrow">正在录制</p>
+            <strong>这张任务卡正在录坐标配置</strong>
             <p>
               当前步骤：{currentStepLabel ?? '等待同步'}。把鼠标对到目标位置后，回到录制窗口按
               <code> F10</code>。
@@ -1930,8 +1930,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return (
         <article className="task-live-guide success">
           <div>
-            <p className="eyebrow">Next Move</p>
-            <strong>Profile 已录好，直接试运行这条线</strong>
+            <p className="eyebrow">下一步</p>
+            <strong>坐标配置已录好，直接试运行这条线</strong>
             <p>{getRecordingSuccessSummary(item.id)}</p>
           </div>
           <div className="task-live-actions">
@@ -1949,7 +1949,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               onClick={() => void runAdmin(item, 'print-profile')}
               type="button"
             >
-              看 Profile
+              看坐标
             </button>
           </div>
         </article>
@@ -1960,7 +1960,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return (
         <article className="task-live-guide error">
           <div>
-            <p className="eyebrow">Retry Suggested</p>
+            <p className="eyebrow">建议重录</p>
             <strong>这条任务线刚刚录制失败了</strong>
             <p>{recordingGuide.detail}</p>
           </div>
@@ -1974,7 +1974,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               }}
               type="button"
             >
-              重新录 Profile
+              重新录坐标
             </button>
             <button
               className="ghost-button"
@@ -1997,14 +1997,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <strong>
               {profileReady
                 ? '这条任务线已经就绪，下一步可以直接试运行'
-                : '这条任务线是当前推荐入口，先把 Profile 录好'}
+                : '这条任务线是当前推荐入口，先把坐标配置录好'}
             </strong>
             <p>
               {profileReady
                 ? preflightTask?.status === 'ready'
                   ? '预检也已经通过了，先跑一遍试运行最稳。'
-                  : 'Profile 已有了，但还有别的条件没补齐，先看诊断卡。'
-                : '顺着这张卡往下点，先录 Profile，再试运行。'}
+                  : '坐标配置已经有了，但还有别的条件没补齐，先看诊断卡。'
+                : '顺着这张卡往下点，先录坐标，再试运行。'}
             </p>
           </div>
           <div className="task-live-actions">
@@ -2027,7 +2027,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 }}
                 type="button"
               >
-                先录 Profile
+                先录坐标
               </button>
             )}
           </div>
@@ -2077,7 +2077,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <div className="integration-head">
           <div>
             <p className="eyebrow">录制助手</p>
-            <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} Profile</div>
+            <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} 坐标配置</div>
             <p className="secondary-text">
               录制助手会跟着控制台提示自动推进。你只需要切回游戏，把鼠标对到目标位置后按
               <code> F10</code>。
@@ -2201,7 +2201,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             {busy
               ? `录制窗口仍在运行：${getTaskMetaText(item.id).title}`
               : recordingGuide.status === 'success'
-                ? 'Profile 已录好。建议现在先试运行一次，确认点击点和流程都对。'
+                ? '坐标配置已录好。建议现在先试运行一次，确认点击点和流程都对。'
                 : '录制已中断或失败。先看日志，再重新录一次会更稳。'}
           </span>
           <div className="tool-row">
@@ -2221,7 +2221,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               onClick={() => void runAdmin(item, 'print-profile')}
               type="button"
             >
-              查看 Profile
+              查看坐标
             </button>
             <button
               className="ghost-button"
@@ -2251,7 +2251,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
             ? '读取中...'
-            : '看 Profile'}
+            : '看坐标'}
         </button>
         <button
           className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
@@ -2264,7 +2264,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
             ? '录制中...'
-            : '录 Profile'}
+            : '录坐标'}
         </button>
         {item.supportsLegacyImport ? (
           <button
@@ -2304,7 +2304,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
             ? '读取中...'
-            : '看 Profile'}
+            : '看坐标'}
         </button>
         <button
           className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
@@ -2318,8 +2318,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
             ? '录制中...'
             : recordingState === 'success' || recordingState === 'error'
-              ? '重录 Profile'
-              : '录 Profile'}
+              ? '重录坐标'
+              : '录坐标'}
         </button>
         {item.supportsLegacyImport ? (
           <button
@@ -2354,7 +2354,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div>
             <div className="card-title">工坊预检</div>
             <p className="secondary-text">
-              这里会实时检查 Python、runtime、依赖包、Profile 和当前输入条件，先扫雷再执行。
+          这里会实时检查 Python、运行环境、依赖包、坐标配置和当前输入条件，先扫雷再执行。
             </p>
           </div>
           <div className="tool-row">
@@ -2424,7 +2424,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
         <article className="environment-entry-banner">
           <div>
-            <p className="eyebrow">先录 Profile</p>
+            <p className="eyebrow">当前优先</p>
             <strong>{environmentPrimaryAction.label.replace('中...', '').replace('...', '')}</strong>
             <p className="secondary-text">{environmentPrimaryAction.detail}</p>
           </div>
@@ -2677,14 +2677,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <summary>更多信息</summary>
         <div className="tool-details-content">
           <p className="helper-text">{getProfileNoteText(item)}</p>
-          <p className="helper-text">当前 Profile：{item.profilePath}</p>
+          <p className="helper-text">当前坐标文件：{item.profilePath}</p>
           <div className="tool-row">
             <button
               className="text-button"
               onClick={() => void props.onOpenPath(item.profilePath)}
               type="button"
             >
-              打开 Profile 文件
+              打开坐标文件
             </button>
             {item.lastLogPath ? (
               <button
@@ -2798,8 +2798,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
       <article className="card profile-guide-card">
         <div className="integration-head">
           <div>
-            <p className="eyebrow">先录 Profile</p>
-            <div className="card-title">Profile 录制向导</div>
+            <p className="eyebrow">先录坐标</p>
+            <div className="card-title">坐标录制向导</div>
             <p className="secondary-text">
               先把三条任务线的坐标录好，工坊才会从“能看”变成“能跑”。录制时按 <code>F10</code> 捕获点位，按 <code>F12</code> 结束。
             </p>
@@ -2814,8 +2814,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <p className="eyebrow">下一步</p>
             <strong>
               {nextProfileStep
-                ? `先录 ${getIntegrationLabel(nextProfileStep.id)} Profile`
-                : '三条 Profile 都已经就绪'}
+                ? `先录 ${getIntegrationLabel(nextProfileStep.id)} 坐标配置`
+                : '三条坐标配置都已经就绪'}
             </strong>
             <p>
               {nextProfileStep
@@ -2905,7 +2905,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                     >
                       {props.busyKey === getAdminBusyKey(step.id, 'record-profile')
                         ? '录制中...'
-                        : '录 Profile'}
+                        : '录坐标'}
                     </button>
                   ) : (
                     <button
@@ -2914,7 +2914,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                       onClick={() => void runAdmin(item, 'print-profile')}
                       type="button"
                     >
-                      看 Profile
+                      看坐标
                     </button>
                   )}
                   <button
@@ -2990,7 +2990,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           <div className="workshop-topbar">
             <div>
-              <p className="eyebrow">builtin:rune_cubing</p>
+              <p className="eyebrow">内置流程</p>
               <div className="card-title">{getTaskMetaText(runeTask.id).title}</div>
               <p className="secondary-text">{getTaskMetaText(runeTask.id).description}</p>
             </div>
@@ -3051,7 +3051,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           <div className="workshop-topbar">
             <div>
-              <p className="eyebrow">builtin:gem_cubing</p>
+              <p className="eyebrow">内置流程</p>
               <div className="card-title">{getTaskMetaText(gemTask.id).title}</div>
               <p className="secondary-text">{getTaskMetaText(gemTask.id).description}</p>
             </div>
@@ -3170,7 +3170,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           <div className="workshop-topbar">
             <div>
-              <p className="eyebrow">builtin:gold_drop</p>
+              <p className="eyebrow">内置流程</p>
               <div className="card-title">{getTaskMetaText(goldTask.id).title}</div>
               <p className="secondary-text">{getTaskMetaText(goldTask.id).description}</p>
             </div>

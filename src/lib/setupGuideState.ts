@@ -52,7 +52,7 @@ export function buildSetupGuideHint(
     return {
       badge: '等待诊断',
       title: '先读取当前可用状态',
-      detail: '我会先检查 runtime、依赖和三条 Profile，再明确告诉你当前卡在哪一步。',
+      detail: '我会先检查 Python 运行环境、依赖和三条坐标配置，再明确告诉你当前卡在哪一步。',
       actionLabel: '打开引导',
       action: 'open-guide',
       stepKey: 'runtime'
@@ -75,11 +75,11 @@ export function buildSetupGuideHint(
   if (!runtimeReady) {
     return {
       badge: '第 1 步',
-      title: runtimeBaseReady ? '切换到内置 Python runtime' : '先安装内置 Python runtime',
+      title: runtimeBaseReady ? '切换到内置 Python 运行环境' : '先安装内置 Python 运行环境',
       detail: runtimeBaseReady
-        ? '当前还能跑，但还在使用系统 Python。切到桌宠自带的 runtime 后，后面的自动化和打包都会更稳。'
-        : '桌宠需要先准备好自己的 Python、pip 和运行时目录，后面的自动化任务才会真正开箱即用。',
-      actionLabel: '安装内置 Runtime',
+        ? '当前还能跑，但还在使用系统 Python。切到桌宠自带的运行环境后，后面的自动化和打包都会更稳。'
+        : '桌宠需要先准备好自己的 Python、pip 和运行环境目录，后面的自动化任务才会真正开箱即用。',
+      actionLabel: '安装内置 Python 运行环境',
       action: 'install-runtime',
       stepKey: 'runtime'
     };
@@ -93,7 +93,7 @@ export function buildSetupGuideHint(
     return {
       badge: '第 2 步',
       title: '先安装 Python 依赖',
-      detail: '依赖和 OCR 还没到位前，工坊任务和掉落识别都不会完整可用。',
+      detail: '依赖和图像识别还没到位前，工坊任务和掉落识别都不会完整可用。',
       actionLabel: '一键安装依赖',
       action: 'install-deps',
       stepKey: 'deps'
@@ -118,9 +118,9 @@ export function buildSetupGuideHint(
 
     return {
       badge: '第 3 步',
-      title: `先录 ${label} Profile`,
+      title: `先录 ${label} 坐标配置`,
       detail: '录完这一条后，工坊预检会马上更新，你也能更快进入试运行。',
-      actionLabel: `去录 ${label} Profile`,
+      actionLabel: `去录 ${label} 坐标配置`,
       action: 'open-workshop-task',
       stepKey: 'profiles',
       integrationId: task.id
@@ -133,7 +133,7 @@ export function buildSetupGuideHint(
     return {
       badge: '已经可用',
       title: '核心功能已经能用了',
-      detail: '环境、依赖和 Profile 都齐了。现在就能去工坊执行任务；悬浮态和通知只是额外增强。',
+      detail: '环境、依赖和坐标配置都齐了。现在就能去工坊执行任务；悬浮态和通知只是额外增强。',
       actionLabel: '完成引导',
       action: 'complete-guide',
       stepKey: 'finish'
@@ -143,7 +143,7 @@ export function buildSetupGuideHint(
   return {
     badge: '已经可用',
     title: '桌宠已经准备好了',
-    detail: 'runtime、依赖和 Profile 都齐了，悬浮态和通知也已经就位，可以正式开始用了。',
+    detail: 'Python 运行环境、依赖和坐标配置都齐了，悬浮态和通知也已经就位，可以正式开始用了。',
     actionLabel: '完成引导',
     action: 'complete-guide',
     stepKey: 'finish'
