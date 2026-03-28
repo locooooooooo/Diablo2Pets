@@ -549,19 +549,19 @@ function translateRecordConsoleLine(id: IntegrationId, line: string): string {
   const normalized = line.trim().toLowerCase();
 
   if (normalized.startsWith('recording ')) {
-    return `${getIntegrationLabel(id)} recording started. Keep Diablo II and the target panel visible.`;
+    return `${getIntegrationLabel(id)} 录制已开始，请保持暗黑 2 和目标界面可见。`;
   }
 
   if (normalized.includes('make sure the diablo ii inventory and cube ui are visible')) {
-    return 'Keep the inventory and Horadric Cube visible, then press F10 for each capture step.';
+    return '请保持背包和赫拉迪姆方块界面可见，然后按步骤按 F10 捕获位置。';
   }
 
   if (normalized.includes('now capture the rune grid anchors')) {
-    return 'Base points are done. Next, record the rune grid anchors.';
+    return '基础点位已经完成，下一步开始录符文网格锚点。';
   }
 
   if (normalized.startsWith('saved recorded')) {
-    return `${getIntegrationLabel(id)} profile saved. Preflight will refresh automatically.`;
+    return `${getIntegrationLabel(id)} Profile 已保存，预检会自动刷新。`;
   }
 
   return line;
@@ -571,17 +571,17 @@ function describeRecordingProgress(event: AutomationRecordProgressEvent): string
   const translatedLine = translateRecordConsoleLine(event.id, event.line);
 
   if (event.finished) {
-    return event.success ? translatedLine : `Recording failed: ${translatedLine}`;
+    return event.success ? translatedLine : `录制失败：${translatedLine}`;
   }
 
   if (typeof event.stepIndex === 'number') {
     const stepLabel =
-      getReadableRecordStepsText(event.id)[event.stepIndex] ?? `Step ${event.stepIndex + 1}`;
-    return `Current target: ${stepLabel}. Focus the matching spot in game and press F10.`;
+      getReadableRecordStepsText(event.id)[event.stepIndex] ?? `步骤 ${event.stepIndex + 1}`;
+    return `当前目标：${stepLabel}。切回游戏后把鼠标对准这里，再按 F10。`;
   }
 
   if (event.kind === 'stderr') {
-    return `Recorder says: ${translatedLine}`;
+    return `录制器提示：${translatedLine}`;
   }
 
   return translatedLine;
@@ -1739,7 +1739,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             ? `${getIntegrationLabel(item.id)} Profile 录制完成，预检会自动刷新。你现在可以看 Profile，或者直接试运行这条任务。`
             : response.result.stderr || 'Profile 录制失败，请查看日志或重新录制。',
           updatedAt: new Date().toISOString(),
-          lastLine: response.result.stderr || response.result.stdout || 'Recording finished.',
+          lastLine: response.result.stderr || response.result.stdout || '录制流程已结束。',
           live: true
         });
 
@@ -1993,7 +1993,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return (
         <article className={`task-live-guide ${tone === 'spotlight' ? 'focus' : 'soft'}`}>
           <div>
-            <p className="eyebrow">Guide Focus</p>
+            <p className="eyebrow">当前引导焦点</p>
             <strong>
               {profileReady
                 ? '这条任务线已经就绪，下一步可以直接试运行'
@@ -2060,160 +2060,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
-  function renderRecordingGuide() {
-    if (!recordingGuide) {
-      return null;
-    }
-
-    const item = getIntegration(props.integrations, recordingGuide.taskId);
-    const steps = getReadableRecordStepsText(recordingGuide.taskId);
-    const currentStep = steps[Math.min(recordingGuide.stepIndex, steps.length - 1)] ?? steps[0];
-    const busy =
-      props.busyKey === getAdminBusyKey(recordingGuide.taskId, 'record-profile') ||
-      recordingGuide.status === 'recording';
-    const syncLabel = recordingGuide.live ? 'Live Sync' : 'Step Guide';
-
-    return (
-      <article className={`card recording-guide-card ${recordingGuide.status}`}>
-        <div className="integration-head">
-          <div>
-            <p className="eyebrow">Recording Assistant</p>
-            <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} Profile</div>
-            <p className="secondary-text">
-              这块会一直留在工坊顶部，告诉你当前在录哪一条、下一步看哪里、结束后会发生什么。
-            </p>
-          </div>
-        <div className="tool-row">
-          <span className={`status-pill ${recordingGuide.live ? 'success' : 'warm'}`}>
-            {syncLabel}
-          </span>
-          <span className={`status-pill ${recordingGuide.status === 'success' ? 'success' : recordingGuide.status === 'error' ? 'error' : 'warm'}`}>
-              {recordingGuide.status === 'success'
-                ? '录制完成'
-                : recordingGuide.status === 'error'
-                  ? '录制失败'
-                  : '录制中'}
-            </span>
-            <button
-              className="ghost-button"
-              onClick={() => setRecordingGuide(null)}
-              type="button"
-            >
-              收起助手
-            </button>
-          </div>
-        </div>
-
-        <article className={`recording-guide-focus ${recordingGuide.status}`}>
-          <div>
-            <p className="eyebrow">Current Step</p>
-            <strong>{currentStep}</strong>
-            <p>{recordingGuide.detail}</p>
-            <p className="recording-guide-console-line">
-              鎺у埗鍙版渶鏂颁竴鏉★細{recordingGuide.lastLine ?? '绛夊緟褰曞埗鎻愮ず...'}
-            </p>
-            <span className="helper-text">
-              热键：按 <code>F10</code> 捕获当前位置，按 <code>F12</code> 提前结束录制。时间：{formatCompactDateTime(recordingGuide.updatedAt)}
-            </span>
-          </div>
-          <div className="tool-row">
-            <button
-              className="ghost-button"
-              disabled={busy || recordingGuide.stepIndex <= 0}
-              onClick={() =>
-                setRecordingGuide((current) =>
-                  current
-                    ? { ...current, stepIndex: Math.max(0, current.stepIndex - 1) }
-                    : current
-                )
-              }
-              type="button"
-            >
-              上一步提示
-            </button>
-            <button
-              className="primary-button"
-              disabled={busy || recordingGuide.stepIndex >= steps.length - 1}
-              onClick={() =>
-                setRecordingGuide((current) =>
-                  current
-                    ? {
-                        ...current,
-                        stepIndex: Math.min(steps.length - 1, current.stepIndex + 1),
-                        updatedAt: new Date().toISOString()
-                      }
-                    : current
-                )
-              }
-              type="button"
-            >
-              下一步提示
-            </button>
-            <button
-              className="ghost-button"
-              onClick={() => scrollToTask(recordingGuide.taskId)}
-              type="button"
-            >
-              回到任务卡
-            </button>
-          </div>
-        </article>
-
-        <div className="recording-guide-step-grid">
-          {steps.map((step, index) => {
-            const state =
-              index < recordingGuide.stepIndex
-                ? 'done'
-                : index === recordingGuide.stepIndex
-                  ? 'current'
-                  : 'upcoming';
-            return (
-              <article className={`recording-guide-step ${state}`} key={`${recordingGuide.taskId}-${step}`}>
-                <span className="mini-pill">步骤 {index + 1}</span>
-                <strong>{step}</strong>
-                <p>
-                  {state === 'done'
-                    ? '如果这一步已经按过 F10，就继续看下一步。'
-                    : state === 'current'
-                      ? '把鼠标对准当前目标点，切回控制台后按 F10。'
-                      : '先不用急，录完当前高亮步骤再继续。'}
-                </p>
-              </article>
-            );
-          })}
-        </div>
-
-        <div className="recording-guide-footer">
-          <span className="helper-text">
-            {busy
-              ? `录制窗口进行中：${getTaskMetaText(item.id).title}`
-              : recordingGuide.status === 'success'
-                ? '录制已经结束。你可以直接看 Profile、看日志，或者试运行。'
-                : '录制已中断或失败，建议看日志后重新录一次。'}
-          </span>
-          <div className="tool-row">
-            <button
-              className="ghost-button"
-              disabled={props.busyKey !== null}
-              onClick={() => void runAdmin(item, 'print-profile')}
-              type="button"
-            >
-              看 Profile
-            </button>
-            <button
-              className="ghost-button"
-              disabled={props.busyKey !== null}
-              onClick={() => void openLogViewer(item.id, `${getTaskMetaText(item.id).title} / 执行日志`)}
-              type="button"
-            >
-              看日志
-            </button>
-          </div>
-        </div>
-      </article>
-    );
-  }
-
   function renderRecordingGuideCard() {
     if (!recordingGuide) {
       return null;
@@ -2230,7 +2076,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       <article className={`card recording-guide-card ${recordingGuide.status}`}>
         <div className="integration-head">
           <div>
-            <p className="eyebrow">Recording Assistant</p>
+            <p className="eyebrow">录制助手</p>
             <div className="card-title">正在录 {getIntegrationLabel(recordingGuide.taskId)} Profile</div>
             <p className="secondary-text">
               录制助手会跟着控制台提示自动推进。你只需要切回游戏，把鼠标对到目标位置后按
@@ -2268,7 +2114,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
         <article className={`recording-guide-focus ${recordingGuide.status}`}>
           <div>
-            <p className="eyebrow">Current Step</p>
+            <p className="eyebrow">当前步骤</p>
             <strong>{currentStep}</strong>
             <p>{recordingGuide.detail}</p>
             <p className="recording-guide-console-line">
@@ -2578,7 +2424,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
         <article className="environment-entry-banner">
           <div>
-            <p className="eyebrow">Start Here</p>
+            <p className="eyebrow">先录 Profile</p>
             <strong>{environmentPrimaryAction.label.replace('中...', '').replace('...', '')}</strong>
             <p className="secondary-text">{environmentPrimaryAction.detail}</p>
           </div>
@@ -2952,7 +2798,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       <article className="card profile-guide-card">
         <div className="integration-head">
           <div>
-            <p className="eyebrow">Start Here</p>
+            <p className="eyebrow">先录 Profile</p>
             <div className="card-title">Profile 录制向导</div>
             <p className="secondary-text">
               先把三条任务线的坐标录好，工坊才会从“能看”变成“能跑”。录制时按 <code>F10</code> 捕获点位，按 <code>F12</code> 结束。
@@ -2965,7 +2811,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
         <article className={`profile-guide-focus ${nextProfileStep ? 'attention' : 'success'}`}>
           <div>
-            <p className="eyebrow">Next Step</p>
+            <p className="eyebrow">下一步</p>
             <strong>
               {nextProfileStep
                 ? `先录 ${getIntegrationLabel(nextProfileStep.id)} Profile`
@@ -3091,7 +2937,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     <section className="panel">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">Workshop</p>
+          <p className="eyebrow">工坊</p>
           <h3>赫拉迪姆工坊</h3>
         </div>
         <span className="status-pill">预检、执行、维护和日志同屏闭环</span>
@@ -3100,7 +2946,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       {props.highlightedTaskId ? (
         <article className="card workshop-spotlight-banner">
           <div>
-            <p className="eyebrow">Guide Focus</p>
+            <p className="eyebrow">当前引导焦点</p>
             <strong>{getTaskSpotlightLabelText(props.highlightedTaskId)} 已为你定位</strong>
             <p className="secondary-text">我已经把本轮引导最相关的任务卡高亮出来了，直接沿着这张卡继续即可。</p>
           </div>
@@ -3447,20 +3293,20 @@ export function AutomationPanel(props: AutomationPanelProps) {
                     <span className="mini-pill">命令已记录</span>
                   ) : null}
                   {parsedViewerLog.stdoutPreview.length > 0 ? (
-                    <span className="mini-pill">stdout {parsedViewerLog.stdoutPreview.length} 条摘要</span>
+                    <span className="mini-pill">标准输出 {parsedViewerLog.stdoutPreview.length} 条摘要</span>
                   ) : null}
                   {parsedViewerLog.stderrPreview.length > 0 ? (
-                    <span className="mini-pill">stderr {parsedViewerLog.stderrPreview.length} 条摘要</span>
+                    <span className="mini-pill">标准错误 {parsedViewerLog.stderrPreview.length} 条摘要</span>
                   ) : null}
                 </div>
               </article>
 
               <div className="log-section-grid">
                 <article className="report-summary-card">
-                  <div className="card-title small">stdout 摘要</div>
+                  <div className="card-title small">标准输出摘要</div>
                   {parsedViewerLog.stdoutPreview.length === 0 ? (
                     <div className="empty-state compact-empty">
-                      <strong>没有关键 stdout</strong>
+                      <strong>没有关键标准输出</strong>
                       <p>这次标准输出没有留下有效摘要。</p>
                     </div>
                   ) : (
@@ -3476,10 +3322,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 </article>
 
                 <article className="report-summary-card">
-                  <div className="card-title small">stderr 摘要</div>
+                  <div className="card-title small">标准错误摘要</div>
                   {parsedViewerLog.stderrPreview.length === 0 ? (
                     <div className="empty-state compact-empty">
-                      <strong>没有 stderr 提醒</strong>
+                      <strong>没有标准错误提醒</strong>
                       <p>这次标准错误里没有发现关键报错。</p>
                     </div>
                   ) : (
