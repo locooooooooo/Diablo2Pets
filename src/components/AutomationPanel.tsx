@@ -16,6 +16,7 @@ import type {
   AutomationCheckItem,
   AutomationDrafts,
   AutomationLogDocument,
+  AutomationRecordProgressEvent,
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationPreflightStatus,
@@ -109,6 +110,8 @@ interface RecordingGuideState {
   status: RecordingGuideStatus;
   detail: string;
   updatedAt: string;
+  lastLine?: string;
+  live: boolean;
 }
 
 function getIntegration(
@@ -205,6 +208,47 @@ function getProfileNote(item: IntegrationConfig): string {
   }
 
   return '这条任务线没有独立旧配置，建议直接录新的 profile。';
+}
+
+function translateRecordConsoleLine(id: IntegrationId, line: string): string {
+  const normalized = line.trim().toLowerCase();
+
+  if (normalized.startsWith('recording ')) {
+    return `${getIntegrationLabel(id)} recording started. Keep Diablo II and the target panel visible.`;
+  }
+
+  if (normalized.includes('make sure the diablo ii inventory and cube ui are visible')) {
+    return 'Keep the inventory and Horadric Cube visible, then press F10 for each capture step.';
+  }
+
+  if (normalized.includes('now capture the rune grid anchors')) {
+    return 'Base points are done. Next, record the rune grid anchors.';
+  }
+
+  if (normalized.startsWith('saved recorded')) {
+    return `${getIntegrationLabel(id)} profile saved. Preflight will refresh automatically.`;
+  }
+
+  return line;
+}
+
+function describeRecordingProgress(event: AutomationRecordProgressEvent): string {
+  const translatedLine = translateRecordConsoleLine(event.id, event.line);
+
+  if (event.finished) {
+    return event.success ? translatedLine : `Recording failed: ${translatedLine}`;
+  }
+
+  if (typeof event.stepIndex === 'number') {
+    const stepLabel = getRecordSteps(event.id)[event.stepIndex] ?? `Step ${event.stepIndex + 1}`;
+    return `Current target: ${stepLabel}. Focus the matching spot in game and press F10.`;
+  }
+
+  if (event.kind === 'stderr') {
+    return `Recorder says: ${translatedLine}`;
+  }
+
+  return translatedLine;
 }
 
 function readImageDataFromItems(items: DataTransferItemList): Promise<string | null> {
@@ -839,6 +883,32 @@ export function AutomationPanel(props: AutomationPanelProps) {
     return () => window.clearTimeout(timer);
   }, [drafts, gemImageDataUrl, props.integrations, preflightTick]);
 
+  useEffect(() => {
+    return window.d2Pet.onAutomationRecordProgress((event) => {
+      setRecordingGuide((current) => {
+        if (!current || current.taskId !== event.id) {
+          return current;
+        }
+
+        const stepCount = getRecordSteps(event.id).length;
+        const nextStepIndex =
+          typeof event.stepIndex === 'number'
+            ? Math.min(Math.max(event.stepIndex, 0), Math.max(stepCount - 1, 0))
+            : current.stepIndex;
+
+        return {
+          ...current,
+          stepIndex: nextStepIndex,
+          status: event.finished ? (event.success ? 'success' : 'error') : 'recording',
+          detail: describeRecordingProgress(event),
+          updatedAt: event.updatedAt,
+          lastLine: translateRecordConsoleLine(event.id, event.line),
+          live: true
+        };
+      });
+    });
+  }, []);
+
   const runeTask = getIntegration(props.integrations, 'rune-cube');
   const gemTask = getIntegration(props.integrations, 'gem-cube');
   const goldTask = getIntegration(props.integrations, 'drop-shared-gold');
@@ -1037,7 +1107,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
       stepIndex: 0,
       status: 'recording',
       detail: 'Python 录制窗口已经打开。请看弹出的控制台，按顺序对准游戏界面并按 F10 捕获当前点位。',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      lastLine: 'Waiting for the first recorder hint...',
+      live: false
     });
     scrollToTask(item.id);
   }
@@ -1253,7 +1325,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
           detail: response.result.success
             ? `${getIntegrationLabel(item.id)} Profile 录制完成，预检会自动刷新。你现在可以看 Profile，或者直接试运行这条任务。`
             : response.result.stderr || 'Profile 录制失败，请查看日志或重新录制。',
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          lastLine: response.result.stderr || response.result.stdout || 'Recording finished.',
+          live: true
         });
       }
 
@@ -1268,7 +1342,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
           stepIndex: 0,
           status: 'error',
           detail: getErrorMessage(error),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          lastLine: getErrorMessage(error),
+          live: false
         });
       }
       return;
@@ -1389,6 +1465,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     const busy =
       props.busyKey === getAdminBusyKey(recordingGuide.taskId, 'record-profile') ||
       recordingGuide.status === 'recording';
+    const syncLabel = recordingGuide.live ? 'Live Sync' : 'Step Guide';
 
     return (
       <article className={`card recording-guide-card ${recordingGuide.status}`}>
@@ -1400,8 +1477,11 @@ export function AutomationPanel(props: AutomationPanelProps) {
               这块会一直留在工坊顶部，告诉你当前在录哪一条、下一步看哪里、结束后会发生什么。
             </p>
           </div>
-          <div className="tool-row">
-            <span className={`status-pill ${recordingGuide.status === 'success' ? 'success' : recordingGuide.status === 'error' ? 'error' : 'warm'}`}>
+        <div className="tool-row">
+          <span className={`status-pill ${recordingGuide.live ? 'success' : 'warm'}`}>
+            {syncLabel}
+          </span>
+          <span className={`status-pill ${recordingGuide.status === 'success' ? 'success' : recordingGuide.status === 'error' ? 'error' : 'warm'}`}>
               {recordingGuide.status === 'success'
                 ? '录制完成'
                 : recordingGuide.status === 'error'
@@ -1423,6 +1503,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
             <p className="eyebrow">Current Step</p>
             <strong>{currentStep}</strong>
             <p>{recordingGuide.detail}</p>
+            <p className="recording-guide-console-line">
+              鎺у埗鍙版渶鏂颁竴鏉★細{recordingGuide.lastLine ?? '绛夊緟褰曞埗鎻愮ず...'}
+            </p>
             <span className="helper-text">
               热键：按 <code>F10</code> 捕获当前位置，按 <code>F12</code> 提前结束录制。时间：{formatCompactDateTime(recordingGuide.updatedAt)}
             </span>
@@ -1430,7 +1513,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="tool-row">
             <button
               className="ghost-button"
-              disabled={recordingGuide.stepIndex <= 0}
+              disabled={busy || recordingGuide.stepIndex <= 0}
               onClick={() =>
                 setRecordingGuide((current) =>
                   current
@@ -1444,7 +1527,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             </button>
             <button
               className="primary-button"
-              disabled={recordingGuide.stepIndex >= steps.length - 1}
+              disabled={busy || recordingGuide.stepIndex >= steps.length - 1}
               onClick={() =>
                 setRecordingGuide((current) =>
                   current

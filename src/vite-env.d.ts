@@ -2,6 +2,7 @@
 
 import type {
   AppData,
+  AutomationRecordProgressEvent,
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
@@ -55,6 +56,9 @@ declare global {
       onDataChanged: (listener: (data: AppData) => void) => () => void;
       onFloatingSnapPreview: (
         listener: (preview: FloatingSnapPreview) => void
+      ) => () => void;
+      onAutomationRecordProgress: (
+        listener: (event: AutomationRecordProgressEvent) => void
       ) => () => void;
       saveImage: (payload: SaveImageInput) => Promise<SaveImageResult>;
       openPath: (targetPath: string) => Promise<string>;

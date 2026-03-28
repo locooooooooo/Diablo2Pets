@@ -1,4 +1,4 @@
-import { exec, execFile } from 'node:child_process';
+import { exec, execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -22,6 +22,7 @@ import type {
   AppData,
   AutomationAdminAction,
   AutomationCheckItem,
+  AutomationRecordProgressEvent,
   AutomationDrafts,
   AutomationLogDocument,
   CopyTextInput,
@@ -1517,6 +1518,249 @@ function executeFileCommand(
   });
 }
 
+function emitAutomationRecordProgress(payload: AutomationRecordProgressEvent): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.send('automation:record-progress', payload);
+}
+
+function getRecordProfileStepCount(id: IntegrationId): number {
+  switch (id) {
+    case 'rune-cube':
+      return 5;
+    case 'gem-cube':
+      return 9;
+    case 'drop-shared-gold':
+      return 4;
+  }
+}
+
+function getRecordProfileStepIndex(id: IntegrationId, line: string): number | null {
+  const normalized = line.toLowerCase();
+
+  switch (id) {
+    case 'rune-cube':
+      if (normalized.includes('capture the cube output slot')) {
+        return 0;
+      }
+      if (normalized.includes('capture the transmute button')) {
+        return 1;
+      }
+      if (normalized.includes('capture the top-left rune slot')) {
+        return 2;
+      }
+      if (normalized.includes('capture the top-right rune slot')) {
+        return 3;
+      }
+      if (normalized.includes('capture the bottom-left rune slot')) {
+        return 4;
+      }
+      return null;
+    case 'gem-cube':
+      if (normalized.includes('capture cube input slot #1')) {
+        return 0;
+      }
+      if (normalized.includes('capture cube input slot #2')) {
+        return 1;
+      }
+      if (normalized.includes('capture cube input slot #3')) {
+        return 2;
+      }
+      if (normalized.includes('capture the cube output slot')) {
+        return 3;
+      }
+      if (normalized.includes('capture the transmute button')) {
+        return 4;
+      }
+      if (normalized.includes('capture a result destination slot')) {
+        return 5;
+      }
+      if (normalized.includes('capture the top-left gem stack anchor')) {
+        return 6;
+      }
+      if (normalized.includes('capture the top-right gem stack anchor')) {
+        return 7;
+      }
+      if (normalized.includes('capture the bottom-left gem stack anchor')) {
+        return 8;
+      }
+      return null;
+    case 'drop-shared-gold':
+      if (normalized.includes('capture the stash object in the world')) {
+        return 0;
+      }
+      if (normalized.includes('capture the shared stash tab')) {
+        return 1;
+      }
+      if (normalized.includes('capture the stash gold button')) {
+        return 2;
+      }
+      if (normalized.includes('capture the inventory gold button')) {
+        return 3;
+      }
+      return null;
+  }
+}
+
+function executeFileCommandWithProgress(
+  integration: IntegrationConfig,
+  command: string,
+  args: string[],
+  cwd?: string
+): Promise<IntegrationRunResult> {
+  const totalSteps = getRecordProfileStepCount(integration.id);
+  const updatedAt = () => new Date().toISOString();
+
+  emitAutomationRecordProgress({
+    id: integration.id,
+    action: 'record-profile',
+    kind: 'status',
+    line: 'Recording started.',
+    updatedAt: updatedAt(),
+    totalSteps
+  });
+
+  return new Promise((resolveResult) => {
+    const stdoutLines: string[] = [];
+    const stderrLines: string[] = [];
+    let stdoutBuffer = '';
+    let stderrBuffer = '';
+    let finished = false;
+    let lastStepIndex: number | undefined;
+
+    const child = spawn(command, args, {
+      cwd: cwd || undefined,
+      windowsHide: false,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+
+    const emitLine = (kind: 'stdout' | 'stderr', rawLine: string) => {
+      const cleanLine = rawLine.replace(/\u001b\[[0-9;]*m/g, '').trim();
+      if (!cleanLine) {
+        return;
+      }
+
+      if (kind === 'stdout') {
+        stdoutLines.push(cleanLine);
+      } else {
+        stderrLines.push(cleanLine);
+      }
+
+      const stepIndex = getRecordProfileStepIndex(integration.id, cleanLine);
+      if (typeof stepIndex === 'number') {
+        lastStepIndex = stepIndex;
+      }
+
+      emitAutomationRecordProgress({
+        id: integration.id,
+        action: 'record-profile',
+        kind,
+        line: cleanLine,
+        updatedAt: updatedAt(),
+        stepIndex: stepIndex ?? undefined,
+        totalSteps
+      });
+    };
+
+    const flushBuffer = (kind: 'stdout' | 'stderr', final = false) => {
+      const source = kind === 'stdout' ? stdoutBuffer : stderrBuffer;
+      const normalized = source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const lines = normalized.split('\n');
+      const remainder = final ? '' : (lines.pop() ?? '');
+
+      for (const line of lines) {
+        emitLine(kind, line);
+      }
+
+      if (final && remainder) {
+        emitLine(kind, remainder);
+      }
+
+      if (kind === 'stdout') {
+        stdoutBuffer = remainder;
+      } else {
+        stderrBuffer = remainder;
+      }
+    };
+
+    child.stdout?.on('data', (chunk: string | Buffer) => {
+      stdoutBuffer += chunk.toString();
+      flushBuffer('stdout');
+    });
+
+    child.stderr?.on('data', (chunk: string | Buffer) => {
+      stderrBuffer += chunk.toString();
+      flushBuffer('stderr');
+    });
+
+    child.on('error', (error) => {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+      const message = error.message.trim() || 'Failed to launch profile recorder.';
+      stderrLines.push(message);
+      emitAutomationRecordProgress({
+        id: integration.id,
+        action: 'record-profile',
+        kind: 'status',
+        line: message,
+        updatedAt: updatedAt(),
+        stepIndex: lastStepIndex,
+        totalSteps,
+        finished: true,
+        success: false
+      });
+      resolveResult({
+        success: false,
+        code: null,
+        stdout: stdoutLines.join('\n').trim(),
+        stderr: stderrLines.join('\n').trim()
+      });
+    });
+
+    child.on('close', (code) => {
+      if (finished) {
+        return;
+      }
+
+      flushBuffer('stdout', true);
+      flushBuffer('stderr', true);
+      finished = true;
+
+      const success = code === 0;
+      const finalLine = success
+        ? stdoutLines.at(-1) || 'Profile recording finished.'
+        : stderrLines.at(-1) || stdoutLines.at(-1) || 'Profile recording failed.';
+
+      emitAutomationRecordProgress({
+        id: integration.id,
+        action: 'record-profile',
+        kind: 'status',
+        line: finalLine,
+        updatedAt: updatedAt(),
+        stepIndex: success ? Math.max(0, totalSteps - 1) : lastStepIndex,
+        totalSteps,
+        finished: true,
+        success
+      });
+
+      resolveResult({
+        success,
+        code: code ?? null,
+        stdout: stdoutLines.join('\n').trim(),
+        stderr: stderrLines.join('\n').trim()
+      });
+    });
+  });
+}
+
 async function extractRuntimeInstallerScript(): Promise<string> {
   const sourcePath = join(workspaceRoot, 'scripts', 'prepare-python-runtime.ps1');
   const targetDirectory = join(app.getPath('temp'), 'd2-pet-runtime');
@@ -2209,12 +2453,20 @@ async function runBuiltinAutomation(
   actionLabel: 'dry-run' | 'execute' | AutomationAdminAction
 ): Promise<{ result: IntegrationRunResult; logPath: string }> {
   const pythonCommand = resolvePythonCommand();
-  const result = await executeFileCommand(
-    pythonCommand,
-    args,
-    integration.workingDirectory || pythonRuntimeRoot,
-    actionLabel !== 'record-profile'
-  );
+  const result =
+    actionLabel === 'record-profile'
+      ? await executeFileCommandWithProgress(
+          integration,
+          pythonCommand,
+          args,
+          integration.workingDirectory || pythonRuntimeRoot
+        )
+      : await executeFileCommand(
+          pythonCommand,
+          args,
+          integration.workingDirectory || pythonRuntimeRoot,
+          true
+        );
 
   const logPath = await writeAutomationLog(
     integration.id,

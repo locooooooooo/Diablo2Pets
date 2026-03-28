@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppData,
+  AutomationRecordProgressEvent,
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
@@ -73,6 +74,18 @@ const api = {
     ipcRenderer.on('window:floating-snap-preview', wrapped);
     return () => {
       ipcRenderer.removeListener('window:floating-snap-preview', wrapped);
+    };
+  },
+  onAutomationRecordProgress: (listener: (event: AutomationRecordProgressEvent) => void) => {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      progressEvent: AutomationRecordProgressEvent
+    ) => {
+      listener(progressEvent);
+    };
+    ipcRenderer.on('automation:record-progress', wrapped);
+    return () => {
+      ipcRenderer.removeListener('automation:record-progress', wrapped);
     };
   },
   saveImage: (payload: SaveImageInput) =>

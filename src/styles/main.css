@@ -7012,6 +7012,16 @@ body {
   line-height: 1.6;
 }
 
+.recording-guide-console-line {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 196, 107, 0.14);
+  background: rgba(6, 10, 16, 0.24);
+  color: #f7dcb0;
+  font-size: 13px;
+}
+
 .recording-guide-step-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -239,6 +239,20 @@ export interface IntegrationRunResponse {
   result: IntegrationRunResult;
 }
 
+export type AutomationRecordProgressKind = 'status' | 'stdout' | 'stderr';
+
+export interface AutomationRecordProgressEvent {
+  id: IntegrationId;
+  action: 'record-profile';
+  kind: AutomationRecordProgressKind;
+  line: string;
+  updatedAt: string;
+  stepIndex?: number;
+  totalSteps?: number;
+  finished?: boolean;
+  success?: boolean;
+}
+
 export type AutomationCheckLevel = 'ok' | 'warning' | 'error';
 export type AutomationPreflightStatus = 'ready' | 'warning' | 'error';
 
