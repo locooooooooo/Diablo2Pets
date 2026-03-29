@@ -114,6 +114,15 @@ interface RecordingGuideState {
   live: boolean;
 }
 
+interface WorkshopFocusState {
+  tone: DiagnosisTone;
+  title: string;
+  detail: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+  taskId?: IntegrationId;
+}
+
 function getIntegration(
   integrations: IntegrationConfig[],
   id: IntegrationId
@@ -1233,6 +1242,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const [preflightError, setPreflightError] = useState('');
   const [preflightTick, setPreflightTick] = useState(0);
   const [recordingGuide, setRecordingGuide] = useState<RecordingGuideState | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<IntegrationId>('rune-cube');
+  const [showWorkshopAdvanced, setShowWorkshopAdvanced] = useState(false);
   const environmentSnapshotRef = useRef('');
   const runeCardRef = useRef<HTMLElement | null>(null);
   const gemCardRef = useRef<HTMLElement | null>(null);
@@ -1424,6 +1435,118 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }, [preflightMap, taskItems]);
   const readyProfileCount = profileGuideSteps.filter((step) => step.ready).length;
   const nextProfileStep = profileGuideSteps.find((step) => !step.ready) ?? null;
+  const focusTaskId = useMemo<IntegrationId>(() => {
+    if (recordingGuide?.taskId) {
+      return recordingGuide.taskId;
+    }
+
+    if (props.highlightedTaskId) {
+      return props.highlightedTaskId;
+    }
+
+    if (nextProfileStep?.id) {
+      return nextProfileStep.id;
+    }
+
+    const blockingTask =
+      taskItems.find((item) => preflightMap.get(item.id)?.status === 'error') ?? null;
+    if (blockingTask) {
+      return blockingTask.id;
+    }
+
+    const warningTask =
+      taskItems.find((item) => preflightMap.get(item.id)?.status === 'warning') ?? null;
+    if (warningTask) {
+      return warningTask.id;
+    }
+
+    return 'rune-cube';
+  }, [nextProfileStep, preflightMap, props.highlightedTaskId, recordingGuide?.taskId, taskItems]);
+  const selectedTask = useMemo(
+    () => taskItems.find((item) => item.id === selectedTaskId) ?? runeTask,
+    [runeTask, selectedTaskId, taskItems]
+  );
+  const workshopFocus = useMemo<WorkshopFocusState>(() => {
+    if (needsEmbeddedRuntime) {
+      return {
+        tone: 'error',
+        title: '先补运行环境',
+        detail: environmentPrimaryAction.detail,
+        primaryLabel: environmentPrimaryAction.label,
+        secondaryLabel: '展开更多诊断'
+      };
+    }
+
+    if (needsDependencyInstall) {
+      return {
+        tone: 'error',
+        title: '先补 Python 依赖',
+        detail: environmentPrimaryAction.detail,
+        primaryLabel: environmentPrimaryAction.label,
+        secondaryLabel: '展开更多诊断'
+      };
+    }
+
+    if (nextProfileStep) {
+      const label = getIntegrationLabel(nextProfileStep.id);
+      return {
+        tone: 'attention',
+        title: `先录 ${label} 坐标配置`,
+        detail: `${nextProfileStep.detail} 录完这一条，工坊可用性会立刻往前走。`,
+        primaryLabel: `开始录 ${label}`,
+        secondaryLabel: '切到这条任务',
+        taskId: nextProfileStep.id
+      };
+    }
+
+    const blockingTask =
+      taskItems.find((item) => preflightMap.get(item.id)?.status === 'error') ?? null;
+    if (blockingTask) {
+      return {
+        tone: 'error',
+        title: `当前卡在 ${getIntegrationLabel(blockingTask.id)}`,
+        detail:
+          preflightMap.get(blockingTask.id)?.summary ??
+          '这条任务还有阻塞项，先处理它再执行会更稳。',
+        primaryLabel: '打开这条任务',
+        secondaryLabel: '展开更多诊断',
+        taskId: blockingTask.id
+      };
+    }
+
+    const warningTask =
+      taskItems.find((item) => preflightMap.get(item.id)?.status === 'warning') ?? null;
+    if (warningTask) {
+      return {
+        tone: 'attention',
+        title: `${getIntegrationLabel(warningTask.id)} 还有提醒项`,
+        detail:
+          preflightMap.get(warningTask.id)?.summary ??
+          '建议先看完这条任务的提醒，再决定是否马上执行。',
+        primaryLabel: '查看这条任务',
+        secondaryLabel: '展开更多诊断',
+        taskId: warningTask.id
+      };
+    }
+
+    return {
+      tone: 'success',
+      title: `${getIntegrationLabel(selectedTask.id)} 已经可以试运行`,
+      detail: '现在可以先试运行一遍，看计划是否符合你的预期，再切回游戏执行。',
+      primaryLabel: '试运行当前任务',
+      secondaryLabel: '展开更多诊断',
+      taskId: selectedTask.id
+    };
+  }, [
+    environmentPrimaryAction.detail,
+    environmentPrimaryAction.label,
+    needsDependencyInstall,
+    needsEmbeddedRuntime,
+    nextProfileStep,
+    preflightMap,
+    selectedTask.id,
+    taskItems
+  ]);
 
   useEffect(() => {
     if (!props.highlightedTaskId) {
@@ -1445,6 +1568,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 80);
   }, [props.highlightedTaskId]);
+
+  useEffect(() => {
+    setSelectedTaskId(focusTaskId);
+  }, [focusTaskId]);
 
   useEffect(() => {
     if (!preflight || globalChecks.length === 0) {
@@ -1512,6 +1639,54 @@ export function AutomationPanel(props: AutomationPanelProps) {
           : goldCardRef.current;
 
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleSelectTask(id: IntegrationId) {
+    setSelectedTaskId(id);
+    window.requestAnimationFrame(() => {
+      scrollToTask(id);
+    });
+  }
+
+  function handleWorkshopFocusPrimary() {
+    if (needsEmbeddedRuntime && environmentPrimaryAction.action) {
+      void runEnvironmentAction(environmentPrimaryAction.action);
+      return;
+    }
+
+    if (needsDependencyInstall && environmentPrimaryAction.action) {
+      void runEnvironmentAction(environmentPrimaryAction.action);
+      return;
+    }
+
+    if (workshopFocus.taskId && nextProfileStep && workshopFocus.taskId === nextProfileStep.id) {
+      const item = getIntegration(props.integrations, workshopFocus.taskId);
+      handleSelectTask(workshopFocus.taskId);
+      openRecordingGuide(item);
+      void runAdmin(item, 'record-profile');
+      return;
+    }
+
+    if (workshopFocus.taskId && workshopFocus.tone !== 'success') {
+      handleSelectTask(workshopFocus.taskId);
+      return;
+    }
+
+    void runTask(selectedTask.id, 'dry-run');
+  }
+
+  function handleWorkshopFocusSecondary() {
+    if (workshopFocus.taskId && nextProfileStep && workshopFocus.taskId === nextProfileStep.id) {
+      handleSelectTask(workshopFocus.taskId);
+      return;
+    }
+
+    if (workshopFocus.taskId && workshopFocus.tone !== 'success') {
+      setShowWorkshopAdvanced((current) => !current);
+      return;
+    }
+
+    setShowWorkshopAdvanced((current) => !current);
   }
 
   function openRecordingGuide(item: IntegrationConfig) {
@@ -2933,6 +3108,72 @@ export function AutomationPanel(props: AutomationPanelProps) {
       </article>
     );
   }
+
+  function renderWorkshopFocusPanel() {
+    return (
+      <article className={`card workshop-focus-card tone-${workshopFocus.tone}`}>
+        <div className="integration-head">
+          <div>
+            <p className="eyebrow">当前主任务</p>
+            <div className="card-title">{workshopFocus.title}</div>
+            <p className="secondary-text">{workshopFocus.detail}</p>
+          </div>
+          <span className={`status-pill ${workshopFocus.tone}`}>
+            {workshopFocus.tone === 'success'
+              ? '现在能用'
+              : workshopFocus.tone === 'error'
+                ? '先补这一项'
+                : '先看这一项'}
+          </span>
+        </div>
+
+        <div className="tool-row">
+          <button
+            className="primary-button"
+            disabled={props.busyKey !== null}
+            onClick={handleWorkshopFocusPrimary}
+            type="button"
+          >
+            {workshopFocus.primaryLabel}
+          </button>
+          <button className="ghost-button" onClick={handleWorkshopFocusSecondary} type="button">
+            {workshopFocus.secondaryLabel}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  function renderTaskSwitcher() {
+    return (
+      <div className="workshop-task-switcher">
+        {taskItems.map((item) => {
+          const task = preflightMap.get(item.id) ?? null;
+          const tone = getTaskToneClass(task);
+          return (
+            <button
+              className={`task-switch-chip ${selectedTaskId === item.id ? 'active' : ''} ${tone}`}
+              key={item.id}
+              onClick={() => handleSelectTask(item.id)}
+              type="button"
+            >
+              <strong>{getIntegrationLabel(item.id)}</strong>
+              <span>
+                {task?.status === 'ready'
+                  ? '可运行'
+                  : task?.status === 'warning'
+                    ? '有提醒'
+                    : task?.status === 'error'
+                      ? '待处理'
+                      : '待读取'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -2940,54 +3181,19 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <p className="eyebrow">工坊</p>
           <h3>赫拉迪姆工坊</h3>
         </div>
-        <span className="status-pill">预检、执行、维护和日志同屏闭环</span>
+        <span className="status-pill">先做当前这一项</span>
       </div>
 
-      {props.highlightedTaskId ? (
-        <article className="card workshop-spotlight-banner">
-          <div>
-            <p className="eyebrow">当前引导焦点</p>
-            <strong>{getTaskSpotlightLabelText(props.highlightedTaskId)} 已为你定位</strong>
-            <p className="secondary-text">我已经把本轮引导最相关的任务卡高亮出来了，直接沿着这张卡继续即可。</p>
-          </div>
-          <span className="status-pill warm">继续当前引导</span>
-        </article>
-      ) : null}
-
-      {renderProfileGuide()}
+      {renderWorkshopFocusPanel()}
+      {renderTaskSwitcher()}
       {renderRecordingGuideCard()}
 
-      <article className="card safety-card">
-        <div className="integration-head">
-          <div>
-            <div className="card-title">统一执行策略</div>
-            <p className="secondary-text">先试运行看计划，再切回游戏执行，会更稳。</p>
-          </div>
-          <span className="status-chip">联调优先</span>
-        </div>
-
-        <label className="checkbox-row">
-          <input
-            checked={drafts.allowInactiveWindow}
-            onChange={(event) => updateDraft('allowInactiveWindow', event.target.checked)}
-            type="checkbox"
-          />
-          <span>允许在游戏窗口未置顶时继续点击</span>
-        </label>
-      </article>
-
-      {renderEnvironmentStationModern()}
-      {renderGlobalChecks()}
-
-      <div className="overview-grid">
-        {[runeTask, gemTask, goldTask].map((item) => renderTaskOverviewCard(item))}
-      </div>
-
-      <div className="workshop-grid">
-        <article
-          className={`card workshop-card task-tone-${getTaskCardTone('rune-cube')} ${props.highlightedTaskId === 'rune-cube' ? 'spotlight' : ''}`}
-          ref={runeCardRef}
-        >
+      <div className="workshop-grid workshop-grid-single">
+        {selectedTaskId === 'rune-cube' ? (
+          <article
+            className={`card workshop-card task-tone-${getTaskCardTone('rune-cube')} ${props.highlightedTaskId === 'rune-cube' ? 'spotlight' : ''}`}
+            ref={runeCardRef}
+          >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">内置流程</p>
@@ -3043,12 +3249,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {renderTaskChecks('rune-cube')}
           {renderAdvancedDetails(runeTask)}
           {renderTaskFooter(runeTask)}
-        </article>
+          </article>
+        ) : null}
 
-        <article
-          className={`card workshop-card task-tone-${getTaskCardTone('gem-cube')} ${props.highlightedTaskId === 'gem-cube' ? 'spotlight' : ''}`}
-          ref={gemCardRef}
-        >
+        {selectedTaskId === 'gem-cube' ? (
+          <article
+            className={`card workshop-card task-tone-${getTaskCardTone('gem-cube')} ${props.highlightedTaskId === 'gem-cube' ? 'spotlight' : ''}`}
+            ref={gemCardRef}
+          >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">内置流程</p>
@@ -3162,12 +3370,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {renderTaskChecks('gem-cube')}
           {renderAdvancedDetails(gemTask)}
           {renderTaskFooter(gemTask)}
-        </article>
+          </article>
+        ) : null}
 
-        <article
-          className={`card workshop-card task-tone-${getTaskCardTone('drop-shared-gold')} ${props.highlightedTaskId === 'drop-shared-gold' ? 'spotlight' : ''}`}
-          ref={goldCardRef}
-        >
+        {selectedTaskId === 'drop-shared-gold' ? (
+          <article
+            className={`card workshop-card task-tone-${getTaskCardTone('drop-shared-gold')} ${props.highlightedTaskId === 'drop-shared-gold' ? 'spotlight' : ''}`}
+            ref={goldCardRef}
+          >
           <div className="workshop-topbar">
             <div>
               <p className="eyebrow">内置流程</p>
@@ -3233,8 +3443,57 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {renderTaskChecks('drop-shared-gold')}
           {renderAdvancedDetails(goldTask)}
           {renderTaskFooter(goldTask)}
-        </article>
+          </article>
+        ) : null}
       </div>
+
+      <article className="card workshop-advanced-card">
+        <div className="integration-head">
+          <div>
+            <div className="card-title small">更多诊断与维护</div>
+            <p className="secondary-text">环境修复、录坐标向导、全局预检和详细日志都收在这里。</p>
+          </div>
+          <button
+            className={showWorkshopAdvanced ? 'ghost-button active' : 'ghost-button'}
+            onClick={() => setShowWorkshopAdvanced((current) => !current)}
+            type="button"
+          >
+            {showWorkshopAdvanced ? '收起更多诊断' : '展开更多诊断'}
+          </button>
+        </div>
+      </article>
+
+      {showWorkshopAdvanced ? (
+        <>
+          {renderProfileGuide()}
+
+          <article className="card safety-card">
+            <div className="integration-head">
+              <div>
+                <div className="card-title">统一执行策略</div>
+                <p className="secondary-text">先试运行看计划，再切回游戏执行，会更稳。</p>
+              </div>
+              <span className="status-chip">联调优先</span>
+            </div>
+
+            <label className="checkbox-row">
+              <input
+                checked={drafts.allowInactiveWindow}
+                onChange={(event) => updateDraft('allowInactiveWindow', event.target.checked)}
+                type="checkbox"
+              />
+              <span>允许在游戏窗口未置顶时继续点击</span>
+            </label>
+          </article>
+
+          {renderEnvironmentStationModern()}
+          {renderGlobalChecks()}
+
+          <div className="overview-grid">
+            {[runeTask, gemTask, goldTask].map((item) => renderTaskOverviewCard(item))}
+          </div>
+        </>
+      ) : null}
 
       {viewer ? (
         <article className="card log-viewer">

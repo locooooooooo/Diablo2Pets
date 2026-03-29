@@ -2038,6 +2038,95 @@ select,
   margin: 8px 0 0;
 }
 
+.workshop-focus-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-color: rgba(255, 184, 96, 0.26);
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.14), transparent 28%),
+    radial-gradient(circle at left bottom, rgba(94, 164, 194, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(49, 24, 18, 0.9), rgba(18, 10, 8, 0.94));
+}
+
+.workshop-task-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.task-switch-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  min-height: 84px;
+  padding: 14px 15px;
+  border-radius: 18px;
+  border: 1px solid rgba(217, 164, 88, 0.14);
+  color: #f1e0bf;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    rgba(13, 8, 6, 0.42);
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.task-switch-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(244, 186, 96, 0.26);
+}
+
+.task-switch-chip strong {
+  color: #fff2d1;
+  font-size: 16px;
+}
+
+.task-switch-chip span {
+  color: #cfb792;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.task-switch-chip.active {
+  border-color: rgba(255, 206, 124, 0.32);
+  background:
+    radial-gradient(circle at top right, rgba(240, 184, 96, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(25, 14, 10, 0.5);
+  box-shadow:
+    0 14px 30px rgba(75, 33, 17, 0.18),
+    inset 0 0 0 1px rgba(255, 221, 164, 0.04);
+}
+
+.task-switch-chip.success {
+  border-color: rgba(117, 194, 127, 0.24);
+}
+
+.task-switch-chip.attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.task-switch-chip.error {
+  border-color: rgba(230, 116, 97, 0.24);
+}
+
+.workshop-grid-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workshop-advanced-card {
+  border-style: dashed;
+  border-color: rgba(214, 165, 96, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    rgba(10, 7, 6, 0.34);
+}
+
 .setup-guide-head,
 .setup-guide-reminder {
   border-radius: 22px;
@@ -4596,6 +4685,10 @@ body {
 
   .readiness-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workshop-task-switcher {
+    grid-template-columns: 1fr;
   }
 
   .pet-event-card {
