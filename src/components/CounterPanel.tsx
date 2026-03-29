@@ -53,6 +53,11 @@ interface SuggestedAction {
   onClick: () => void;
 }
 
+interface QuickAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface RecoveryAction {
   label: string;
   kind: 'primary' | 'secondary';
@@ -335,6 +340,52 @@ export function CounterPanel(props: CounterPanelProps) {
     props.recentRuns,
     props.setupGuideHint,
     props.setupGuideCompleted,
+    warningTask
+  ]);
+
+  const focusSecondaryAction = useMemo<QuickAction>(
+    () => ({
+      label: showAdvancedCompanion ? '收起详情' : '今日详情',
+      onClick: () => toggleAdvancedCompanion()
+    }),
+    [showAdvancedCompanion]
+  );
+
+  const huntSecondaryAction = useMemo<QuickAction>(() => {
+    if (!props.setupGuideCompleted) {
+      return {
+        label: props.setupGuideHint.actionLabel,
+        onClick: props.onFollowSetupGuideHint
+      };
+    }
+
+    if (blockingTask || warningTask) {
+      return {
+        label: '打开工坊',
+        onClick: props.onGoToWorkshop
+      };
+    }
+
+    if (props.activeRun || props.recentRuns.length > 0) {
+      return {
+        label: '去记掉落',
+        onClick: props.onGoToDrops
+      };
+    }
+
+    return {
+      label: '打开工坊',
+      onClick: props.onGoToWorkshop
+    };
+  }, [
+    blockingTask,
+    props.activeRun,
+    props.onFollowSetupGuideHint,
+    props.onGoToDrops,
+    props.onGoToWorkshop,
+    props.recentRuns.length,
+    props.setupGuideCompleted,
+    props.setupGuideHint.actionLabel,
     warningTask
   ]);
 
@@ -698,7 +749,7 @@ export function CounterPanel(props: CounterPanelProps) {
         <div className="integration-head">
           <div>
             <div className="card-title">现在该做什么</div>
-            <p className="secondary-text">首页默认只保留当前动作、关键阻塞和两个常用入口。</p>
+            <p className="secondary-text">首页默认只留主动作、关键阻塞和一个次入口。</p>
           </div>
           <span className={`status-pill ${readinessTone}`}>
             {readinessReadyCount}/{readinessItems.length} 已就绪
@@ -753,18 +804,8 @@ export function CounterPanel(props: CounterPanelProps) {
           >
             {suggestedAction.label}
           </button>
-          <button className="ghost-button" onClick={props.onGoToDrops} type="button">
-            战报
-          </button>
-          <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
-            工坊
-          </button>
-          <button
-            className={showAdvancedCompanion ? 'ghost-button active' : 'ghost-button'}
-            onClick={() => toggleAdvancedCompanion()}
-            type="button"
-          >
-            {showAdvancedCompanion ? '收起详情' : '今日详情'}
+          <button className="ghost-button" onClick={focusSecondaryAction.onClick} type="button">
+            {focusSecondaryAction.label}
           </button>
         </div>
       </article>
@@ -845,7 +886,7 @@ export function CounterPanel(props: CounterPanelProps) {
             <div>
               <div className="card-title">当前狩猎状态</div>
               <p className="secondary-text">
-                在这里开始或收口一轮刷图，然后把掉落和自动化分流到后续页面。
+                在这里开始或收口一轮刷图，其他事情再去下一页处理。
               </p>
             </div>
             <span className="status-chip">
@@ -891,20 +932,13 @@ export function CounterPanel(props: CounterPanelProps) {
                     ? '完成本次刷图'
                     : '开始记录本次刷图'}
               </button>
-              <button className="ghost-button" onClick={props.onGoToDrops} type="button">
-                去记掉落
-              </button>
-              <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
-                打开工坊
+              <button className="ghost-button" onClick={huntSecondaryAction.onClick} type="button">
+                {huntSecondaryAction.label}
               </button>
             </div>
           </form>
 
           <div className="summary-list">
-            <div className="summary-row">
-              <span>桌宠定位</span>
-              <strong>先陪你刷，再替你记，最后帮你把工坊自动化接上。</strong>
-            </div>
             <div className="summary-row">
               <span>今日建议</span>
               <strong>
