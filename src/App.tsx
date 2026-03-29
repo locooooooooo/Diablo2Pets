@@ -929,10 +929,7 @@ export default function App() {
 
     if (tab === 'companion') {
       setShowSetupGuide(false);
-
-      if (isSameTab) {
-        setShowCompanionDetails(false);
-      }
+      setShowCompanionDetails(false);
     }
 
     window.requestAnimationFrame(() => {
@@ -940,39 +937,69 @@ export default function App() {
     });
   }
 
+  function shouldIgnorePanelWheelTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+
+    return Boolean(
+      target.closest('.pet-codex-overlay') ||
+      target.closest('textarea, input, select, [contenteditable="true"], .code-view')
+    );
+  }
+
+  function scrollPanelByDelta(deltaY: number, deltaMode: number): boolean {
+    const root = panelStackRef.current;
+    if (!root || root.scrollHeight <= root.clientHeight + 1) {
+      return false;
+    }
+
+    const multiplier =
+      deltaMode === 1 ? 20 : deltaMode === 2 ? root.clientHeight : 1;
+    const maxTop = Math.max(0, root.scrollHeight - root.clientHeight);
+    const nextTop = Math.max(0, Math.min(maxTop, root.scrollTop + deltaY * multiplier));
+
+    if (Math.abs(nextTop - root.scrollTop) < 1) {
+      return false;
+    }
+
+    root.scrollTop = nextTop;
+    return true;
+  }
+
   function handlePanelWheel(event: ReactWheelEvent<HTMLDivElement>) {
     if (showPetCodex) {
       return;
     }
 
+    if (shouldIgnorePanelWheelTarget(event.target)) {
+      return;
+    }
+
+    if (scrollPanelByDelta(event.deltaY, event.deltaMode)) {
+      event.preventDefault();
+    }
+  }
+
+  useEffect(() => {
     const root = panelStackRef.current;
     if (!root) {
       return;
     }
 
-    const target = event.target as HTMLElement | null;
-    if (
-      target?.closest('.pet-codex-overlay') ||
-      target?.closest('textarea, input, select, [contenteditable="true"], .code-view')
-    ) {
-      return;
-    }
+    const handleNativeWheel = (event: WheelEvent) => {
+      if (showPetCodex || shouldIgnorePanelWheelTarget(event.target)) {
+        return;
+      }
 
-    if (root.scrollHeight <= root.clientHeight + 1) {
-      return;
-    }
+      if (scrollPanelByDelta(event.deltaY, event.deltaMode)) {
+        event.preventDefault();
+      }
+    };
 
-    const multiplier =
-      event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? root.clientHeight : 1;
-    const nextTop = root.scrollTop + event.deltaY * multiplier;
-
-    if (nextTop === root.scrollTop) {
-      return;
-    }
-
-    root.scrollTop = nextTop;
-    event.preventDefault();
-  }
+    root.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => root.removeEventListener('wheel', handleNativeWheel);
+  }, [activeTab, showPetCodex]);
 
   function handleOpenPanel(tab: TabKey) {
     handleSelectTab(tab);
