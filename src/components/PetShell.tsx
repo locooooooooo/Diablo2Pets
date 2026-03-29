@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { PetCeremony } from '../lib/petCeremony';
+import { createPetCodexEntryId } from '../lib/petCodex';
+import type { PetFishingCatch } from '../lib/petFishing';
 import {
   buildPetPersona,
   type PetInteractionCue
 } from '../lib/petPersona';
-import type { PetFishingCatch } from '../lib/petFishing';
 import type { SetupGuideHint } from '../lib/setupGuideState';
-import type { PetCeremony } from '../lib/petCeremony';
-import { createPetCodexEntryId } from '../lib/petCodex';
 import type { PetHabitat } from '../lib/petHabitat';
 import { FishingDiabloPet } from './FishingDiabloPet';
 import type {
@@ -48,6 +48,7 @@ interface PetShellProps {
   notificationsEnabled: boolean;
   setupGuideHint: SetupGuideHint;
   setupGuideCompleted: boolean;
+  detailsExpanded: boolean;
   onPetHeadpat: () => void;
   onPetCheer: () => void;
   onEventAction: () => void;
@@ -57,6 +58,7 @@ interface PetShellProps {
   onToggleLaunchOnStartup: () => void;
   onToggleNotifications: () => void;
   onToggleWindowMode: (mode: WindowMode) => void;
+  onToggleDetails: () => void;
   onOpenSetupGuide: () => void;
   onMinimize: () => void;
 }
@@ -110,13 +112,22 @@ export function PetShell(props: PetShellProps) {
 
   const activeScript = persona.scripts[scriptIndex] ?? persona.scripts[0] ?? '';
   const headline = props.activeRun
-    ? `${props.activeRun.mapName} 路 ${props.liveDurationText}`
+    ? `${props.activeRun.mapName} 路线中 · ${props.liveDurationText}`
     : `今天 ${props.todayCount} 次刷图 / ${props.todayDropCount} 条掉落`;
   const interactionClass = props.interactionCue
     ? `interaction-${props.interactionCue.kind}`
     : '';
   const rewardSpotlightIds = new Set(props.ceremony?.rewardIds ?? []);
   const roomSpotlightIds = new Set(props.ceremony?.roomIds ?? []);
+  const readyTasks =
+    props.preflight?.tasks.filter((task) => task.status === 'ready').length ?? 0;
+  const totalTasks = props.preflight?.tasks.length ?? 0;
+  const workshopSummary =
+    totalTasks > 0 ? `工坊 ${readyTasks}/${totalTasks} 条就绪` : '工坊状态等待读取';
+  const hasBlockingEnvironmentCheck = (props.preflight?.globalChecks ?? []).some(
+    (check) => check.level === 'error'
+  );
+  const environmentSummary = hasBlockingEnvironmentCheck ? '环境待补条件' : '环境已就绪';
 
   return (
     <section
@@ -181,7 +192,7 @@ export function PetShell(props: PetShellProps) {
       <div className="compact-meta no-drag">
         <span className={`emotion-pill emotion-${persona.emotion}`}>{persona.emotionLabel}</span>
         <span className="mini-pill">{props.activeRun ? '陪刷中' : '面板模式'}</span>
-        <span className="mini-pill pet-gesture-hint">摸头像回应 / 双击庆祝</span>
+        <span className="mini-pill pet-gesture-hint">摸头回应 / 双击庆祝</span>
         {!props.setupGuideCompleted ? (
           <span className="mini-pill pet-next-step">{props.setupGuideHint.badge}</span>
         ) : null}
@@ -252,118 +263,22 @@ export function PetShell(props: PetShellProps) {
         </div>
       </article>
 
-      <article className="pet-habitat-card no-drag">
-        <div className="pet-habitat-head">
-          <div className="pet-habitat-copy">
-            <p className="eyebrow">Habitat</p>
-            <strong>{props.habitat.title}</strong>
-            <p>{props.habitat.subtitle}</p>
-          </div>
-          <div className="pet-habitat-crest">
-            <button className="ghost-button pet-codex-launch" onClick={props.onOpenCodex} type="button">
-              翻收藏册
-            </button>
-            <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
-            <span className="mini-pill">{props.habitat.aura}</span>
-          </div>
-        </div>
-
-        <div className="pet-habitat-wall">
-          <div className="pet-habitat-wall-copy">
-            <strong>{props.habitat.collectionTitle}</strong>
-            <p>{props.habitat.collectionSummary}</p>
-          </div>
-
-          <div className="pet-habitat-grid">
-            {props.habitat.exhibits.slice(0, 6).map((exhibit) => (
-              <button
-                className={`pet-habitat-item pet-codex-card state-${exhibit.state}`}
-                key={exhibit.id}
-                onClick={() =>
-                  props.onOpenCodexEntry(createPetCodexEntryId('relics', exhibit.id))
-                }
-                type="button"
-              >
-                <span className="pet-room-kicker">{exhibit.accent}</span>
-                <strong>{exhibit.label}</strong>
-                <p>{exhibit.detail}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      </article>
-
-      <article className="pet-reward-card no-drag">
-        <div className="pet-reward-head">
-          <div className="pet-reward-copy">
-            <p className="eyebrow">Unlocks</p>
-            <strong>{props.rewards.headline}</strong>
-            <p>{props.rewards.summary}</p>
-          </div>
-          <div className="pet-reward-stat">
-            <span className="mini-pill">
-              {props.rewards.unlockedCount}/{props.rewards.totalCount} 已解锁
-            </span>
-            {props.rewards.activeReward ? (
-              <span className="status-chip">{props.rewards.activeReward.label}</span>
-            ) : null}
-          </div>
-        </div>
-
-        {props.rewards.activeReward ? (
-          <div className="pet-reward-spotlight">
-            <strong>{props.rewards.activeReward.label}</strong>
-            <p>{props.rewards.activeReward.detail}</p>
-            <span>{props.rewards.activeReward.bonus}</span>
-          </div>
-        ) : null}
-
-        <div className="pet-reward-grid">
-          {props.rewards.rewards.map((reward) => (
-            <button
-              className={`pet-reward-item pet-codex-card state-${reward.state} ${
-                rewardSpotlightIds.has(reward.id) ? 'is-spotlight' : ''
-              }`}
-              key={reward.id}
-              onClick={() =>
-                props.onOpenCodexEntry(createPetCodexEntryId('rewards', reward.id))
-              }
-              type="button"
-            >
-              <span className="pet-room-kicker">Lv.{reward.level}</span>
-              <strong>{reward.label}</strong>
-              <p>{reward.detail}</p>
-            </button>
-          ))}
-        </div>
-      </article>
-
-      <article className="pet-room-card no-drag">
-        <div className="pet-room-copy">
-          <p className="eyebrow">Pet Room</p>
-          <strong>{props.room.title}</strong>
-          <p>{props.room.subtitle}</p>
-        </div>
-
-        <div className="pet-room-grid">
-          {props.room.items.map((item) => (
-            <button
-              className={`pet-room-item pet-codex-card state-${item.state} ${
-                roomSpotlightIds.has(item.id) ? 'is-spotlight' : ''
-              }`}
-              key={item.id}
-              onClick={() =>
-                props.onOpenCodexEntry(createPetCodexEntryId('chamber', item.id))
-              }
-              type="button"
-            >
-              <span className="pet-room-kicker">{item.shortLabel}</span>
-              <strong>{item.label}</strong>
-              <p>{item.detail}</p>
-            </button>
-          ))}
-        </div>
-      </article>
+      <div className="pet-shell-summary-strip no-drag">
+        <span className="mini-pill">{environmentSummary}</span>
+        <span className="mini-pill">{workshopSummary}</span>
+        <span className="mini-pill">{props.habitat.title}</span>
+        <button className="ghost-button pet-codex-launch" onClick={props.onOpenCodex} type="button">
+          打开藏品册
+        </button>
+        <button
+          aria-expanded={props.detailsExpanded}
+          className={props.detailsExpanded ? 'ghost-button active' : 'ghost-button'}
+          onClick={props.onToggleDetails}
+          type="button"
+        >
+          {props.detailsExpanded ? '收起扩展状态' : '展开扩展状态'}
+        </button>
+      </div>
 
       <div className="compact-script-strip no-drag">
         <div className="compact-thought">
@@ -381,6 +296,127 @@ export function PetShell(props: PetShellProps) {
           ))}
         </div>
       </div>
+
+      {props.detailsExpanded ? (
+        <>
+          <article className="pet-habitat-card no-drag">
+            <div className="pet-habitat-head">
+              <div className="pet-habitat-copy">
+                <p className="eyebrow">Habitat</p>
+                <strong>{props.habitat.title}</strong>
+                <p>{props.habitat.subtitle}</p>
+              </div>
+              <div className="pet-habitat-crest">
+                <button
+                  className="ghost-button pet-codex-launch"
+                  onClick={props.onOpenCodex}
+                  type="button"
+                >
+                  翻收藏册
+                </button>
+                <span className="pet-habitat-crest-chip">{props.habitat.crest}</span>
+                <span className="mini-pill">{props.habitat.aura}</span>
+              </div>
+            </div>
+
+            <div className="pet-habitat-wall">
+              <div className="pet-habitat-wall-copy">
+                <strong>{props.habitat.collectionTitle}</strong>
+                <p>{props.habitat.collectionSummary}</p>
+              </div>
+
+              <div className="pet-habitat-grid">
+                {props.habitat.exhibits.slice(0, 6).map((exhibit) => (
+                  <button
+                    className={`pet-habitat-item pet-codex-card state-${exhibit.state}`}
+                    key={exhibit.id}
+                    onClick={() =>
+                      props.onOpenCodexEntry(createPetCodexEntryId('relics', exhibit.id))
+                    }
+                    type="button"
+                  >
+                    <span className="pet-room-kicker">{exhibit.accent}</span>
+                    <strong>{exhibit.label}</strong>
+                    <p>{exhibit.detail}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </article>
+
+          <article className="pet-reward-card no-drag">
+            <div className="pet-reward-head">
+              <div className="pet-reward-copy">
+                <p className="eyebrow">Unlocks</p>
+                <strong>{props.rewards.headline}</strong>
+                <p>{props.rewards.summary}</p>
+              </div>
+              <div className="pet-reward-stat">
+                <span className="mini-pill">
+                  {props.rewards.unlockedCount}/{props.rewards.totalCount} 已解锁
+                </span>
+                {props.rewards.activeReward ? (
+                  <span className="status-chip">{props.rewards.activeReward.label}</span>
+                ) : null}
+              </div>
+            </div>
+
+            {props.rewards.activeReward ? (
+              <div className="pet-reward-spotlight">
+                <strong>{props.rewards.activeReward.label}</strong>
+                <p>{props.rewards.activeReward.detail}</p>
+                <span>{props.rewards.activeReward.bonus}</span>
+              </div>
+            ) : null}
+
+            <div className="pet-reward-grid">
+              {props.rewards.rewards.map((reward) => (
+                <button
+                  className={`pet-reward-item pet-codex-card state-${reward.state} ${
+                    rewardSpotlightIds.has(reward.id) ? 'is-spotlight' : ''
+                  }`}
+                  key={reward.id}
+                  onClick={() =>
+                    props.onOpenCodexEntry(createPetCodexEntryId('rewards', reward.id))
+                  }
+                  type="button"
+                >
+                  <span className="pet-room-kicker">Lv.{reward.level}</span>
+                  <strong>{reward.label}</strong>
+                  <p>{reward.detail}</p>
+                </button>
+              ))}
+            </div>
+          </article>
+
+          <article className="pet-room-card no-drag">
+            <div className="pet-room-copy">
+              <p className="eyebrow">Pet Room</p>
+              <strong>{props.room.title}</strong>
+              <p>{props.room.subtitle}</p>
+            </div>
+
+            <div className="pet-room-grid">
+              {props.room.items.map((item) => (
+                <button
+                  className={`pet-room-item pet-codex-card state-${item.state} ${
+                    roomSpotlightIds.has(item.id) ? 'is-spotlight' : ''
+                  }`}
+                  key={item.id}
+                  onClick={() =>
+                    props.onOpenCodexEntry(createPetCodexEntryId('chamber', item.id))
+                  }
+                  type="button"
+                >
+                  <span className="pet-room-kicker">{item.shortLabel}</span>
+                  <strong>{item.label}</strong>
+                  <p>{item.detail}</p>
+                </button>
+              ))}
+            </div>
+          </article>
+        </>
+      ) : null}
 
       {props.event ? (
         <article className={`pet-event-card event-${props.event.tone} no-drag`}>

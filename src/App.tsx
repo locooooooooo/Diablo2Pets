@@ -1001,6 +1001,10 @@ export default function App() {
     return () => root.removeEventListener('wheel', handleNativeWheel);
   }, [activeTab, showPetCodex]);
 
+  useEffect(() => {
+    panelStackRef.current?.focus({ preventScroll: true });
+  }, [activeTab, showPetCodex]);
+
   function handleOpenPanel(tab: TabKey) {
     handleSelectTab(tab);
 
@@ -1224,8 +1228,10 @@ export default function App() {
           scene={petScene!}
           setupGuideHint={setupGuideHint}
           setupGuideCompleted={data.settings.setupGuideCompleted}
+          detailsExpanded={showCompanionDetails}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
+          onToggleDetails={() => setShowCompanionDetails((current) => !current)}
         />
 
         <nav className="tab-row">
@@ -1256,6 +1262,7 @@ export default function App() {
           className={activeTab === 'companion' ? 'panel-stack panel-stack-companion' : 'panel-stack'}
           onWheelCapture={handlePanelWheel}
           ref={panelStackRef}
+          tabIndex={-1}
         >
           {activeTab === 'companion' ? (
             <>
@@ -1420,7 +1427,7 @@ export default function App() {
                       onClick={() => setShowCompanionDetails((current) => !current)}
                       type="button"
                     >
-                      {showCompanionDetails ? '收起详细面板' : '展开详细面板'}
+                      {showCompanionDetails ? '收起扩展状态' : '展开扩展状态'}
                     </button>
                   </div>
                 </article>
