@@ -175,6 +175,7 @@ function getLatestRunNeedingWrapUp(
 export function CounterPanel(props: CounterPanelProps) {
   const [mapName, setMapName] = useState(props.activeRun?.mapName ?? '混沌避难所');
   const [pulseIndex, setPulseIndex] = useState(0);
+  const [showAdvancedCompanion, setShowAdvancedCompanion] = useState(false);
 
   useEffect(() => {
     if (props.activeRun) {
@@ -511,6 +512,30 @@ export function CounterPanel(props: CounterPanelProps) {
   }, [pulseItems]);
 
   const activePulse = pulseItems[pulseIndex] ?? pulseItems[0];
+  const companionIssues = useMemo(() => {
+    const pending = readinessItems.filter((item) => !item.ready).slice(0, 2);
+
+    if (pending.length === 0) {
+      return [
+        {
+          title: '核心条件已经就绪',
+          detail: '今天可以直接开刷、记战报，自动化联调也能随时接上。',
+          tone: 'success' as const
+        },
+        {
+          title: '最近路线已经留下来了',
+          detail: latestRunText,
+          tone: 'attention' as const
+        }
+      ];
+    }
+
+    return pending.map((item) => ({
+      title: `${item.label} 还没收好`,
+      detail: item.detail,
+      tone: 'attention' as const
+    }));
+  }, [latestRunText, readinessItems]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -537,93 +562,80 @@ export function CounterPanel(props: CounterPanelProps) {
         )}
       </div>
 
-      <div className="companion-command-grid">
-        <article className={`card command-card command-card-${readinessTone}`}>
-          <div className="integration-head">
-            <div>
-              <div className="card-title">今日就绪度</div>
-              <p className="secondary-text">
-                把引导、环境、路线、战报和工坊预检收在一眼就能看完的地方。
-              </p>
-            </div>
-            <span className={`status-pill ${readinessTone}`}>
-              {readinessReadyCount}/{readinessItems.length} 已就绪
-            </span>
+      <article className="card companion-focus-card">
+        <div className="integration-head">
+          <div>
+            <div className="card-title">现在该做什么</div>
+            <p className="secondary-text">首页默认只保留当前动作、关键阻塞和两个常用入口。</p>
           </div>
+          <span className={`status-pill ${readinessTone}`}>
+            {readinessReadyCount}/{readinessItems.length} 已就绪
+          </span>
+        </div>
 
-          <div className="readiness-grid">
-            {readinessItems.map((item) => (
-              <article
-                className={`readiness-item ${item.ready ? 'ready' : 'pending'}`}
-                key={item.label}
-              >
-                <strong>{item.label}</strong>
-                <span>{item.ready ? '已就绪' : '待处理'}</span>
-                <p>{item.detail}</p>
-              </article>
-            ))}
-          </div>
-        </article>
+        <div className="command-focus">
+          <strong>{suggestedAction.title}</strong>
+          <p>{suggestedAction.detail}</p>
+        </div>
 
-        <article className="card command-card command-card-action">
-          <div className="integration-head">
-            <div>
-              <div className="card-title">当前待办</div>
-              <p className="secondary-text">
-                让桌宠先帮你判断现在最值得做的那一步，而不是自己来回切页。
-              </p>
-            </div>
-            <span className="status-chip">{suggestedAction.badge}</span>
-          </div>
+        <div className="companion-issue-grid">
+          {companionIssues.map((item) => (
+            <article className={`companion-issue-card tone-${item.tone}`} key={item.title}>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </article>
+          ))}
+        </div>
 
-          <div className="command-focus">
-            <strong>{suggestedAction.title}</strong>
-            <p>{suggestedAction.detail}</p>
+        <div className="summary-list">
+          <div className="summary-row">
+            <span>最近路线</span>
+            <strong>{latestRunText}</strong>
           </div>
+          <div className="summary-row">
+            <span>最近掉落</span>
+            <strong>{latestDropText}</strong>
+          </div>
+          <div className="summary-row">
+            <span>工坊状态</span>
+            <strong>
+              {props.preflightBusy
+                ? '正在刷新预检'
+                : blockingTask
+                  ? '还有阻塞项'
+                  : warningTask
+                    ? '还有提醒项'
+                    : props.preflight
+                      ? '预检稳定'
+                      : '等待预检'}
+            </strong>
+          </div>
+        </div>
 
-          <div className="inline-actions">
-            <button
-              className={suggestedAction.kind === 'primary' ? 'primary-button' : 'ghost-button'}
-              disabled={props.busy}
-              onClick={suggestedAction.onClick}
-              type="button"
-            >
-              {suggestedAction.label}
-            </button>
-            <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
-              看工坊
-            </button>
-            <button className="ghost-button" onClick={props.onGoToDrops} type="button">
-              看战报
-            </button>
-          </div>
-
-          <div className="summary-list">
-            <div className="summary-row">
-              <span>最近路线</span>
-              <strong>{latestRunText}</strong>
-            </div>
-            <div className="summary-row">
-              <span>最近掉落</span>
-              <strong>{latestDropText}</strong>
-            </div>
-            <div className="summary-row">
-              <span>工坊状态</span>
-              <strong>
-                {props.preflightBusy
-                  ? '正在刷新预检'
-                  : blockingTask
-                    ? '还有阻塞项'
-                    : warningTask
-                      ? '还有提醒项'
-                      : props.preflight
-                        ? '预检稳定'
-                        : '等待预检'}
-              </strong>
-            </div>
-          </div>
-        </article>
-      </div>
+        <div className="inline-actions">
+          <button
+            className={suggestedAction.kind === 'primary' ? 'primary-button' : 'ghost-button'}
+            disabled={props.busy}
+            onClick={suggestedAction.onClick}
+            type="button"
+          >
+            {suggestedAction.label}
+          </button>
+          <button className="ghost-button" onClick={props.onGoToDrops} type="button">
+            打开战报
+          </button>
+          <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
+            打开工坊
+          </button>
+          <button
+            className={showAdvancedCompanion ? 'ghost-button active' : 'ghost-button'}
+            onClick={() => setShowAdvancedCompanion((current) => !current)}
+            type="button"
+          >
+            {showAdvancedCompanion ? '收起今日详细面板' : '展开今日详细面板'}
+          </button>
+        </div>
+      </article>
 
       <div className="companion-recovery-grid">
         <article className="card recovery-card">
@@ -659,49 +671,41 @@ export function CounterPanel(props: CounterPanelProps) {
           </div>
         </article>
 
-        <article className="card pulse-card">
-          <div className="integration-head">
-            <div>
-              <div className="card-title">今日战果脉冲</div>
-              <p className="secondary-text">
-                让首页自己轮播今天最值得盯住的信号，不用每次都先翻战报或工坊。
-              </p>
+        <article className="card hero-card warm-card">
+          <div className="card-title">今日战况</div>
+          <div className="metric-grid">
+            <article className="metric-card">
+              <span>今日次数</span>
+              <strong>{props.stats.totalCount}</strong>
+            </article>
+            <article className="metric-card">
+              <span>总耗时</span>
+              <strong>{formatDuration(props.stats.totalDurationSeconds)}</strong>
+            </article>
+            <article className="metric-card">
+              <span>平均单次</span>
+              <strong>{formatDuration(props.stats.averageDurationSeconds)}</strong>
+            </article>
+          </div>
+
+          <div className="summary-list">
+            <div className="summary-row">
+              <span>战果脉冲</span>
+              <strong>{activePulse.value}</strong>
             </div>
-            <span className="status-pill warm">
-              {pulseIndex + 1}/{pulseItems.length}
-            </span>
-          </div>
-
-          <div className="pulse-stage">
-            <span className="pulse-label">{activePulse.label}</span>
-            <strong>{activePulse.value}</strong>
-            <p>{activePulse.detail}</p>
-          </div>
-
-          <div className="pulse-mini-list">
-            {pulseItems.map((item, index) => (
-              <article
-                className={`pulse-mini-item ${index === pulseIndex ? 'active' : ''}`}
-                key={item.id}
-              >
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-
-          <div className="pulse-dots" aria-label="battle pulse progression">
-            {pulseItems.map((item, index) => (
-              <span
-                className={index === pulseIndex ? 'pulse-dot active' : 'pulse-dot'}
-                key={item.id}
-              />
-            ))}
+            <div className="summary-row">
+              <span>当前信号</span>
+              <strong>{activePulse.label}</strong>
+            </div>
+            <div className="summary-row">
+              <span>今日掉落</span>
+              <strong>{props.recentDrops.length} 条记录</strong>
+            </div>
           </div>
         </article>
       </div>
 
-      <div className="companion-hero">
+      <div className="companion-hero companion-hero-compact">
         <article className="card hero-card hero-banner">
           <div className="integration-head">
             <div>
@@ -779,171 +783,241 @@ export function CounterPanel(props: CounterPanelProps) {
             </div>
           </div>
         </article>
-
-        <article className="card hero-card warm-card">
-          <div className="card-title">今日战况</div>
-          <div className="metric-grid">
-            <article className="metric-card">
-              <span>今日次数</span>
-              <strong>{props.stats.totalCount}</strong>
-            </article>
-            <article className="metric-card">
-              <span>总耗时</span>
-              <strong>{formatDuration(props.stats.totalDurationSeconds)}</strong>
-            </article>
-            <article className="metric-card">
-              <span>平均单次</span>
-              <strong>{formatDuration(props.stats.averageDurationSeconds)}</strong>
-            </article>
-          </div>
-
-          <div className="summary-list">
-            <div className="summary-row">
-              <span>最近完成</span>
-              <strong>{latestRunText}</strong>
-            </div>
-            <div className="summary-row">
-              <span>今日掉落</span>
-              <strong>{props.recentDrops.length} 条记录</strong>
-            </div>
-          </div>
-        </article>
       </div>
 
-      <div className="insight-grid">
-        <article className="insight-card">
-          <span className="eyebrow">Route Pulse</span>
-          <strong>{topRouteText}</strong>
-          <p>
-            {props.stats.mapBreakdown[0]
-              ? `平均 ${formatDuration(props.stats.mapBreakdown[0].averageDurationSeconds)} 一轮。`
-              : '等你完成第一轮后，桌宠就会开始画出今天的路线节奏。'}
-          </p>
-        </article>
-        <article className="insight-card">
-          <span className="eyebrow">Latest Loot</span>
-          <strong>{latestDropText}</strong>
-          <p>
-            {props.recentDrops.length > 0
-              ? '最近战利品会优先挂在首页前排，方便你随手回看。'
-              : '去战报页贴图后，这里就会变成今天的战果热区。'}
-          </p>
-        </article>
-        <article className="insight-card">
-          <span className="eyebrow">Next Step</span>
-          <strong>{suggestedAction.title}</strong>
-          <p>{suggestedAction.detail}</p>
-        </article>
-      </div>
-
-      <div className="quick-grid">
-        <article className="action-tile">
-          <span className="eyebrow">Quick Flow</span>
-          <strong>战利品账本</strong>
-          <p>截图、OCR、备注和保存都在一页完成，适合刷图结束后立刻收口。</p>
-          <button className="text-button" onClick={props.onGoToDrops} type="button">
-            现在去记一条
-          </button>
-        </article>
-
-        <article className="action-tile">
-          <span className="eyebrow">Workshop</span>
-          <strong>赫拉迪姆工坊</strong>
-          <p>符文、宝石、金币三条任务线集中管理，适合试运行、联调和查看日志。</p>
-          <button className="text-button" onClick={props.onGoToWorkshop} type="button">
-            进入工坊
-          </button>
-        </article>
-      </div>
-
-      <div className="split-grid">
-        <article className="card">
-          <div className="card-title">地图分布</div>
-          {props.stats.mapBreakdown.length === 0 ? (
-            <div className="empty-state">
-              <strong>今天还没有地图统计</strong>
-              <p>开始第一轮刷图后，这里会显示各个场景的次数和平均耗时。</p>
-            </div>
-          ) : (
-            <div className="list-card">
-              {props.stats.mapBreakdown.map((item) => (
-                <div className="list-row" key={item.mapName}>
-                  <div>
-                    <strong>{item.mapName}</strong>
-                    <span>{item.count} 次</span>
-                  </div>
-                  <div className="list-row-side">
-                    <strong>{formatDuration(item.totalDurationSeconds)}</strong>
-                    <span>均值 {formatDuration(item.averageDurationSeconds)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-
-        <article className="card">
-          <div className="card-title">最近刷图</div>
-          {props.recentRuns.length === 0 ? (
-            <div className="empty-state">
-              <strong>还没有最近刷图数据</strong>
-              <p>完成一轮后，这里会按时间显示最近几次路线和时长。</p>
-            </div>
-          ) : (
-            <div className="list-card">
-              {props.recentRuns.map((run) => (
-                <div className="list-row" key={run.id}>
-                  <div>
-                    <strong>{run.mapName}</strong>
-                    <span>{formatCompactDateTime(run.endedAt)}</span>
-                  </div>
-                  <div className="list-row-side">
-                    <strong>{formatDuration(run.durationSeconds)}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-      </div>
-
-      <article className="card">
-        <div className="panel-header">
+      <article className={`card companion-advanced-card ${showAdvancedCompanion ? 'expanded' : ''}`}>
+        <div className="integration-head">
           <div>
-            <div className="card-title">今日战果预览</div>
-            <p className="secondary-text">
-              最近掉落会先在这里出现，再决定要不要去战报页继续整理。
-            </p>
+            <div className="card-title">今日详细面板</div>
+            <p className="secondary-text">把就绪度、战果脉冲、地图分布和战果预览都收在这里。</p>
           </div>
-          <span className="status-pill">
-            {props.recentDrops.length > 0
-              ? `${props.recentDrops.length} 条战果`
-              : '等待第一条掉落'}
-          </span>
+          <button
+            className="ghost-button"
+            onClick={() => setShowAdvancedCompanion((current) => !current)}
+            type="button"
+          >
+            {showAdvancedCompanion ? '收起详细面板' : '展开详细面板'}
+          </button>
         </div>
 
-        {props.recentDrops.length === 0 ? (
-          <div className="empty-state">
-            <strong>战果区还是空的</strong>
-            <p>去战报页贴一张截图，桌宠就能帮你开始记账。</p>
+        {!showAdvancedCompanion ? (
+          <div className="companion-focus-grid">
+            <article className="focus-step-card">
+              <strong>就绪度</strong>
+              <p>{readinessReadyCount}/{readinessItems.length} 项已经就绪。</p>
+            </article>
+            <article className="focus-step-card">
+              <strong>战果脉冲</strong>
+              <p>{activePulse.label} · {activePulse.value}</p>
+            </article>
+            <article className="focus-step-card">
+              <strong>详细页内容</strong>
+              <p>展开后可以看地图分布、最近刷图、完整战果和更多快捷入口。</p>
+            </article>
           </div>
         ) : (
-          <div className="list-card">
-            {props.recentDrops.map((drop) => (
-              <div className="list-row" key={drop.id}>
+          <div className="companion-command-grid">
+            <article className={`card command-card command-card-${readinessTone}`}>
+              <div className="integration-head">
                 <div>
-                  <strong>{drop.itemName}</strong>
-                  <span>{drop.mapName || '未填写场景'}</span>
-                  {drop.note ? <span className="secondary-text">{drop.note}</span> : null}
+                  <div className="card-title">今日就绪度</div>
+                  <p className="secondary-text">引导、环境、路线、战报和工坊预检都集中在这里。</p>
                 </div>
-                <div className="list-row-side">
-                  <span>{formatCompactDateTime(drop.createdAt)}</span>
-                </div>
+                <span className={`status-pill ${readinessTone}`}>
+                  {readinessReadyCount}/{readinessItems.length} 已就绪
+                </span>
               </div>
-            ))}
+
+              <div className="readiness-grid">
+                {readinessItems.map((item) => (
+                  <article
+                    className={`readiness-item ${item.ready ? 'ready' : 'pending'}`}
+                    key={item.label}
+                  >
+                    <strong>{item.label}</strong>
+                    <span>{item.ready ? '已就绪' : '待处理'}</span>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+
+            <article className="card pulse-card">
+              <div className="integration-head">
+                <div>
+                  <div className="card-title">今日战果脉冲</div>
+                  <p className="secondary-text">让首页自己轮播今天最值得盯住的信号。</p>
+                </div>
+                <span className="status-pill warm">
+                  {pulseIndex + 1}/{pulseItems.length}
+                </span>
+              </div>
+
+              <div className="pulse-stage">
+                <span className="pulse-label">{activePulse.label}</span>
+                <strong>{activePulse.value}</strong>
+                <p>{activePulse.detail}</p>
+              </div>
+
+              <div className="pulse-mini-list">
+                {pulseItems.map((item, index) => (
+                  <article
+                    className={`pulse-mini-item ${index === pulseIndex ? 'active' : ''}`}
+                    key={item.id}
+                  >
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </article>
+                ))}
+              </div>
+
+              <div className="pulse-dots" aria-label="battle pulse progression">
+                {pulseItems.map((item, index) => (
+                  <span
+                    className={index === pulseIndex ? 'pulse-dot active' : 'pulse-dot'}
+                    key={item.id}
+                  />
+                ))}
+              </div>
+            </article>
           </div>
         )}
       </article>
+
+      {showAdvancedCompanion ? (
+        <>
+          <div className="insight-grid">
+            <article className="insight-card">
+              <span className="eyebrow">Route Pulse</span>
+              <strong>{topRouteText}</strong>
+              <p>
+                {props.stats.mapBreakdown[0]
+                  ? `平均 ${formatDuration(props.stats.mapBreakdown[0].averageDurationSeconds)} 一轮。`
+                  : '等你完成第一轮后，桌宠就会开始画出今天的路线节奏。'}
+              </p>
+            </article>
+            <article className="insight-card">
+              <span className="eyebrow">Latest Loot</span>
+              <strong>{latestDropText}</strong>
+              <p>
+                {props.recentDrops.length > 0
+                  ? '最近战利品会优先挂在首页前排，方便你随手回看。'
+                  : '去战报页贴图后，这里就会变成今天的战果热区。'}
+              </p>
+            </article>
+            <article className="insight-card">
+              <span className="eyebrow">Next Step</span>
+              <strong>{suggestedAction.title}</strong>
+              <p>{suggestedAction.detail}</p>
+            </article>
+          </div>
+
+          <div className="quick-grid">
+            <article className="action-tile">
+              <span className="eyebrow">Quick Flow</span>
+              <strong>战利品账本</strong>
+              <p>截图、OCR、备注和保存都在一页完成，适合刷图结束后立刻收口。</p>
+              <button className="text-button" onClick={props.onGoToDrops} type="button">
+                现在去记一条
+              </button>
+            </article>
+
+            <article className="action-tile">
+              <span className="eyebrow">Workshop</span>
+              <strong>赫拉迪姆工坊</strong>
+              <p>符文、宝石、金币三条任务线集中管理，适合试运行、联调和查看日志。</p>
+              <button className="text-button" onClick={props.onGoToWorkshop} type="button">
+                进入工坊
+              </button>
+            </article>
+          </div>
+
+          <div className="split-grid">
+            <article className="card">
+              <div className="card-title">地图分布</div>
+              {props.stats.mapBreakdown.length === 0 ? (
+                <div className="empty-state">
+                  <strong>今天还没有地图统计</strong>
+                  <p>开始第一轮刷图后，这里会显示各个场景的次数和平均耗时。</p>
+                </div>
+              ) : (
+                <div className="list-card">
+                  {props.stats.mapBreakdown.map((item) => (
+                    <div className="list-row" key={item.mapName}>
+                      <div>
+                        <strong>{item.mapName}</strong>
+                        <span>{item.count} 次</span>
+                      </div>
+                      <div className="list-row-side">
+                        <strong>{formatDuration(item.totalDurationSeconds)}</strong>
+                        <span>均值 {formatDuration(item.averageDurationSeconds)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="card">
+              <div className="card-title">最近刷图</div>
+              {props.recentRuns.length === 0 ? (
+                <div className="empty-state">
+                  <strong>还没有最近刷图数据</strong>
+                  <p>完成一轮后，这里会按时间显示最近几次路线和时长。</p>
+                </div>
+              ) : (
+                <div className="list-card">
+                  {props.recentRuns.map((run) => (
+                    <div className="list-row" key={run.id}>
+                      <div>
+                        <strong>{run.mapName}</strong>
+                        <span>{formatCompactDateTime(run.endedAt)}</span>
+                      </div>
+                      <div className="list-row-side">
+                        <strong>{formatDuration(run.durationSeconds)}</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+          </div>
+
+          <article className="card">
+            <div className="panel-header">
+              <div>
+                <div className="card-title">今日战果预览</div>
+                <p className="secondary-text">最近掉落会先在这里出现，再决定要不要去战报页继续整理。</p>
+              </div>
+              <span className="status-pill">
+                {props.recentDrops.length > 0 ? `${props.recentDrops.length} 条战果` : '等待第一条掉落'}
+              </span>
+            </div>
+
+            {props.recentDrops.length === 0 ? (
+              <div className="empty-state">
+                <strong>战果区还是空的</strong>
+                <p>去战报页贴一张截图，桌宠就能帮你开始记账。</p>
+              </div>
+            ) : (
+              <div className="list-card">
+                {props.recentDrops.map((drop) => (
+                  <div className="list-row" key={drop.id}>
+                    <div>
+                      <strong>{drop.itemName}</strong>
+                      <span>{drop.mapName || '未填写场景'}</span>
+                      {drop.note ? <span className="secondary-text">{drop.note}</span> : null}
+                    </div>
+                    <div className="list-row-side">
+                      <span>{formatCompactDateTime(drop.createdAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        </>
+      ) : null}
     </section>
   );
 }
