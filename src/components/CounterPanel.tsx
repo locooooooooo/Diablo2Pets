@@ -769,7 +769,8 @@ export function CounterPanel(props: CounterPanelProps) {
         </div>
       </article>
 
-      <div className="companion-recovery-grid">
+      {showAdvancedCompanion ? (
+        <div className="companion-recovery-grid">
         <article className="card recovery-card">
           <div className="integration-head">
             <div>
@@ -835,7 +836,8 @@ export function CounterPanel(props: CounterPanelProps) {
             </div>
           </div>
         </article>
-      </div>
+        </div>
+      ) : null}
 
       <div className="companion-hero companion-hero-compact">
         <article className="card hero-card hero-banner">
