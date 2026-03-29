@@ -49,6 +49,11 @@ interface AutomationPanelProps {
   onGetPreflight: (payload: AutomationPreflightInput) => Promise<AutomationPreflightResponse>;
   onGetLog: (id: IntegrationId) => Promise<AutomationLogDocument>;
   onOpenPath: (targetPath: string) => Promise<void>;
+  onSurfaceNotice?: (notice: {
+    title: string;
+    detail: string;
+    tone: 'neutral' | 'success' | 'attention' | 'error';
+  }) => void;
 }
 
 interface ViewerState {
@@ -1262,6 +1267,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
   const runeCardRef = useRef<HTMLElement | null>(null);
   const gemCardRef = useRef<HTMLElement | null>(null);
   const goldCardRef = useRef<HTMLElement | null>(null);
+  const workshopAdvancedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setDrafts(props.initialDrafts);
@@ -1653,7 +1659,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {
             label: '展开更多诊断',
             kind: 'secondary',
-            onClick: () => setShowWorkshopAdvanced(true)
+            onClick: () => toggleWorkshopAdvanced(true)
           }
         ]
       };
@@ -1716,7 +1722,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         {
           label: '展开更多诊断',
           kind: 'secondary',
-          onClick: () => setShowWorkshopAdvanced((current) => !current)
+          onClick: () => toggleWorkshopAdvanced()
         }
       ]
     };
@@ -1827,8 +1833,28 @@ export function AutomationPanel(props: AutomationPanelProps) {
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function toggleWorkshopAdvanced(nextExpanded = !showWorkshopAdvanced) {
+    setShowWorkshopAdvanced(nextExpanded);
+    props.onSurfaceNotice?.({
+      tone: nextExpanded ? 'attention' : 'success',
+      title: nextExpanded ? '更多诊断已展开' : '更多诊断已收起',
+      detail: nextExpanded
+        ? '环境修复、录制向导和全局预检都在下方，先只看这一段就够了。'
+        : '工坊已经回到主任务视图，现在只需要盯住当前这张任务卡。'
+    });
+
+    window.setTimeout(() => {
+      workshopAdvancedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }
+
   function handleSelectTask(id: IntegrationId) {
     setSelectedTaskId(id);
+    props.onSurfaceNotice?.({
+      tone: 'attention',
+      title: `已定位到${getIntegrationLabel(id)}`,
+      detail: '我已经把工坊收束到这一张任务卡，先看这张就行。'
+    });
     window.requestAnimationFrame(() => {
       scrollToTask(id);
     });
@@ -1868,11 +1894,11 @@ export function AutomationPanel(props: AutomationPanelProps) {
     }
 
     if (workshopFocus.taskId && workshopFocus.tone !== 'success') {
-      setShowWorkshopAdvanced((current) => !current);
+      toggleWorkshopAdvanced();
       return;
     }
 
-    setShowWorkshopAdvanced((current) => !current);
+    toggleWorkshopAdvanced();
   }
 
   function openRecordingGuide(item: IntegrationConfig) {
@@ -3642,7 +3668,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         ) : null}
       </div>
 
-      <article className="card workshop-advanced-card">
+      <article className="card workshop-advanced-card" ref={workshopAdvancedRef}>
         <div className="integration-head">
           <div>
             <div className="card-title small">更多诊断与维护</div>
@@ -3650,7 +3676,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
           <button
             className={showWorkshopAdvanced ? 'ghost-button active' : 'ghost-button'}
-            onClick={() => setShowWorkshopAdvanced((current) => !current)}
+            onClick={() => toggleWorkshopAdvanced()}
             type="button"
           >
             {showWorkshopAdvanced ? '收起更多诊断' : '展开更多诊断'}

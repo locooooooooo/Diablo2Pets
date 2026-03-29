@@ -1298,6 +1298,28 @@ export default function App() {
     }
   }
 
+  function announceSurfaceNotice(notice: NonNullable<SurfaceNotice>) {
+    setSurfaceNotice(notice);
+  }
+
+  function handleToggleCompanionDetails() {
+    const nextExpanded = !showCompanionDetails;
+    setShowCompanionDetails(nextExpanded);
+
+    window.requestAnimationFrame(() => {
+      scrollPanelToTop('smooth');
+      refreshPanelScrollState();
+    });
+
+    announceSurfaceNotice({
+      tone: nextExpanded ? 'attention' : 'success',
+      title: nextExpanded ? '桌宠详情已展开' : '桌宠详情已收起',
+      detail: nextExpanded
+        ? '顶部已经展开成长、场景和开关设置，继续往下滚就能回到主内容。'
+        : '我把桌宠壳收回到精简模式了，当前主路径已经回到最短视图。'
+    });
+  }
+
   function handleOpenSetupGuide() {
     handleSelectTab('companion');
     setShowPetCodex(false);
@@ -1537,7 +1559,7 @@ export default function App() {
           detailsExpanded={showCompanionDetails}
           todayCount={todayStats.totalCount}
           todayDropCount={todayDrops.length}
-          onToggleDetails={() => setShowCompanionDetails((current) => !current)}
+          onToggleDetails={handleToggleCompanionDetails}
         />
 
         <nav className="tab-row">
@@ -1793,6 +1815,7 @@ export default function App() {
                   preflightBusy={setupPreflightBusy}
                   recentDrops={todayDrops}
                   recentRuns={recentRuns}
+                  onSurfaceNotice={announceSurfaceNotice}
                   setupGuideHint={setupGuideHint}
                   setupGuideCompleted={data.settings.setupGuideCompleted}
                   stats={todayStats}
@@ -1829,6 +1852,7 @@ export default function App() {
               onExportVisual={handleExportVisualReport}
               onOpenPath={handleOpenPath}
               onPreviewOcr={handlePreviewDropOcr}
+              onSurfaceNotice={announceSurfaceNotice}
               todayKey={todayKey}
             />
             </PanelErrorBoundary>
@@ -1853,6 +1877,7 @@ export default function App() {
               onRunAdmin={handleRunAutomationAdmin}
               onRunEnvironmentAction={handleRunEnvironmentAction}
               onRunTask={handleRunAutomationTask}
+              onSurfaceNotice={announceSurfaceNotice}
             />
             </PanelErrorBoundary>
           ) : null}

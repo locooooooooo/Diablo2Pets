@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
   type FormEvent
@@ -53,6 +54,11 @@ interface DropPanelProps {
     suggestedName: string;
   }) => Promise<DropOcrResult>;
   onOpenPath: (targetPath: string) => Promise<void>;
+  onSurfaceNotice?: (notice: {
+    title: string;
+    detail: string;
+    tone: 'neutral' | 'success' | 'attention' | 'error';
+  }) => void;
 }
 
 type CategoryFilter = 'all' | DropCategory;
@@ -127,6 +133,8 @@ export function DropPanel(props: DropPanelProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [exportBusyKey, setExportBusyKey] = useState('');
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
+  const advancedCardRef = useRef<HTMLElement | null>(null);
+  const reportFiltersRef = useRef<HTMLElement | null>(null);
   const [exportNote, setExportNote] = useState(
     '周报会导出最近 7 天，月报会导出当前自然月。归档和分享素材现在都能直接生成。'
   );
@@ -609,15 +617,41 @@ export function DropPanel(props: DropPanelProps) {
     const pasteZone = document.getElementById('drop-paste-zone');
     pasteZone?.focus();
     pasteZone?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    props.onSurfaceNotice?.({
+      tone: 'attention',
+      title: '已定位到截图粘贴区',
+      detail: '把截图贴到这里，OCR 和本地保存会自动接着跑。'
+    });
+  }
+
+  function toggleAdvancedReport(nextExpanded = !showAdvancedReport) {
+    setShowAdvancedReport(nextExpanded);
+    props.onSurfaceNotice?.({
+      tone: nextExpanded ? 'attention' : 'success',
+      title: nextExpanded ? '详细战报已展开' : '详细战报已收起',
+      detail: nextExpanded
+        ? '筛选、导出和完整明细都在下方，继续往下就能看到。'
+        : '我把战报先收回到精简模式了，先记账、后复盘会更轻。'
+    });
+
+    window.setTimeout(() => {
+      const target = nextExpanded ? reportFiltersRef.current ?? advancedCardRef.current : advancedCardRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   }
 
   function handleDropFocusSecondary() {
     if (hasDraft) {
       resetDraft();
+      props.onSurfaceNotice?.({
+        tone: 'success',
+        title: '当前草稿已清空',
+        detail: '表单已经重置，你可以重新贴图或手动记一条新的掉落。'
+      });
       return;
     }
 
-    setShowAdvancedReport((current) => !current);
+    toggleAdvancedReport();
   }
 
   return (
@@ -1065,7 +1099,10 @@ export function DropPanel(props: DropPanelProps) {
         )}
       </article>
 
-      <article className={`card drop-advanced-card ${showAdvancedReport ? 'expanded' : ''}`}>
+      <article
+        className={`card drop-advanced-card ${showAdvancedReport ? 'expanded' : ''}`}
+        ref={advancedCardRef}
+      >
         <div className="integration-head">
           <div>
             <div className="card-title">详细战报</div>
@@ -1073,7 +1110,7 @@ export function DropPanel(props: DropPanelProps) {
           </div>
           <button
             className="ghost-button"
-            onClick={() => setShowAdvancedReport((current) => !current)}
+            onClick={() => toggleAdvancedReport()}
             type="button"
           >
             {showAdvancedReport ? '收起详细战报' : '展开详细战报'}
@@ -1108,7 +1145,7 @@ export function DropPanel(props: DropPanelProps) {
 
       {showAdvancedReport ? (
         <>
-      <article className="card">
+      <article className="card" ref={reportFiltersRef}>
         <div className="panel-header">
           <div>
             <div className="card-title">战报筛选</div>

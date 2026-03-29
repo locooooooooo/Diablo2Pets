@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { formatCompactDateTime, formatDuration } from '../lib/date';
 import { PanelStateCard } from './PanelStateCard';
 import type { SetupGuideHint } from '../lib/setupGuideState';
@@ -29,6 +29,11 @@ interface CounterPanelProps {
   onGoToDrops: () => void;
   onGoToWorkshop: () => void;
   onOpenSetupGuide: () => void;
+  onSurfaceNotice?: (notice: {
+    title: string;
+    detail: string;
+    tone: 'neutral' | 'success' | 'attention' | 'error';
+  }) => void;
 }
 
 type CommandTone = 'success' | 'attention' | 'error';
@@ -184,12 +189,28 @@ export function CounterPanel(props: CounterPanelProps) {
   const [mapName, setMapName] = useState(props.activeRun?.mapName ?? '混沌避难所');
   const [pulseIndex, setPulseIndex] = useState(0);
   const [showAdvancedCompanion, setShowAdvancedCompanion] = useState(false);
+  const advancedCardRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (props.activeRun) {
       setMapName(props.activeRun.mapName);
     }
   }, [props.activeRun]);
+
+  function toggleAdvancedCompanion(nextExpanded = !showAdvancedCompanion) {
+    setShowAdvancedCompanion(nextExpanded);
+    props.onSurfaceNotice?.({
+      tone: nextExpanded ? 'attention' : 'success',
+      title: nextExpanded ? '今日详细面板已展开' : '今日详细面板已收起',
+      detail: nextExpanded
+        ? '就绪度、地图分布和更多快捷入口已经放到下方，继续往下看就行。'
+        : '首页已经回到精简模式，只保留当前动作、上次中断点和当前狩猎状态。'
+    });
+
+    window.requestAnimationFrame(() => {
+      advancedCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 
   const readinessItems = useMemo(
     () =>
@@ -740,7 +761,7 @@ export function CounterPanel(props: CounterPanelProps) {
           </button>
           <button
             className={showAdvancedCompanion ? 'ghost-button active' : 'ghost-button'}
-            onClick={() => setShowAdvancedCompanion((current) => !current)}
+            onClick={() => toggleAdvancedCompanion()}
             type="button"
           >
             {showAdvancedCompanion ? '收起今日详细面板' : '展开今日详细面板'}
@@ -896,7 +917,10 @@ export function CounterPanel(props: CounterPanelProps) {
         </article>
       </div>
 
-      <article className={`card companion-advanced-card ${showAdvancedCompanion ? 'expanded' : ''}`}>
+      <article
+        className={`card companion-advanced-card ${showAdvancedCompanion ? 'expanded' : ''}`}
+        ref={advancedCardRef}
+      >
         <div className="integration-head">
           <div>
             <div className="card-title">今日详细面板</div>
@@ -904,7 +928,7 @@ export function CounterPanel(props: CounterPanelProps) {
           </div>
           <button
             className="ghost-button"
-            onClick={() => setShowAdvancedCompanion((current) => !current)}
+            onClick={() => toggleAdvancedCompanion()}
             type="button"
           >
             {showAdvancedCompanion ? '收起详细面板' : '展开详细面板'}
