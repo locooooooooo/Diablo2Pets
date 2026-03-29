@@ -115,6 +115,91 @@ function getLogPreview(content?: string): string | undefined {
   return content.trim().split(/\r?\n/).slice(-10).join('\n');
 }
 
+type CompanionIssueTone = 'success' | 'attention' | 'error';
+
+interface CompanionIssue {
+  title: string;
+  detail: string;
+  tone: CompanionIssueTone;
+}
+
+function buildCompanionIssues(
+  preflight: AutomationPreflightResponse | null,
+  setupGuideCompleted: boolean
+): CompanionIssue[] {
+  if (!preflight) {
+    return [
+      {
+        title: '正在检查当前环境',
+        detail: '桌宠已经打开，正在读取内置运行环境、依赖和工坊状态。',
+        tone: 'attention'
+      }
+    ];
+  }
+
+  const globalChecks = preflight.globalChecks ?? [];
+  const tasks = preflight.tasks ?? [];
+  const runtimeFailed = globalChecks.some(
+    (check) =>
+      ['runtime-root', 'python-command', 'pip-command', 'requirements-file', 'python-source'].includes(
+        check.key
+      ) && check.level === 'error'
+  );
+  const dependencyFailed = globalChecks.some(
+    (check) =>
+      ['python-dependencies', 'ocr-engine'].includes(check.key) && check.level === 'error'
+  );
+  const missingProfiles = tasks.filter((task) => !isTaskProfileReady(task));
+  const warningTasks = tasks.filter((task) => task.status === 'warning');
+
+  const issues: CompanionIssue[] = [];
+
+  if (runtimeFailed) {
+    issues.push({
+      title: '内置运行环境还没完全就绪',
+      detail: '先去工坊的环境区处理运行环境，处理完再执行自动化会稳定很多。',
+      tone: 'error'
+    });
+  }
+
+  if (dependencyFailed) {
+    issues.push({
+      title: '依赖还没装齐',
+      detail: '当前主要缺少 Python 依赖或 OCR 能力，先去工坊补安装。',
+      tone: 'error'
+    });
+  }
+
+  if (missingProfiles.length > 0) {
+    const labels = missingProfiles.map((task) => getIntegrationLabel(task.id));
+    issues.push({
+      title: `还缺坐标配置：${labels.join('、')}`,
+      detail: '去工坊录好这些坐标后，符文、宝石、金币功能才能稳定执行。',
+      tone: 'attention'
+    });
+  }
+
+  if (!runtimeFailed && !dependencyFailed && missingProfiles.length === 0) {
+    issues.push({
+      title: '核心环境已经能用了',
+      detail: setupGuideCompleted
+        ? '现在可以直接刷图、记战报，或者去工坊试运行。'
+        : '虽然引导还没点完成，但核心功能已经能用了，悬浮和通知可以后面再开。',
+      tone: 'success'
+    });
+  }
+
+  if (warningTasks.length > 0) {
+    issues.push({
+      title: '工坊还有提醒项',
+      detail: warningTasks[0]?.summary ?? '建议先看一眼工坊预检，再决定是否马上执行。',
+      tone: 'attention'
+    });
+  }
+
+  return issues.slice(0, 2);
+}
+
 export default function App() {
   const [data, setData] = useState<AppData | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('companion');
@@ -438,6 +523,10 @@ export default function App() {
         (task) => task.status !== 'ready' || !isTaskProfileReady(task)
       ) ?? null,
     [setupPreflight]
+  );
+  const companionIssues = useMemo(
+    () => buildCompanionIssues(setupPreflight, data?.settings.setupGuideCompleted ?? false),
+    [data?.settings.setupGuideCompleted, setupPreflight]
   );
 
   useEffect(() => {
@@ -1429,6 +1518,18 @@ export default function App() {
                     >
                       {showCompanionDetails ? '收起扩展状态' : '展开扩展状态'}
                     </button>
+                  </div>
+
+                  <div className="companion-issue-grid">
+                    {companionIssues.map((issue) => (
+                      <article
+                        className={`companion-issue-card tone-${issue.tone}`}
+                        key={`${issue.tone}-${issue.title}`}
+                      >
+                        <strong>{issue.title}</strong>
+                        <p>{issue.detail}</p>
+                      </article>
+                    ))}
                   </div>
                 </article>
               ) : null}

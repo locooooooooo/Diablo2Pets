@@ -2113,6 +2113,47 @@ select,
   line-height: 1.6;
 }
 
+.companion-issue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.companion-issue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 15px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 209, 138, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02)),
+    rgba(15, 9, 7, 0.32);
+}
+
+.companion-issue-card strong {
+  color: #fff0cf;
+  font-size: 15px;
+}
+
+.companion-issue-card p {
+  margin: 0;
+  color: #d3b894;
+  line-height: 1.55;
+}
+
+.companion-issue-card.tone-success {
+  border-color: rgba(117, 194, 127, 0.26);
+}
+
+.companion-issue-card.tone-attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.companion-issue-card.tone-error {
+  border-color: rgba(230, 116, 97, 0.26);
+}
+
 .setup-guide-head {
   display: flex;
   align-items: flex-start;
@@ -4584,6 +4625,10 @@ body {
   }
 
   .pulse-mini-list {
+    grid-template-columns: 1fr;
+  }
+
+  .companion-issue-grid {
     grid-template-columns: 1fr;
   }
 
