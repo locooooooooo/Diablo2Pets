@@ -3930,11 +3930,13 @@ body {
   position: relative;
   z-index: 1;
   padding-top: 10px;
+  -webkit-app-region: no-drag;
 }
 
 .tab-button {
   min-height: 44px;
   border-radius: 999px;
+  -webkit-app-region: no-drag;
   color: var(--pet-text-1);
   background:
     linear-gradient(180deg, rgba(240, 247, 252, 0.05), rgba(255, 255, 255, 0.015)),
@@ -3970,9 +3972,6 @@ body {
 .panel-stack {
   position: relative;
   z-index: 1;
-}
-
-.panel-stack.panel-stack-companion {
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 6px;
@@ -3983,7 +3982,7 @@ body {
   touch-action: pan-y;
 }
 
-.panel-stack.panel-stack-companion > .panel {
+.panel-stack > .panel {
   flex: 0 0 auto;
   height: auto;
   min-height: auto;

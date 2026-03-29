@@ -917,35 +917,27 @@ export default function App() {
     void handleUpdateSettings({ windowMode: mode });
   }
 
-  function handleSelectTab(tab: TabKey) {
-    setActiveTab(tab);
-    setShowPetCodex(false);
+  function scrollPanelToTop(behavior: ScrollBehavior = 'smooth') {
+    panelStackRef.current?.scrollTo({ top: 0, behavior });
   }
 
-  function getWheelScrollContainer(target: HTMLElement | null): HTMLElement | null {
-    const root = panelStackRef.current;
-    if (!root) {
-      return null;
-    }
+  function handleSelectTab(tab: TabKey) {
+    const isSameTab = activeTab === tab;
 
-    let current = target;
-    while (current && current !== root) {
-      if (current.scrollHeight > current.clientHeight + 1) {
-        return current;
+    setActiveTab(tab);
+    setShowPetCodex(false);
+
+    if (tab === 'companion') {
+      setShowSetupGuide(false);
+
+      if (isSameTab) {
+        setShowCompanionDetails(false);
       }
-      current = current.parentElement;
     }
 
-    if (root.scrollHeight > root.clientHeight + 1) {
-      return root;
-    }
-
-    const nestedPanel = root.querySelector<HTMLElement>('.panel');
-    if (nestedPanel && nestedPanel.scrollHeight > nestedPanel.clientHeight + 1) {
-      return nestedPanel;
-    }
-
-    return null;
+    window.requestAnimationFrame(() => {
+      scrollPanelToTop(isSameTab ? 'auto' : 'smooth');
+    });
   }
 
   function handlePanelWheel(event: ReactWheelEvent<HTMLDivElement>) {
@@ -953,25 +945,32 @@ export default function App() {
       return;
     }
 
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('.pet-codex-overlay')) {
+    const root = panelStackRef.current;
+    if (!root) {
       return;
     }
 
-    const container = getWheelScrollContainer(target);
-    if (!container) {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest('.pet-codex-overlay') ||
+      target?.closest('textarea, input, select, [contenteditable="true"], .code-view')
+    ) {
+      return;
+    }
+
+    if (root.scrollHeight <= root.clientHeight + 1) {
       return;
     }
 
     const multiplier =
-      event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? container.clientHeight : 1;
-    const nextTop = container.scrollTop + event.deltaY * multiplier;
+      event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? root.clientHeight : 1;
+    const nextTop = root.scrollTop + event.deltaY * multiplier;
 
-    if (nextTop === container.scrollTop) {
+    if (nextTop === root.scrollTop) {
       return;
     }
 
-    container.scrollTop = nextTop;
+    root.scrollTop = nextTop;
     event.preventDefault();
   }
 
