@@ -1700,6 +1700,8 @@ select,
 }
 
 .drop-focus-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1708,6 +1710,25 @@ select,
     radial-gradient(circle at top right, rgba(255, 184, 96, 0.1), transparent 24%),
     radial-gradient(circle at left bottom, rgba(82, 146, 173, 0.08), transparent 28%),
     linear-gradient(180deg, rgba(44, 23, 17, 0.92), rgba(20, 11, 9, 0.94));
+  box-shadow:
+    0 18px 34px rgba(7, 10, 14, 0.22),
+    inset 0 1px 0 rgba(255, 231, 186, 0.08);
+}
+
+.drop-focus-card::before,
+.workshop-focus-card::before,
+.companion-focus-card::before,
+.panel-state-card::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 202, 122, 0.95), rgba(110, 187, 199, 0.35));
+  opacity: 0.88;
+  pointer-events: none;
 }
 
 .drop-focus-card.tone-success {
@@ -2107,6 +2128,8 @@ select,
 }
 
 .workshop-focus-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2115,6 +2138,9 @@ select,
     radial-gradient(circle at top right, rgba(240, 184, 96, 0.14), transparent 28%),
     radial-gradient(circle at left bottom, rgba(94, 164, 194, 0.08), transparent 30%),
     linear-gradient(180deg, rgba(49, 24, 18, 0.9), rgba(18, 10, 8, 0.94));
+  box-shadow:
+    0 18px 34px rgba(7, 10, 14, 0.22),
+    inset 0 1px 0 rgba(255, 231, 186, 0.08);
 }
 
 .workshop-task-switcher {
@@ -2233,6 +2259,8 @@ select,
 }
 
 .companion-focus-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -2241,6 +2269,9 @@ select,
     radial-gradient(circle at top right, rgba(255, 184, 96, 0.1), transparent 26%),
     radial-gradient(circle at left bottom, rgba(84, 143, 168, 0.08), transparent 28%),
     linear-gradient(180deg, rgba(44, 23, 17, 0.92), rgba(20, 11, 9, 0.94));
+  box-shadow:
+    0 18px 34px rgba(7, 10, 14, 0.22),
+    inset 0 1px 0 rgba(255, 231, 186, 0.08);
 }
 
 .companion-focus-grid {
@@ -2271,18 +2302,20 @@ select,
   gap: 8px;
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 210, 145, 0.14);
-  background: rgba(255, 247, 236, 0.03);
+  border: 1px solid rgba(255, 210, 145, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.024), rgba(255, 255, 255, 0.008)),
+    rgba(255, 247, 236, 0.025);
 }
 
 .focus-step-card strong {
   color: #fff0cf;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .focus-step-card p {
   margin: 0;
-  color: #d3b894;
+  color: #cbb088;
   line-height: 1.6;
 }
 
@@ -4198,10 +4231,22 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.page-feedback-bar::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 205, 128, 0.95), rgba(102, 184, 191, 0.3));
+  opacity: 0.82;
+}
+
 .page-feedback-bar strong {
   display: block;
   color: var(--pet-text-0);
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .page-feedback-bar .secondary-text {
@@ -4447,9 +4492,14 @@ body {
 }
 
 .panel-state-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  box-shadow:
+    0 14px 28px rgba(7, 10, 14, 0.18),
+    inset 0 1px 0 rgba(255, 239, 204, 0.05);
 }
 
 .panel-state-card .panel-state-head {
@@ -4461,6 +4511,7 @@ body {
 
 .panel-state-card .card-title {
   margin-top: 2px;
+  font-size: 20px;
 }
 
 .panel-state-meta {
@@ -4472,6 +4523,7 @@ body {
     rgba(9, 14, 20, 0.38);
   color: var(--pet-text-2);
   line-height: 1.55;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .panel-state-card.tone-success {
@@ -4532,16 +4584,20 @@ body {
 .quick-toggle,
 .floating-action {
   min-height: 44px;
+  font-weight: 700;
 }
 
 .primary-button {
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 223, 168, 0.3);
   color: #fff7eb;
   background:
     linear-gradient(180deg, rgba(242, 177, 92, 0.96), rgba(183, 89, 46, 0.94)),
     rgba(255, 210, 122, 0.08);
   box-shadow:
-    0 12px 24px rgba(124, 63, 33, 0.26),
-    inset 0 1px 0 rgba(255, 240, 214, 0.2);
+    0 16px 28px rgba(124, 63, 33, 0.32),
+    inset 0 1px 0 rgba(255, 240, 214, 0.28);
+  letter-spacing: 0.01em;
 }
 
 .ghost-button,
@@ -4549,11 +4605,36 @@ body {
 .mode-button,
 .quick-toggle,
 .floating-action {
+  padding: 10px 14px;
   color: var(--pet-text-1);
-  border-color: rgba(127, 184, 200, 0.16);
+  border-color: rgba(127, 184, 200, 0.12);
   background:
-    linear-gradient(180deg, rgba(240, 247, 252, 0.05), rgba(255, 255, 255, 0.014)),
-    rgba(15, 27, 35, 0.72);
+    linear-gradient(180deg, rgba(240, 247, 252, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(15, 27, 35, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.ghost-button.active,
+.icon-button.active,
+.mode-button.active,
+.quick-toggle.active,
+.floating-action.active {
+  border-color: rgba(244, 197, 115, 0.24);
+}
+
+.panel-state-card .tool-row .primary-button,
+.companion-focus-card .tool-row .primary-button,
+.drop-focus-card .inline-actions .primary-button,
+.workshop-focus-card .tool-row .primary-button {
+  min-width: 168px;
+  justify-content: center;
+}
+
+.panel-state-card .tool-row .ghost-button,
+.companion-focus-card .tool-row .ghost-button,
+.drop-focus-card .inline-actions .ghost-button,
+.workshop-focus-card .tool-row .ghost-button {
+  min-width: 118px;
 }
 
 .icon-button.active,
