@@ -1684,6 +1684,63 @@ select,
   gap: 12px;
 }
 
+.report-hero-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.drop-focus-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-color: rgba(255, 196, 107, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(255, 184, 96, 0.1), transparent 24%),
+    radial-gradient(circle at left bottom, rgba(82, 146, 173, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(44, 23, 17, 0.92), rgba(20, 11, 9, 0.94));
+}
+
+.drop-focus-card.tone-success {
+  border-color: rgba(117, 194, 127, 0.24);
+}
+
+.drop-focus-card.tone-attention {
+  border-color: rgba(244, 174, 85, 0.24);
+}
+
+.drop-focus-card.tone-error {
+  border-color: rgba(230, 116, 97, 0.26);
+}
+
+.drop-focus-grid,
+.drop-advanced-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.drop-entry-card,
+.drop-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.drop-advanced-card {
+  border-style: dashed;
+  border-color: rgba(214, 165, 96, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
+    rgba(10, 7, 6, 0.34);
+}
+
+.drop-advanced-card.expanded {
+  border-style: solid;
+}
+
+.drop-advanced-stack {
+  margin-top: 6px;
+}
+
 .report-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4663,6 +4720,8 @@ body {
   .companion-hero,
   .companion-command-grid,
   .companion-recovery-grid,
+  .drop-focus-grid,
+  .drop-advanced-summary,
   .insight-grid,
   .overview-grid,
   .report-hero,

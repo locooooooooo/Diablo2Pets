@@ -118,6 +118,7 @@ export function DropPanel(props: DropPanelProps) {
   const [mapFilter, setMapFilter] = useState('all');
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [exportBusyKey, setExportBusyKey] = useState('');
+  const [showAdvancedReport, setShowAdvancedReport] = useState(false);
   const [exportNote, setExportNote] = useState(
     '周报会导出最近 7 天，月报会导出当前自然月。归档和分享素材现在都能直接生成。'
   );
@@ -198,6 +199,50 @@ export function DropPanel(props: DropPanelProps) {
     Boolean(ocrResult?.suggestedItemName) && itemName !== (ocrResult?.suggestedItemName ?? '');
   const canAdoptSuggestedNote =
     Boolean(ocrResult?.suggestedNote) && note !== (ocrResult?.suggestedNote ?? '');
+  const hasDraft = Boolean(imageDataUrl || itemName.trim() || mapName.trim() || note.trim());
+  const latestTodayDrop = todayDrops[0] ?? null;
+  const previewDrops = (showAdvancedReport ? filteredDrops : todayDrops).slice(0, 5);
+  const dropFocus = useMemo(() => {
+    if (ocrBusy) {
+      return {
+        tone: 'attention' as const,
+        title: '正在识别这张截图',
+        detail: '先等 OCR 跑完，我会把建议物品名和备注回填到表单里。',
+        primaryLabel: '等待识别完成',
+        secondaryLabel: '展开详细战报'
+      };
+    }
+
+    if (hasDraft) {
+      return {
+        tone: 'attention' as const,
+        title: '这一条掉落已经在草稿里了',
+        detail: '回到录入表单就能直接保存。如果录错了，也可以一键清空当前草稿。',
+        primaryLabel: '保存这一条',
+        secondaryLabel: '清空当前草稿'
+      };
+    }
+
+    if (dailySummary.totalCount === 0) {
+      return {
+        tone: 'attention' as const,
+        title: '今天先记第一条掉落',
+        detail: '先 Ctrl+V 贴一张截图，或者直接手填一条记录，战报就会开始有内容。',
+        primaryLabel: '开始记第一条',
+        secondaryLabel: '展开详细战报'
+      };
+    }
+
+    return {
+      tone: 'success' as const,
+      title: `今天已经记了 ${dailySummary.totalCount} 条`,
+      detail: latestTodayDrop
+        ? `最近一条是 ${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}。现在可以继续贴图，或者再看看详细战报。`
+        : '今天的战报已经开起来了，可以继续贴图，也可以展开看详细统计。',
+      primaryLabel: '继续记新掉落',
+      secondaryLabel: '展开详细战报'
+    };
+  }, [dailySummary.totalCount, hasDraft, latestTodayDrop, ocrBusy]);
 
   useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
@@ -465,6 +510,33 @@ export function DropPanel(props: DropPanelProps) {
     }
   }
 
+  function handleDropFocusPrimary() {
+    if (ocrBusy) {
+      return;
+    }
+
+    if (hasDraft) {
+      const form = document.getElementById('drop-entry-form');
+      if (form instanceof HTMLFormElement) {
+        form.requestSubmit();
+        return;
+      }
+    }
+
+    const pasteZone = document.getElementById('drop-paste-zone');
+    pasteZone?.focus();
+    pasteZone?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function handleDropFocusSecondary() {
+    if (hasDraft) {
+      resetDraft();
+      return;
+    }
+
+    setShowAdvancedReport((current) => !current);
+  }
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -472,12 +544,69 @@ export function DropPanel(props: DropPanelProps) {
           <p className="eyebrow">Drops</p>
           <h3>战利品账本</h3>
         </div>
-        <span className="status-pill">
-          {ocrBusy ? 'OCR 识别中' : dailySummary.totalCount > 0 ? `今日 ${dailySummary.totalCount} 条记录` : '等待第一条战果'}
+        <span className={`status-pill ${dropFocus.tone}`}>
+          {ocrBusy ? 'OCR 识别中' : dailySummary.totalCount > 0 ? `今日 ${dailySummary.totalCount} 条` : '等待第一条'}
         </span>
       </div>
 
-      <div className="report-hero">
+      <article className={`card drop-focus-card tone-${dropFocus.tone}`}>
+        <div className="integration-head">
+          <div>
+            <div className="card-title">{dropFocus.title}</div>
+            <p className="secondary-text">{dropFocus.detail}</p>
+          </div>
+          <div className="tag-row">
+            <span className="mini-pill">今日 {dailySummary.totalCount} 条</span>
+            <span className="mini-pill">高亮 {dailySummary.highlightedCount} 条</span>
+            <span className="mini-pill">场景 {dailySummary.mapCount} 个</span>
+          </div>
+        </div>
+
+        <div className="drop-focus-grid">
+          <article className="focus-step-card">
+            <strong>当前主动作</strong>
+            <p>{hasDraft ? '把这条草稿存下来' : '先贴图或手填一条掉落'}</p>
+          </article>
+          <article className="focus-step-card">
+            <strong>最近一条</strong>
+            <p>
+              {latestTodayDrop
+                ? `${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}`
+                : '今天还没有掉落记录'}
+            </p>
+          </article>
+          <article className="focus-step-card">
+            <strong>详细复盘</strong>
+            <p>{showAdvancedReport ? '详细战报已展开' : '周报、导出和完整明细都先收在后面'}</p>
+          </article>
+        </div>
+
+        <div className="inline-actions">
+          <button
+            className="primary-button"
+            disabled={ocrBusy}
+            onClick={handleDropFocusPrimary}
+            type="button"
+          >
+            {dropFocus.primaryLabel}
+          </button>
+          <button className="ghost-button" onClick={handleDropFocusSecondary} type="button">
+            {hasDraft ? '清空当前草稿' : showAdvancedReport ? '收起详细战报' : dropFocus.secondaryLabel}
+          </button>
+          {latestTodayDrop?.screenshotPath ? (
+            <button
+              className="text-button"
+              onClick={() => void props.onOpenPath(latestTodayDrop.screenshotPath as string)}
+              type="button"
+            >
+              打开最近截图
+            </button>
+          ) : null}
+        </div>
+      </article>
+
+      <div className={`report-hero ${showAdvancedReport ? '' : 'report-hero-compact'}`}>
+        {showAdvancedReport ? (
         <article className="card hero-card">
           <div className="integration-head">
             <div>
@@ -680,8 +809,9 @@ export function DropPanel(props: DropPanelProps) {
             </article>
           </div>
         </article>
+        ) : null}
 
-        <form className="card hero-card" onSubmit={handleSubmit}>
+        <form className="card hero-card drop-entry-card" id="drop-entry-form" onSubmit={handleSubmit}>
           <div className="integration-head">
             <div>
               <div className="card-title">记录一条战利品</div>
@@ -727,6 +857,7 @@ export function DropPanel(props: DropPanelProps) {
 
           <div
             className={`paste-zone ${imageDataUrl ? 'ready' : ''}`}
+            id="drop-paste-zone"
             onPaste={handlePasteZone}
             tabIndex={0}
           >
@@ -818,6 +949,74 @@ export function DropPanel(props: DropPanelProps) {
         </form>
       </div>
 
+      <article className="card drop-preview-card">
+        <div className="integration-head">
+          <div>
+            <div className="card-title">最近几条</div>
+            <p className="secondary-text">
+              {showAdvancedReport
+                ? '这里显示当前筛选后的前 5 条，适合快速确认今天的记录有没有记对。'
+                : '先看今天最新的几条掉落，不用一上来就翻完整战报。'}
+            </p>
+          </div>
+          <span className="status-pill">{previewDrops.length} 条预览</span>
+        </div>
+
+        {previewDrops.length === 0 ? (
+          <div className="empty-state compact-empty">
+            <strong>现在还没有可预览的记录</strong>
+            <p>先保存一条掉落，或者展开详细战报调整筛选条件。</p>
+          </div>
+        ) : (
+          <div className="list-card">
+            {previewDrops.map((drop) => renderDropRow(drop, props.onOpenPath))}
+          </div>
+        )}
+      </article>
+
+      <article className={`card drop-advanced-card ${showAdvancedReport ? 'expanded' : ''}`}>
+        <div className="integration-head">
+          <div>
+            <div className="card-title">详细战报</div>
+            <p className="secondary-text">筛选、导出、周报和完整明细都收在这里，先记账，再复盘。</p>
+          </div>
+          <button
+            className="ghost-button"
+            onClick={() => setShowAdvancedReport((current) => !current)}
+            type="button"
+          >
+            {showAdvancedReport ? '收起详细战报' : '展开详细战报'}
+          </button>
+        </div>
+
+        {!showAdvancedReport ? (
+          <div className="drop-advanced-summary">
+            <article className="focus-step-card">
+              <strong>今日摘要</strong>
+              <p>{buildDailySummaryLine(dailySummary)}</p>
+            </article>
+            <article className="focus-step-card">
+              <strong>近 7 天热区</strong>
+              <p>
+                {weeklyHotspots[0]
+                  ? `${weeklyHotspots[0].mapName} · ${weeklyHotspots[0].totalCount} 条`
+                  : '还没有形成热区'}
+              </p>
+            </article>
+            <article className="focus-step-card">
+              <strong>导出入口</strong>
+              <p>周报海报、月报 PDF 和 Markdown/JSON 归档都已经准备好了。</p>
+            </article>
+          </div>
+        ) : (
+          <p className="secondary-text">
+            现在已经展开完整战报，你可以筛选今天的记录、导出周报，或者逐条回看截图。
+          </p>
+        )}
+      </article>
+
+      {showAdvancedReport ? (
+        <>
       <article className="card">
         <div className="panel-header">
           <div>
@@ -943,6 +1142,8 @@ export function DropPanel(props: DropPanelProps) {
           </div>
         )}
       </article>
+        </>
+      ) : null}
     </section>
   );
 }
