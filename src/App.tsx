@@ -9,6 +9,7 @@ import { AutomationPanel } from './components/AutomationPanel';
 import { CounterPanel } from './components/CounterPanel';
 import { DropPanel } from './components/DropPanel';
 import { FloatingPet } from './components/FloatingPet';
+import { PanelErrorBoundary } from './components/PanelErrorBoundary';
 import { PetCodexOverlay } from './components/PetCodexOverlay';
 import { PetShell } from './components/PetShell';
 import { SetupGuide } from './components/SetupGuide';
@@ -68,6 +69,12 @@ import type {
 
 type TabKey = 'companion' | 'drops' | 'workshop';
 type Message = { kind: 'success' | 'error'; text: string } | null;
+type SurfaceNoticeTone = 'neutral' | 'success' | 'attention' | 'error';
+type SurfaceNotice = {
+  title: string;
+  detail: string;
+  tone: SurfaceNoticeTone;
+} | null;
 type SetupGuideActivity = {
   title: string;
   detail: string;
@@ -121,6 +128,68 @@ interface CompanionIssue {
   title: string;
   detail: string;
   tone: CompanionIssueTone;
+}
+
+interface PanelScrollState {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+  progress: number;
+}
+
+function getTabMeta(tab: TabKey): { label: string; detail: string } {
+  switch (tab) {
+    case 'companion':
+      return {
+        label: '陪刷',
+        detail: '这里现在只保留当前动作、上次中断点和开跑入口。'
+      };
+    case 'drops':
+      return {
+        label: '战报',
+        detail: '先记一条掉落，再看最近几条和详细战报。'
+      };
+    case 'workshop':
+      return {
+        label: '工坊',
+        detail: '先看顶部主任务，再决定是补条件、录坐标还是试运行。'
+      };
+  }
+}
+
+function getBusySummary(busyKey: string | null): string | null {
+  if (!busyKey) {
+    return null;
+  }
+
+  if (busyKey === 'start-run') {
+    return '正在开始本次刷图记录。';
+  }
+
+  if (busyKey === 'stop-run') {
+    return '正在结算这一轮刷图。';
+  }
+
+  if (busyKey === 'create-drop') {
+    return '正在保存这条掉落记录。';
+  }
+
+  if (busyKey === 'settings') {
+    return '正在同步桌宠设置。';
+  }
+
+  if (busyKey.startsWith('env-')) {
+    return '正在处理运行环境或依赖。';
+  }
+
+  if (busyKey.startsWith('task-')) {
+    return '自动化任务正在执行，请先等结果回写。';
+  }
+
+  if (busyKey.startsWith('admin-')) {
+    return '正在处理坐标配置或维护动作。';
+  }
+
+  return '当前操作还在处理中。';
 }
 
 function buildCompanionIssues(
@@ -205,6 +274,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('companion');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState<Message>(null);
+  const [surfaceNotice, setSurfaceNotice] = useState<SurfaceNotice>(null);
   const [now, setNow] = useState(Date.now());
   const [highlightedDropName, setHighlightedDropName] = useState('');
   const [showSetupGuide, setShowSetupGuide] = useState(false);
@@ -225,6 +295,11 @@ export default function App() {
   const [showPetCodex, setShowPetCodex] = useState(false);
   const [showCompanionDetails, setShowCompanionDetails] = useState(false);
   const [selectedCodexEntryId, setSelectedCodexEntryId] = useState<string | null>(null);
+  const [panelScrollState, setPanelScrollState] = useState<PanelScrollState>({
+    canScrollUp: false,
+    canScrollDown: false,
+    progress: 0
+  });
   const panelStackRef = useRef<HTMLDivElement | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
   const petCeremonySnapshotRef = useRef<ReturnType<typeof createPetCeremonySnapshot> | null>(null);
@@ -247,6 +322,30 @@ export default function App() {
       setData(value);
     });
   }, []);
+
+  useEffect(() => {
+    if (!message) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setMessage((current) => (current === message ? null : current));
+    }, message.kind === 'error' ? 7200 : 4200);
+
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
+    if (!surfaceNotice) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSurfaceNotice((current) => (current === surfaceNotice ? null : current));
+    }, 2600);
+
+    return () => window.clearTimeout(timer);
+  }, [surfaceNotice]);
 
   useEffect(() => {
     return window.d2Pet.onFloatingSnapPreview((preview) => {
@@ -1010,8 +1109,38 @@ export default function App() {
     panelStackRef.current?.scrollTo({ top: 0, behavior });
   }
 
+  function refreshPanelScrollState() {
+    const root = panelStackRef.current;
+    if (!root) {
+      setPanelScrollState({
+        canScrollUp: false,
+        canScrollDown: false,
+        progress: 0
+      });
+      return;
+    }
+
+    const maxTop = Math.max(0, root.scrollHeight - root.clientHeight);
+    const nextState: PanelScrollState = {
+      canScrollUp: root.scrollTop > 4,
+      canScrollDown: root.scrollTop < maxTop - 4,
+      progress: maxTop > 0 ? Math.round((root.scrollTop / maxTop) * 100) : 0
+    };
+
+    setPanelScrollState((current) =>
+      current.canScrollUp === nextState.canScrollUp &&
+      current.canScrollDown === nextState.canScrollDown &&
+      current.progress === nextState.progress
+        ? current
+        : nextState
+    );
+  }
+
   function handleSelectTab(tab: TabKey) {
     const isSameTab = activeTab === tab;
+    const tabMeta = getTabMeta(tab);
+    const collapsedCompanionOverlays =
+      tab === 'companion' && (showSetupGuide || showCompanionDetails || showPetCodex);
 
     setActiveTab(tab);
     setShowPetCodex(false);
@@ -1023,6 +1152,17 @@ export default function App() {
 
     window.requestAnimationFrame(() => {
       scrollPanelToTop(isSameTab ? 'auto' : 'smooth');
+      refreshPanelScrollState();
+    });
+
+    setSurfaceNotice({
+      tone: isSameTab ? 'success' : 'attention',
+      title: isSameTab ? `${tabMeta.label} 已回到第一屏` : `已切到${tabMeta.label}`,
+      detail: isSameTab
+        ? collapsedCompanionOverlays
+          ? '我顺手把陪刷页里展开的层收回了，主路径已经回到顶部。'
+          : '当前页已经回到顶部，继续往下滚就能看到后面的内容。'
+        : tabMeta.detail
     });
   }
 
@@ -1070,6 +1210,10 @@ export default function App() {
     }
   }
 
+  function handlePanelScroll() {
+    refreshPanelScrollState();
+  }
+
   useEffect(() => {
     const root = panelStackRef.current;
     if (!root) {
@@ -1089,6 +1233,58 @@ export default function App() {
     root.addEventListener('wheel', handleNativeWheel, { passive: false });
     return () => root.removeEventListener('wheel', handleNativeWheel);
   }, [activeTab, showPetCodex]);
+
+  useEffect(() => {
+    const root = panelStackRef.current;
+    if (!root) {
+      return;
+    }
+
+    let frame = 0;
+    const scheduleRefresh = () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        refreshPanelScrollState();
+      });
+    };
+
+    const mutationObserver = new MutationObserver(() => {
+      scheduleRefresh();
+    });
+
+    mutationObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true
+    });
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleRefresh();
+      });
+      resizeObserver.observe(root);
+      Array.from(root.children).forEach((child) => resizeObserver?.observe(child));
+    }
+
+    root.addEventListener('scroll', scheduleRefresh, { passive: true });
+    window.addEventListener('resize', scheduleRefresh);
+    scheduleRefresh();
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+      root.removeEventListener('scroll', scheduleRefresh);
+      window.removeEventListener('resize', scheduleRefresh);
+    };
+  }, [activeTab, showCompanionDetails, showPetCodex, showSetupGuide]);
 
   useEffect(() => {
     panelStackRef.current?.focus({ preventScroll: true });
@@ -1215,6 +1411,27 @@ export default function App() {
       : nextWorkshopTask
         ? '先补条件'
         : '已可开跑';
+  const activeTabMeta = getTabMeta(activeTab);
+  const busySummary = getBusySummary(busyKey);
+  const panelScrollLabel = panelScrollState.canScrollDown
+    ? panelScrollState.canScrollUp
+      ? `已浏览 ${panelScrollState.progress}% · 继续下滑查看更多`
+      : '向下滚动查看更多'
+    : panelScrollState.canScrollUp
+      ? '已经到底部了'
+      : '当前内容已经完整显示';
+  const panelStatusLabel = busySummary
+    ? '处理中'
+    : panelScrollState.canScrollDown
+      ? '可下滑'
+      : panelScrollState.canScrollUp
+        ? '已到底'
+        : '已全显';
+  const panelFeedback = surfaceNotice ?? {
+    title: `当前页面：${activeTabMeta.label}`,
+    detail: busySummary ?? activeTabMeta.detail,
+    tone: (busySummary ? 'attention' : 'neutral') as SurfaceNoticeTone
+  };
 
   if (isFloatingMode) {
     return (
@@ -1347,13 +1564,40 @@ export default function App() {
           </button>
         </nav>
 
+        <article className={`page-feedback-bar tone-${panelFeedback.tone}`}>
+          <div>
+            <p className="eyebrow">{activeTabMeta.label}</p>
+            <strong>{panelFeedback.title}</strong>
+            <p className="secondary-text">{panelFeedback.detail}</p>
+          </div>
+          <div className="page-feedback-meta">
+            <span className={`status-pill ${busySummary ? 'attention' : 'success'}`}>
+              {panelStatusLabel}
+            </span>
+            <span className="helper-text">{panelScrollLabel}</span>
+          </div>
+        </article>
+
         <div
-          className={activeTab === 'companion' ? 'panel-stack panel-stack-companion' : 'panel-stack'}
+          className={[
+            'panel-stack',
+            activeTab === 'companion' ? 'panel-stack-companion' : '',
+            panelScrollState.canScrollUp ? 'has-top-hint' : '',
+            panelScrollState.canScrollDown ? 'has-bottom-hint' : ''
+          ]
+            .filter(Boolean)
+            .join(' ')}
           onWheelCapture={handlePanelWheel}
+          onScroll={handlePanelScroll}
           ref={panelStackRef}
           tabIndex={-1}
         >
           {activeTab === 'companion' ? (
+            <PanelErrorBoundary
+              onReset={() => handleSelectTab('companion')}
+              panelLabel="陪刷"
+              resetKey={`companion-${showSetupGuide}-${showCompanionDetails}-${showPetCodex}-${data.settings.setupGuideCompleted}`}
+            >
             <>
               {!data.settings.setupGuideCompleted && showSetupGuide ? (
                 <SetupGuide
@@ -1568,9 +1812,15 @@ export default function App() {
                 />
               ) : null}
             </>
+            </PanelErrorBoundary>
           ) : null}
 
           {activeTab === 'drops' ? (
+            <PanelErrorBoundary
+              onReset={() => handleSelectTab('drops')}
+              panelLabel="战报"
+              resetKey="drops"
+            >
             <DropPanel
               busy={busyKey === 'create-drop'}
               drops={data.drops}
@@ -1581,9 +1831,15 @@ export default function App() {
               onPreviewOcr={handlePreviewDropOcr}
               todayKey={todayKey}
             />
+            </PanelErrorBoundary>
           ) : null}
 
           {activeTab === 'workshop' ? (
+            <PanelErrorBoundary
+              onReset={() => handleSelectTab('workshop')}
+              panelLabel="工坊"
+              resetKey="workshop"
+            >
             <AutomationPanel
               busyKey={busyKey}
               highlightedTaskId={workshopFocusId}
@@ -1598,6 +1854,7 @@ export default function App() {
               onRunEnvironmentAction={handleRunEnvironmentAction}
               onRunTask={handleRunAutomationTask}
             />
+            </PanelErrorBoundary>
           ) : null}
         </div>
 

@@ -4178,6 +4178,55 @@ body {
   box-shadow: 0 10px 22px rgba(31, 57, 72, 0.22);
 }
 
+.page-feedback-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 10px 12px 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 214, 143, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 249, 236, 0.04), rgba(255, 255, 255, 0.012)),
+    rgba(12, 18, 24, 0.54);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 239, 204, 0.05),
+    0 12px 24px rgba(7, 10, 14, 0.16);
+  -webkit-app-region: no-drag;
+}
+
+.page-feedback-bar strong {
+  display: block;
+  color: var(--pet-text-0);
+  font-size: 16px;
+}
+
+.page-feedback-bar .secondary-text {
+  margin: 6px 0 0;
+}
+
+.page-feedback-bar.tone-success {
+  border-color: rgba(91, 186, 173, 0.24);
+}
+
+.page-feedback-bar.tone-attention {
+  border-color: rgba(242, 183, 104, 0.24);
+}
+
+.page-feedback-bar.tone-error {
+  border-color: rgba(223, 125, 112, 0.24);
+}
+
+.page-feedback-meta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: 160px;
+}
+
 .status-pill.success {
   color: #e4f7f1;
   background: rgba(34, 109, 102, 0.22);
@@ -4210,6 +4259,37 @@ body {
   pointer-events: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(242, 183, 104, 0.72) rgba(255, 244, 222, 0.05);
+}
+
+.panel-stack::before,
+.panel-stack::after {
+  content: '';
+  position: sticky;
+  left: 0;
+  right: 0;
+  display: block;
+  height: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  z-index: 3;
+}
+
+.panel-stack::before {
+  top: 0;
+  margin-bottom: -18px;
+  background: linear-gradient(180deg, rgba(8, 12, 17, 0.82), rgba(8, 12, 17, 0));
+}
+
+.panel-stack::after {
+  bottom: 0;
+  margin-top: -18px;
+  background: linear-gradient(0deg, rgba(8, 12, 17, 0.92), rgba(8, 12, 17, 0));
+}
+
+.panel-stack.has-top-hint::before,
+.panel-stack.has-bottom-hint::after {
+  opacity: 1;
 }
 
 .panel-stack > .panel {
@@ -4344,6 +4424,26 @@ body {
   margin: 0;
   color: var(--pet-text-2);
   line-height: 1.6;
+}
+
+.panel-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-fallback-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.panel-fallback-error {
+  border-color: rgba(223, 125, 112, 0.28);
+  background:
+    radial-gradient(circle at top right, rgba(223, 125, 112, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(48, 20, 17, 0.94), rgba(17, 10, 9, 0.96));
 }
 
 .compact-empty {
@@ -7456,5 +7556,19 @@ body {
 
   .recording-guide-step-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .page-feedback-bar,
+  .page-feedback-meta,
+  .panel-fallback-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page-feedback-meta {
+    justify-items: start;
+    min-width: 0;
   }
 }
