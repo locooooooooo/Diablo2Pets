@@ -29,7 +29,11 @@ import {
   createPetInteractionCue,
   type PetInteractionCue
 } from './lib/petPersona';
-import { buildSetupGuideHint } from './lib/setupGuideState';
+import {
+  buildSetupGuideHint,
+  getIntegrationLabel,
+  isTaskProfileReady
+} from './lib/setupGuideState';
 import { playPetChime } from './lib/petSound';
 import {
   buildPetProgression,
@@ -91,11 +95,11 @@ function getErrorMessage(error: unknown): string {
 function getAdminSuccessText(action: RunAutomationAdminInput['action']): string {
   switch (action) {
     case 'record-profile':
-      return 'Profile 录制完成，日志已经更新。';
+      return '坐标录制完成，日志已经更新。';
     case 'print-profile':
-      return '当前 profile 已输出到日志。';
+      return '当前坐标配置已输出到日志。';
     case 'import-legacy-config':
-      return '旧配置已经导入到新的 runtime。';
+      return '旧配置已经导入到新的运行环境。';
   }
 }
 
@@ -134,6 +138,7 @@ export default function App() {
   const [setupGuideTick, setSetupGuideTick] = useState(0);
   const [workshopFocusId, setWorkshopFocusId] = useState<IntegrationId | null>(null);
   const [showPetCodex, setShowPetCodex] = useState(false);
+  const [showCompanionDetails, setShowCompanionDetails] = useState(false);
   const [selectedCodexEntryId, setSelectedCodexEntryId] = useState<string | null>(null);
   const panelStackRef = useRef<HTMLDivElement | null>(null);
   const latestDropIdRef = useRef<string | null>(null);
@@ -426,6 +431,13 @@ export default function App() {
   const setupGuideHint = useMemo(
     () => buildSetupGuideHint(setupPreflight, data?.settings ?? DEFAULT_SETTINGS),
     [data?.settings, setupPreflight]
+  );
+  const nextWorkshopTask = useMemo(
+    () =>
+      (setupPreflight?.tasks ?? []).find(
+        (task) => task.status !== 'ready' || !isTaskProfileReady(task)
+      ) ?? null,
+    [setupPreflight]
   );
 
   useEffect(() => {
@@ -741,7 +753,7 @@ export default function App() {
       const successText =
         payload.action === 'install-python-deps'
           ? 'Python 运行时依赖安装完成。'
-          : '内置 Python runtime 已准备完成。';
+          : '内置 Python 运行环境已准备完成。';
 
       setMessage({
         kind: response.result.success ? 'success' : 'error',
@@ -753,7 +765,7 @@ export default function App() {
         title:
           payload.action === 'install-python-deps'
             ? '依赖安装结果'
-            : '内置 Runtime 处理结果',
+            : '内置运行环境处理结果',
         detail: response.result.success
           ? successText
           : response.result.stderr || response.result.stdout || '环境修复失败。',
@@ -1017,8 +1029,8 @@ export default function App() {
     handleOpenPanel('workshop');
     setWorkshopFocusId(id);
     setSetupGuideActivity({
-      title: `下一步：去录${id === 'rune-cube' ? '符文' : id === 'gem-cube' ? '宝石' : '金币'} Profile`,
-      detail: '我已经把你带到工坊对应任务卡了。看到高亮任务后，先点“录 Profile”，按弹出的提示捕获坐标。',
+      title: `下一步：去录${id === 'rune-cube' ? '符文' : id === 'gem-cube' ? '宝石' : '金币'}坐标`,
+      detail: '我已经把你带到工坊对应任务卡了。看到高亮任务后，先点“录坐标”，按弹出的提示捕获坐标。',
       tone: 'attention',
       timestampLabel: getSetupActivityTimeLabel()
     });
@@ -1061,6 +1073,29 @@ export default function App() {
   function handleClosePetCodex() {
     setShowPetCodex(false);
   }
+
+  const defaultRouteName = recentRuns[0]?.mapName ?? '混沌避难所';
+  const companionFocusTitle = data.activeRun
+    ? `正在记录 ${data.activeRun.mapName}`
+    : !data.settings.setupGuideCompleted
+      ? setupGuideHint.title
+      : nextWorkshopTask
+        ? `先补 ${getIntegrationLabel(nextWorkshopTask.id)} 这一条`
+        : '现在可以直接开跑';
+  const companionFocusDetail = data.activeRun
+    ? '先刷完这一轮，再去战报补掉落；其他内容先不用看。'
+    : !data.settings.setupGuideCompleted
+      ? `${setupGuideHint.detail} 先把这一步补完，别的信息可以先忽略。`
+      : nextWorkshopTask
+        ? `${nextWorkshopTask.summary}。我建议先处理这一条，工坊才会更稳。`
+        : '你现在只需要做三件事里的一个：开始一轮、去工坊试运行、去战报记掉落。';
+  const companionFocusBadge = data.activeRun
+    ? '当前任务'
+    : !data.settings.setupGuideCompleted
+      ? '下一步'
+      : nextWorkshopTask
+        ? '先补条件'
+        : '已可开跑';
 
   if (isFloatingMode) {
     return (
@@ -1229,7 +1264,7 @@ export default function App() {
               {!data.settings.setupGuideCompleted && !showSetupGuide ? (
                 <article className="card setup-guide-reminder">
                   <div>
-                    <p className="eyebrow">Guide</p>
+                    <p className="eyebrow">下一步</p>
                     <strong>{setupGuideHint.title}</strong>
                     <p className="secondary-text">
                       {setupGuideHint.detail}
@@ -1249,24 +1284,142 @@ export default function App() {
                 </article>
               ) : null}
 
-              <CounterPanel
-                activeDurationText={activeDurationText}
-                activeRun={data.activeRun}
-                busy={busyKey === 'start-run' || busyKey === 'stop-run'}
-                onFollowSetupGuideHint={handleFollowSetupGuideHint}
-                onOpenSetupGuide={handleOpenSetupGuide}
-                onGoToDrops={() => handleSelectTab('drops')}
-                onGoToWorkshop={() => handleSelectTab('workshop')}
-                onStartRun={handleStartRun}
-                onStopRun={handleStopRun}
-                preflight={setupPreflight}
-                preflightBusy={setupPreflightBusy}
-                recentDrops={todayDrops}
-                recentRuns={recentRuns}
-                setupGuideHint={setupGuideHint}
-                setupGuideCompleted={data.settings.setupGuideCompleted}
-                stats={todayStats}
-              />
+              {!showSetupGuide ? (
+                <article className="card companion-focus-card">
+                  <div className="integration-head">
+                    <div>
+                      <p className="eyebrow">{companionFocusBadge}</p>
+                      <div className="card-title">{companionFocusTitle}</div>
+                      <p className="secondary-text">{companionFocusDetail}</p>
+                    </div>
+                    <span className={`status-pill ${data.activeRun ? 'warm' : nextWorkshopTask ? 'attention' : 'success'}`}>
+                      {data.activeRun
+                        ? '先刷完这轮'
+                        : !data.settings.setupGuideCompleted
+                          ? '先补引导'
+                          : nextWorkshopTask
+                            ? '工坊待处理'
+                            : '直接开跑'}
+                    </span>
+                  </div>
+
+                  <div className="companion-focus-grid">
+                    <article className="focus-step-card">
+                      <span className="mini-pill">1</span>
+                      <strong>
+                        {data.activeRun
+                          ? '先完成这一轮'
+                          : !data.settings.setupGuideCompleted
+                            ? setupGuideHint.title
+                            : nextWorkshopTask
+                              ? `去补 ${getIntegrationLabel(nextWorkshopTask.id)}`
+                              : `开始 ${defaultRouteName}`}
+                      </strong>
+                      <p>
+                        {data.activeRun
+                          ? '刷完以后先结算本轮，再决定要不要记掉落。'
+                          : !data.settings.setupGuideCompleted
+                            ? '只跟着这一步走，不用先看养成和收藏。'
+                            : nextWorkshopTask
+                              ? '先把这条工坊线补齐，后面执行会更稳。'
+                              : '先开一轮最熟的图，首页和战报就会开始有内容。'}
+                      </p>
+                    </article>
+                    <article className="focus-step-card">
+                      <span className="mini-pill">2</span>
+                      <strong>工坊只做一件事</strong>
+                      <p>进工坊后只看顶部高亮任务卡，先录坐标或先试运行，不要同时管三条线。</p>
+                    </article>
+                    <article className="focus-step-card">
+                      <span className="mini-pill">3</span>
+                      <strong>战报最后再补</strong>
+                      <p>等真正刷完一轮，再去战报记掉落；现在可以先不用管收藏和养成。</p>
+                    </article>
+                  </div>
+
+                  <div className="tool-row">
+                    <button
+                      className="primary-button"
+                      disabled={busyKey === 'start-run' || busyKey === 'stop-run'}
+                      onClick={() => {
+                        if (data.activeRun) {
+                          void handleStopRun();
+                          return;
+                        }
+
+                        if (!data.settings.setupGuideCompleted) {
+                          handleFollowSetupGuideHint();
+                          return;
+                        }
+
+                        if (nextWorkshopTask) {
+                          handleOpenWorkshopTaskFromGuide(nextWorkshopTask.id);
+                          return;
+                        }
+
+                        void handleStartRun(defaultRouteName);
+                      }}
+                      type="button"
+                    >
+                      {data.activeRun
+                        ? busyKey === 'stop-run'
+                          ? '结算中...'
+                          : '完成这一轮'
+                        : !data.settings.setupGuideCompleted
+                          ? setupGuideHint.actionLabel
+                          : nextWorkshopTask
+                            ? `去处理${getIntegrationLabel(nextWorkshopTask.id)}`
+                            : `开始 ${defaultRouteName}`}
+                    </button>
+                    <button
+                      className="ghost-button"
+                      onClick={() =>
+                        nextWorkshopTask
+                          ? handleOpenWorkshopTaskFromGuide(nextWorkshopTask.id)
+                          : handleSelectTab('workshop')
+                      }
+                      type="button"
+                    >
+                      打开工坊
+                    </button>
+                    <button
+                      className="ghost-button"
+                      onClick={() => handleSelectTab('drops')}
+                      type="button"
+                    >
+                      打开战报
+                    </button>
+                    <button
+                      className="ghost-button"
+                      onClick={() => setShowCompanionDetails((current) => !current)}
+                      type="button"
+                    >
+                      {showCompanionDetails ? '收起详细面板' : '展开详细面板'}
+                    </button>
+                  </div>
+                </article>
+              ) : null}
+
+              {showCompanionDetails ? (
+                <CounterPanel
+                  activeDurationText={activeDurationText}
+                  activeRun={data.activeRun}
+                  busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+                  onFollowSetupGuideHint={handleFollowSetupGuideHint}
+                  onOpenSetupGuide={handleOpenSetupGuide}
+                  onGoToDrops={() => handleSelectTab('drops')}
+                  onGoToWorkshop={() => handleSelectTab('workshop')}
+                  onStartRun={handleStartRun}
+                  onStopRun={handleStopRun}
+                  preflight={setupPreflight}
+                  preflightBusy={setupPreflightBusy}
+                  recentDrops={todayDrops}
+                  recentRuns={recentRuns}
+                  setupGuideHint={setupGuideHint}
+                  setupGuideCompleted={data.settings.setupGuideCompleted}
+                  stats={todayStats}
+                />
+              ) : null}
 
               {showPetCodex && petCodex ? (
                 <PetCodexOverlay

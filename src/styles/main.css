@@ -2062,6 +2062,44 @@ select,
   min-width: 176px;
 }
 
+.companion-focus-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-color: rgba(255, 196, 107, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(255, 184, 96, 0.1), transparent 26%),
+    radial-gradient(circle at left bottom, rgba(84, 143, 168, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(44, 23, 17, 0.92), rgba(20, 11, 9, 0.94));
+}
+
+.companion-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.focus-step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 210, 145, 0.14);
+  background: rgba(255, 247, 236, 0.03);
+}
+
+.focus-step-card strong {
+  color: #fff0cf;
+  font-size: 16px;
+}
+
+.focus-step-card p {
+  margin: 0;
+  color: #d3b894;
+  line-height: 1.6;
+}
+
 .setup-guide-head {
   display: flex;
   align-items: flex-start;
@@ -4518,6 +4556,7 @@ body {
   .pet-habitat-head,
   .setup-guide-head,
   .setup-guide-reminder,
+  .companion-focus-card .integration-head,
   .environment-entry-banner,
   .workshop-spotlight-banner,
   .workshop-topbar,
@@ -4539,6 +4578,10 @@ body {
 
   .compact-script-dots {
     padding-bottom: 0;
+  }
+
+  .companion-focus-grid {
+    grid-template-columns: 1fr;
   }
 }
 

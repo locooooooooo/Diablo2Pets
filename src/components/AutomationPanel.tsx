@@ -1521,7 +1521,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       status: 'recording',
       detail: 'Python 录制窗口已经打开。请看弹出的控制台，按顺序对准游戏界面并按 F10 捕获当前点位。',
       updatedAt: new Date().toISOString(),
-      lastLine: 'Waiting for the first recorder hint...',
+      lastLine: '正在等待第一条录制提示...',
       live: false
     });
     scrollToTask(item.id);
@@ -1891,7 +1891,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
   function renderTaskLiveGuide(item: IntegrationConfig) {
     const preflightTask = preflightMap.get(item.id) ?? null;
-    const profileReady = isTaskProfileReady(item);
+    const profileReady = preflightTask ? isTaskProfileReady(preflightTask) : false;
     const tone = getTaskCardTone(item.id);
     const currentStepLabel =
       recordingGuide && recordingGuide.taskId === item.id
