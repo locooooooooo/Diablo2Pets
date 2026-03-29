@@ -186,7 +186,7 @@ select,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .pet-shell-summary-strip {
@@ -194,12 +194,18 @@ select,
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .pet-shell-summary-strip .ghost-button {
   padding: 8px 12px;
   border-radius: 12px;
+}
+
+.pet-shell-detail-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .pet-shell,
@@ -703,6 +709,11 @@ select,
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
     rgba(16, 9, 7, 0.44);
+}
+
+.pet-shell-detail-overview .pet-progress-card,
+.pet-shell-detail-overview .pet-stage-band {
+  margin-top: 0;
 }
 
 .floating-progress-card {

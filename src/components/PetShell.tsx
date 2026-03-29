@@ -192,10 +192,8 @@ export function PetShell(props: PetShellProps) {
       <div className="compact-meta no-drag">
         <span className={`emotion-pill emotion-${persona.emotion}`}>{persona.emotionLabel}</span>
         <span className="mini-pill">{props.activeRun ? '陪刷中' : '面板模式'}</span>
-        <span className="mini-pill pet-gesture-hint">摸头回应 / 双击庆祝</span>
-        {!props.setupGuideCompleted ? (
-          <span className="mini-pill pet-next-step">{props.setupGuideHint.badge}</span>
-        ) : null}
+        <span className="mini-pill">{environmentSummary}</span>
+        <span className="mini-pill">{workshopSummary}</span>
         {!props.setupGuideCompleted ? (
           <button
             className="quick-toggle active"
@@ -206,20 +204,6 @@ export function PetShell(props: PetShellProps) {
             {props.setupGuideHint.actionLabel}
           </button>
         ) : null}
-        <button
-          className={props.launchOnStartup ? 'quick-toggle active' : 'quick-toggle'}
-          onClick={props.onToggleLaunchOnStartup}
-          type="button"
-        >
-          开机自启
-        </button>
-        <button
-          className={props.notificationsEnabled ? 'quick-toggle active' : 'quick-toggle'}
-          onClick={props.onToggleNotifications}
-          type="button"
-        >
-          系统通知
-        </button>
       </div>
 
       {props.ceremony ? (
@@ -233,41 +217,8 @@ export function PetShell(props: PetShellProps) {
         </article>
       ) : null}
 
-      <div className="pet-stage-band no-drag">
-        <span className="pet-stage-chip strong">{props.scene.label}</span>
-        <span className="pet-stage-chip">{props.scene.auraLabel}</span>
-        <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
-      </div>
-
-      <article className="pet-progress-card no-drag">
-        <div className="pet-progress-head">
-          <div>
-            <p className="eyebrow">Bond</p>
-            <strong>
-              Lv.{props.progression.level} {props.progression.title}
-            </strong>
-          </div>
-          <span className="mini-pill">{props.progression.nextMilestone}</span>
-        </div>
-
-        <div aria-hidden="true" className="pet-progress-bar">
-          <span
-            className="pet-progress-fill"
-            style={{ width: `${Math.round(props.progression.progress * 100)}%` }}
-          />
-        </div>
-
-        <div className="pet-progress-meta">
-          <span>{props.progression.sceneLine}</span>
-          <span>{props.progression.progressLabel}</span>
-        </div>
-      </article>
-
       <div className="pet-shell-summary-strip no-drag">
-        <span className="mini-pill">{environmentSummary}</span>
-        <span className="mini-pill">{workshopSummary}</span>
-        <span className="mini-pill">{props.habitat.title}</span>
-        <button className="ghost-button pet-codex-launch" onClick={props.onOpenCodex} type="button">
+        <button className="ghost-button pet-codex-launch compact" onClick={props.onOpenCodex} type="button">
           打开藏品册
         </button>
         <button
@@ -276,7 +227,7 @@ export function PetShell(props: PetShellProps) {
           onClick={props.onToggleDetails}
           type="button"
         >
-          {props.detailsExpanded ? '收起扩展状态' : '展开扩展状态'}
+          {props.detailsExpanded ? '收起桌宠详情' : '展开桌宠详情'}
         </button>
       </div>
 
@@ -299,6 +250,58 @@ export function PetShell(props: PetShellProps) {
 
       {props.detailsExpanded ? (
         <>
+          <article className="pet-shell-detail-overview no-drag">
+            <div className="pet-stage-band">
+              <span className="pet-stage-chip strong">{props.scene.label}</span>
+              <span className="pet-stage-chip">{props.scene.auraLabel}</span>
+              <span className="pet-stage-ambient">{props.scene.ambientLine}</span>
+            </div>
+
+            <article className="pet-progress-card">
+              <div className="pet-progress-head">
+                <div>
+                  <p className="eyebrow">Bond</p>
+                  <strong>
+                    Lv.{props.progression.level} {props.progression.title}
+                  </strong>
+                </div>
+                <span className="mini-pill">{props.progression.nextMilestone}</span>
+              </div>
+
+              <div aria-hidden="true" className="pet-progress-bar">
+                <span
+                  className="pet-progress-fill"
+                  style={{ width: `${Math.round(props.progression.progress * 100)}%` }}
+                />
+              </div>
+
+              <div className="pet-progress-meta">
+                <span>{props.progression.sceneLine}</span>
+                <span>{props.progression.progressLabel}</span>
+              </div>
+            </article>
+
+            <div className="quick-toggle-row">
+              <button
+                className={props.launchOnStartup ? 'quick-toggle active' : 'quick-toggle'}
+                onClick={props.onToggleLaunchOnStartup}
+                type="button"
+              >
+                开机自启
+              </button>
+              <button
+                className={props.notificationsEnabled ? 'quick-toggle active' : 'quick-toggle'}
+                onClick={props.onToggleNotifications}
+                type="button"
+              >
+                系统通知
+              </button>
+              <button className="quick-toggle" onClick={props.onOpenCodex} type="button">
+                打开藏品册
+              </button>
+            </div>
+          </article>
+
           <article className="pet-habitat-card no-drag">
             <div className="pet-habitat-head">
               <div className="pet-habitat-copy">
