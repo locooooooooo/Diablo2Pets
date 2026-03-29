@@ -249,7 +249,7 @@ export function CounterPanel(props: CounterPanelProps) {
       return {
         badge: '当前动作',
         title: `正在记录 ${props.activeRun.mapName}`,
-        detail: '这一轮刷完以后，建议立刻结算并去战报页收口掉落，首页会自动更新今天的节奏。',
+        detail: '刷完回来点完成，再去战报记掉落。',
         label: props.busy ? '结算中...' : '完成这一轮',
         kind: 'primary',
         onClick: () => void props.onStopRun()
@@ -270,9 +270,9 @@ export function CounterPanel(props: CounterPanelProps) {
     if (blockingTask) {
       return {
         badge: '当前待办',
-        title: '工坊还有阻塞项',
-        detail: `${blockingTask.summary}。先补齐这一条，再执行自动化会更稳。`,
-        label: '前往工坊补条件',
+        title: '先补工坊阻塞项',
+        detail: `${blockingTask.summary}。先补这一项。`,
+        label: '去工坊处理',
         kind: 'primary',
         onClick: props.onGoToWorkshop
       };
@@ -281,9 +281,9 @@ export function CounterPanel(props: CounterPanelProps) {
     if (warningTask) {
       return {
         badge: '当前待办',
-        title: '工坊还有提醒项',
-        detail: `${warningTask.summary}。可以先看一眼，再决定是不是马上开跑。`,
-        label: '查看工坊预检',
+        title: '工坊有提醒',
+        detail: `${warningTask.summary}。先看一下就行。`,
+        label: '看工坊提醒',
         kind: 'secondary',
         onClick: props.onGoToWorkshop
       };
@@ -292,8 +292,8 @@ export function CounterPanel(props: CounterPanelProps) {
     if (props.recentRuns.length > 0 && props.recentDrops.length === 0) {
       return {
         badge: '今日待办',
-        title: '先把今天的战利品账本开起来',
-        detail: '你今天已经有刷图节奏了，再记下第一条掉落，首页和战报的趋势就会完整很多。',
+        title: '先记第一条掉落',
+        detail: '记完这条，战报和首页才会完整。',
         label: '去记录掉落',
         kind: 'primary',
         onClick: props.onGoToDrops
@@ -304,8 +304,8 @@ export function CounterPanel(props: CounterPanelProps) {
       const latestRoute = props.recentRuns[0].mapName;
       return {
         badge: '一键继续',
-        title: `沿用 ${latestRoute} 再开一轮`,
-        detail: '直接复用最近一轮的路线继续刷，是每天上线后最顺手的第一步。',
+        title: `继续 ${latestRoute}`,
+        detail: '直接沿用上一条路线最省事。',
         label: props.busy ? '启动中...' : `继续 ${latestRoute}`,
         kind: 'primary',
         onClick: () => void props.onStartRun(latestRoute)
@@ -314,8 +314,8 @@ export function CounterPanel(props: CounterPanelProps) {
 
     return {
       badge: '一键开局',
-      title: '开启今天的第一轮',
-      detail: '先从一张熟图开局，桌宠就能开始记录节奏、耗时和战果，后面的推荐也会更准。',
+      title: '开始今天第一轮',
+      detail: '先开一轮熟图，后面数据才会热起来。',
       label: props.busy ? '启动中...' : `开始 ${mapName.trim() || '混沌避难所'}`,
       kind: 'primary',
       onClick: () => void props.onStartRun(mapName.trim() || '混沌避难所')
@@ -342,8 +342,8 @@ export function CounterPanel(props: CounterPanelProps) {
     if (props.activeRun) {
       return {
         badge: '正在陪刷',
-        title: `你现在停在 ${props.activeRun.mapName}`,
-        detail: '这一轮还在计时里。刷完就回来点完成，然后顺手把掉落贴进战报，今天的首页节奏会继续往前滚动。',
+        title: `当前停在 ${props.activeRun.mapName}`,
+        detail: '刷完回来点完成，再去战报记掉落。',
         meta: `当前计时 ${props.activeDurationText}`,
         actions: [
           {
@@ -364,7 +364,7 @@ export function CounterPanel(props: CounterPanelProps) {
       return {
         badge: props.setupGuideHint.badge,
         title: props.setupGuideHint.title,
-        detail: `${props.setupGuideHint.detail} 这一段补完后，首页就会切回纯日常模式。`,
+        detail: `先做完这一步，首页就会回到日常模式。`,
         meta: '引导完成后，首页会自动切回纯日常模式。',
         actions: [
           {
@@ -384,8 +384,8 @@ export function CounterPanel(props: CounterPanelProps) {
     if (latestRunNeedingWrapUp) {
       return {
         badge: '上次中断点',
-        title: `${latestRunNeedingWrapUp.mapName} 那一轮还没收口`,
-        detail: '我看到你刚刷完一轮，但战报里还没有新的掉落记录。先记掉落，或者直接沿用这条路线继续开下一轮都可以。',
+        title: `${latestRunNeedingWrapUp.mapName} 还没收口`,
+        detail: '先记掉落，或者直接沿用这条路线继续。',
         meta: `上次结束于 ${formatCompactDateTime(latestRunNeedingWrapUp.endedAt)} · 用时 ${formatDuration(latestRunNeedingWrapUp.durationSeconds)}`,
         actions: [
           {
@@ -406,8 +406,8 @@ export function CounterPanel(props: CounterPanelProps) {
       const latestRun = props.recentRuns[0];
       return {
         badge: '上次中断点',
-        title: `从 ${latestRun.mapName} 继续今天的节奏`,
-        detail: '上一轮已经稳稳收口了。最顺手的继续方式，就是直接沿用最近的主刷路线，不用重新想今天该从哪里开始。',
+        title: `继续 ${latestRun.mapName}`,
+        detail: '上一轮已经收口，直接沿用这条路线最顺。',
         meta: `最近一次完成于 ${formatCompactDateTime(latestRun.endedAt)} · 用时 ${formatDuration(latestRun.durationSeconds)}`,
         actions: [
           {
@@ -426,8 +426,8 @@ export function CounterPanel(props: CounterPanelProps) {
 
     return {
       badge: '今日开局',
-      title: '从一张熟图把今天热起来',
-      detail: '先开第一轮，桌宠就能开始记录你的路线、时长和战果，后面的推荐也会立刻变得更准。',
+      title: '先开一轮熟图',
+      detail: '开局后首页和战报就会开始记录。',
       meta: '建议先选一条最熟的路线做热身。',
       actions: [
         {
@@ -569,10 +569,10 @@ export function CounterPanel(props: CounterPanelProps) {
     if (props.busy) {
       return {
         tone: 'attention',
-        title: props.activeRun ? '正在结算这一轮刷图' : '正在开始新的刷图记录',
+        title: props.activeRun ? '正在结算' : '正在开始记录',
         detail: props.activeRun
-          ? '这次结算完成后，今天的次数、耗时和上次中断点都会同步更新。'
-          : '路线一旦启动成功，首页和战报就会开始滚动出今天的内容。',
+          ? '本轮结束后，统计会立即刷新。'
+          : '开始成功后，今天的数据就会动起来。',
         meta: props.activeRun ? `当前计时 ${props.activeDurationText}` : '请先等本次动作完成'
       };
     }
@@ -580,18 +580,18 @@ export function CounterPanel(props: CounterPanelProps) {
     if (props.preflightBusy) {
       return {
         tone: 'attention',
-        title: '正在刷新工坊和环境状态',
-        detail: '我正在重新读取运行环境、依赖、坐标配置和任务预检，首页结果会随之更新。',
-        meta: '这一步完成后，首页会明确告诉你现在还缺什么'
+        title: '正在刷新状态',
+        detail: '我在重新读取环境、依赖和工坊预检。',
+        meta: '完成后会直接告诉你还能不能开跑'
       };
     }
 
     if (!props.preflight) {
       return {
         tone: 'attention',
-        title: '首页还在读取今天的可用状态',
-        detail: '桌宠已经打开，但工坊和环境诊断还没返回完。先稍等一下，或直接开始第一轮也可以。',
-        meta: '预检回来后，这里会直接显示“可开跑”还是“先补条件”'
+        title: '还在读取可用状态',
+        detail: '桌宠已经打开，预检结果还没回来。',
+        meta: '稍等一下，或直接开始第一轮也可以'
       };
     }
 
@@ -599,34 +599,34 @@ export function CounterPanel(props: CounterPanelProps) {
       return {
         tone: 'attention',
         title: props.setupGuideHint.title,
-        detail: `${props.setupGuideHint.detail} 这一步补完后，首页会彻底回到纯日常模式。`,
-        meta: '现在先跟着引导做，不用同时看养成、收藏和详细数据'
+        detail: '先做完这一步，首页就会回到日常模式。',
+        meta: '现在先跟着引导做就行'
       };
     }
 
     if (blockingTask) {
       return {
         tone: 'error',
-        title: '工坊还有阻塞项',
-        detail: `${blockingTask.summary}。建议先去工坊把这条补齐，再决定是否直接开跑。`,
-        meta: '阻塞项不处理，自动化联调会不稳定'
+        title: '工坊有阻塞项',
+        detail: `${blockingTask.summary}。建议先补这一项。`,
+        meta: '不处理这条，后面的自动化会不稳'
       };
     }
 
     if (warningTask) {
       return {
         tone: 'attention',
-        title: '工坊还有提醒项',
-        detail: `${warningTask.summary}。它不会完全挡住你，但最好先看一眼。`,
-        meta: '提醒项通常不会阻止陪刷，只会影响后续自动化稳定性'
+        title: '工坊有提醒',
+        detail: `${warningTask.summary}。最好先看一下。`,
+        meta: '它不会完全挡住你'
       };
     }
 
     if (props.activeRun) {
       return {
         tone: 'success',
-        title: `正在记录 ${props.activeRun.mapName}`,
-        detail: '这一轮已经在首页计时里了，刷完回来点完成，然后顺手去战报收口掉落就行。',
+        title: `已开始记录 ${props.activeRun.mapName}`,
+        detail: '刷完回来点完成，再去战报记掉落。',
         meta: `当前计时 ${props.activeDurationText}`
       };
     }
@@ -634,16 +634,16 @@ export function CounterPanel(props: CounterPanelProps) {
     if (props.stats.totalCount === 0) {
       return {
         tone: 'success',
-        title: '现在可以开始今天第一轮',
-        detail: '环境和首页状态已经能看清了。先开一轮熟图，今天的路线、掉落和统计就会自动热起来。',
+        title: '可以开始第一轮了',
+        detail: '先开一轮熟图，今天的数据就会热起来。',
         meta: '建议从你最熟的路线开局'
       };
     }
 
     return {
       tone: 'success',
-      title: '今天已经进入日常模式',
-      detail: '现在可以继续上一条路线、去记新掉落，或者切去工坊做试运行。',
+      title: '今天已进入日常模式',
+      detail: '现在可以继续路线、记掉落，或切去工坊。',
       meta: `今天已完成 ${props.stats.totalCount} 轮，已记录 ${props.recentDrops.length} 条掉落`
     };
   }, [
@@ -754,17 +754,17 @@ export function CounterPanel(props: CounterPanelProps) {
             {suggestedAction.label}
           </button>
           <button className="ghost-button" onClick={props.onGoToDrops} type="button">
-            打开战报
+            战报
           </button>
           <button className="ghost-button" onClick={props.onGoToWorkshop} type="button">
-            打开工坊
+            工坊
           </button>
           <button
             className={showAdvancedCompanion ? 'ghost-button active' : 'ghost-button'}
             onClick={() => toggleAdvancedCompanion()}
             type="button"
           >
-            {showAdvancedCompanion ? '收起今日详细面板' : '展开今日详细面板'}
+            {showAdvancedCompanion ? '收起详情' : '今日详情'}
           </button>
         </div>
       </article>
@@ -931,7 +931,7 @@ export function CounterPanel(props: CounterPanelProps) {
             onClick={() => toggleAdvancedCompanion()}
             type="button"
           >
-            {showAdvancedCompanion ? '收起详细面板' : '展开详细面板'}
+            {showAdvancedCompanion ? '收起详情' : '展开详情'}
           </button>
         </div>
 

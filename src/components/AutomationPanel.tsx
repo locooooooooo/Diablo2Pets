@@ -1490,10 +1490,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (needsEmbeddedRuntime) {
       return {
         tone: 'error',
-        title: '先补运行环境',
+        title: '先装运行环境',
         detail: environmentPrimaryAction.detail,
         primaryLabel: environmentPrimaryAction.label,
-        secondaryLabel: '展开更多诊断'
+        secondaryLabel: '更多诊断'
       };
     }
 
@@ -1503,7 +1503,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         title: '先补 Python 依赖',
         detail: environmentPrimaryAction.detail,
         primaryLabel: environmentPrimaryAction.label,
-        secondaryLabel: '展开更多诊断'
+        secondaryLabel: '更多诊断'
       };
     }
 
@@ -1511,10 +1511,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
       const label = getIntegrationLabel(nextProfileStep.id);
       return {
         tone: 'attention',
-        title: `先录 ${label} 坐标配置`,
-        detail: `${nextProfileStep.detail} 录完这一条，工坊可用性会立刻往前走。`,
-        primaryLabel: `开始录 ${label}`,
-        secondaryLabel: '切到这条任务',
+        title: `先录 ${label} 坐标`,
+        detail: '先把这条录好，再往下走。',
+        primaryLabel: `录 ${label}`,
+        secondaryLabel: '看这条任务',
         taskId: nextProfileStep.id
       };
     }
@@ -1524,12 +1524,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (blockingTask) {
       return {
         tone: 'error',
-        title: `当前卡在 ${getIntegrationLabel(blockingTask.id)}`,
+        title: `${getIntegrationLabel(blockingTask.id)} 有阻塞`,
         detail:
           preflightMap.get(blockingTask.id)?.summary ??
-          '这条任务还有阻塞项，先处理它再执行会更稳。',
-        primaryLabel: '打开这条任务',
-        secondaryLabel: '展开更多诊断',
+          '这条任务还有阻塞项，先处理它。',
+        primaryLabel: '看这条任务',
+        secondaryLabel: '更多诊断',
         taskId: blockingTask.id
       };
     }
@@ -1539,22 +1539,22 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (warningTask) {
       return {
         tone: 'attention',
-        title: `${getIntegrationLabel(warningTask.id)} 还有提醒项`,
+        title: `${getIntegrationLabel(warningTask.id)} 有提醒`,
         detail:
           preflightMap.get(warningTask.id)?.summary ??
-          '建议先看完这条任务的提醒，再决定是否马上执行。',
-        primaryLabel: '查看这条任务',
-        secondaryLabel: '展开更多诊断',
+          '建议先看完这条任务的提醒。',
+        primaryLabel: '看这条任务',
+        secondaryLabel: '更多诊断',
         taskId: warningTask.id
       };
     }
 
     return {
       tone: 'success',
-      title: `${getIntegrationLabel(selectedTask.id)} 已经可以试运行`,
-      detail: '现在可以先试运行一遍，看计划是否符合你的预期，再切回游戏执行。',
-      primaryLabel: '试运行当前任务',
-      secondaryLabel: '展开更多诊断',
+      title: `${getIntegrationLabel(selectedTask.id)} 可以试运行`,
+      detail: '先跑一遍计划，再决定是否正式执行。',
+      primaryLabel: '试运行',
+      secondaryLabel: '更多诊断',
       taskId: selectedTask.id
     };
   }, [
@@ -1571,9 +1571,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (props.busyKey === getEnvironmentBusyKey('install-python-runtime')) {
       return {
         tone: 'attention',
-        title: '正在安装内置运行环境',
-        detail: '这一步会把桌宠自己的 Python 运行环境准备好，后面自动化会更稳。',
-        meta: '安装过程中先不要重复点击工坊动作'
+        title: '正在安装运行环境',
+        detail: '装完后会自动重新诊断。',
+        meta: '请先等当前动作完成'
       };
     }
 
@@ -1581,15 +1581,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
       return {
         tone: 'attention',
         title: '正在安装 Python 依赖',
-        detail: '依赖和 OCR 组件装完后，预检会自动重新刷新。',
-        meta: '完成后这里会从“处理中”切回明确诊断'
+        detail: '装完后，预检会自动刷新。',
+        meta: '请先等当前动作完成'
       };
     }
 
     if (recordingGuide?.status === 'recording') {
       return {
         tone: 'attention',
-        title: `正在录 ${getIntegrationLabel(recordingGuide.taskId)} 坐标配置`,
+        title: `正在录 ${getIntegrationLabel(recordingGuide.taskId)} 坐标`,
         detail: recordingGuide.detail,
         meta: recordingGuide.lastLine || '请看弹出的录制窗口提示'
       };
@@ -1598,12 +1598,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (recordingGuide?.status === 'error') {
       return {
         tone: 'error',
-        title: `${getIntegrationLabel(recordingGuide.taskId)} 坐标录制失败`,
+        title: `${getIntegrationLabel(recordingGuide.taskId)} 录制失败`,
         detail: recordingGuide.detail,
-        meta: '建议先看日志，再重新录这一条',
+        meta: '建议先看日志，再重录',
         actions: [
           {
-            label: '重录这一条',
+            label: '重录',
             kind: 'primary',
             disabled: props.busyKey !== null,
             onClick: () => {
@@ -1620,12 +1620,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (recordingGuide?.status === 'success') {
       return {
         tone: 'success',
-        title: `${getIntegrationLabel(recordingGuide.taskId)} 坐标配置已录好`,
+        title: `${getIntegrationLabel(recordingGuide.taskId)} 已录好`,
         detail: recordingGuide.detail,
-        meta: '下一步建议直接试运行，先看计划再决定是否正式执行',
+        meta: '下一步建议直接试运行',
         actions: [
           {
-            label: '试运行这一条',
+            label: '试运行',
             kind: 'primary',
             disabled: props.busyKey !== null,
             onClick: () => void runTask(recordingGuide.taskId, 'dry-run')
@@ -1637,18 +1637,18 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (preflightBusy) {
       return {
         tone: 'attention',
-        title: '工坊正在刷新诊断',
-        detail: '我正在重新读取环境、依赖、坐标配置和三条任务线的预检结果。',
-        meta: '刷新完成后，这里会直接告诉你是“可开跑”还是“先补条件”'
+        title: '正在刷新工坊状态',
+        detail: '我在重新读取环境、依赖和三条任务线。',
+        meta: '刷新后会直接告诉你下一步'
       };
     }
 
     if (preflightError) {
       return {
         tone: 'error',
-        title: '工坊诊断这次没读出来',
+        title: '工坊诊断读取失败',
         detail: preflightError,
-        meta: '先重试一次；如果还失败，再看更多诊断和日志',
+        meta: '先重试；如果还失败，再看诊断和日志',
         actions: [
           {
             label: '重新诊断',
@@ -1657,7 +1657,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             onClick: requestPreflightRefresh
           },
           {
-            label: '展开更多诊断',
+            label: '更多诊断',
             kind: 'secondary',
             onClick: () => toggleWorkshopAdvanced(true)
           }
@@ -1668,9 +1668,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (!preflight) {
       return {
         tone: 'attention',
-        title: '工坊还在准备第一轮状态',
-        detail: '桌宠已经打开，但工坊诊断还没完整返回。稍等片刻，或者手动刷新一次。',
-        meta: '返回后会自动告诉你先补环境、先录坐标，还是已经能试运行',
+        title: '工坊还在准备中',
+        detail: '诊断结果还没完整返回。',
+        meta: '稍等片刻，或手动刷新一次',
         actions: [
           {
             label: '刷新诊断',
@@ -1689,8 +1689,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         detail: workshopFocus.detail,
         meta:
           needsEmbeddedRuntime || needsDependencyInstall
-            ? '先补环境，再录坐标，再试运行，这是最短路径'
-            : '先把缺的这条坐标配置录好，后面的工坊动作就会顺很多',
+            ? '先补环境，再录坐标，再试运行'
+            : '先把这条坐标录好，再往下走',
         actions: [
           {
             label: workshopFocus.primaryLabel,
@@ -1709,18 +1709,18 @@ export function AutomationPanel(props: AutomationPanelProps) {
 
     return {
       tone: 'success',
-      title: '工坊已经进入可联调状态',
-      detail: `${getIntegrationLabel(selectedTask.id)} 当前可试运行，其余任务线也已经有明确状态。`,
+      title: '工坊已就绪',
+      detail: `${getIntegrationLabel(selectedTask.id)} 当前可以试运行。`,
       meta: '建议先试运行，再决定是否正式执行',
       actions: [
         {
-          label: '试运行当前任务',
+          label: '试运行',
           kind: 'primary',
           disabled: props.busyKey !== null,
           onClick: () => void runTask(selectedTask.id, 'dry-run')
         },
         {
-          label: '展开更多诊断',
+          label: '更多诊断',
           kind: 'secondary',
           onClick: () => toggleWorkshopAdvanced()
         }
@@ -3679,7 +3679,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
             onClick={() => toggleWorkshopAdvanced()}
             type="button"
           >
-            {showWorkshopAdvanced ? '收起更多诊断' : '展开更多诊断'}
+            {showWorkshopAdvanced ? '收起诊断' : '更多诊断'}
           </button>
         </div>
       </article>

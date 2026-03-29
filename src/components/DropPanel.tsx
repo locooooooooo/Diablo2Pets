@@ -222,41 +222,41 @@ export function DropPanel(props: DropPanelProps) {
     if (ocrBusy) {
       return {
         tone: 'attention' as const,
-        title: '正在识别这张截图',
-        detail: '先等 OCR 跑完，我会把建议物品名和备注回填到表单里。',
-        primaryLabel: '等待识别完成',
-        secondaryLabel: '展开详细战报'
+        title: '正在识别截图',
+        detail: '等 OCR 跑完，我会把结果回填到表单。',
+        primaryLabel: '等待 OCR',
+        secondaryLabel: '看详细战报'
       };
     }
 
     if (hasDraft) {
       return {
         tone: 'attention' as const,
-        title: '这一条掉落已经在草稿里了',
-        detail: '回到录入表单就能直接保存。如果录错了，也可以一键清空当前草稿。',
+        title: '当前有一条待保存',
+        detail: '回到表单直接保存，或清空后重来。',
         primaryLabel: '保存这一条',
-        secondaryLabel: '清空当前草稿'
+        secondaryLabel: '清空草稿'
       };
     }
 
     if (dailySummary.totalCount === 0) {
       return {
         tone: 'attention' as const,
-        title: '今天先记第一条掉落',
-        detail: '先 Ctrl+V 贴一张截图，或者直接手填一条记录，战报就会开始有内容。',
-        primaryLabel: '开始记第一条',
-        secondaryLabel: '展开详细战报'
+        title: '先记第一条掉落',
+        detail: 'Ctrl+V 贴图或手填都行。',
+        primaryLabel: '开始记录',
+        secondaryLabel: '看详细战报'
       };
     }
 
     return {
       tone: 'success' as const,
-      title: `今天已经记了 ${dailySummary.totalCount} 条`,
+      title: `今日已记 ${dailySummary.totalCount} 条`,
       detail: latestTodayDrop
-        ? `最近一条是 ${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}。现在可以继续贴图，或者再看看详细战报。`
-        : '今天的战报已经开起来了，可以继续贴图，也可以展开看详细统计。',
-      primaryLabel: '继续记新掉落',
-      secondaryLabel: '展开详细战报'
+        ? `最近一条是 ${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}。`
+        : '今天的战报已经开起来了。',
+      primaryLabel: '继续记录',
+      secondaryLabel: '看详细战报'
     };
   }, [dailySummary.totalCount, hasDraft, latestTodayDrop, ocrBusy]);
   const dropStateCard = useMemo<DropStateCard>(() => {
@@ -269,8 +269,8 @@ export function DropPanel(props: DropPanelProps) {
     if (props.busy) {
       return {
         tone: 'attention',
-        title: '正在保存这条掉落记录',
-        detail: '保存完成后，最近几条、今日摘要和详细战报都会立刻刷新。',
+        title: '正在保存记录',
+        detail: '保存后，战报会立刻刷新。',
         meta: '请先等这次写入结束'
       };
     }
@@ -278,45 +278,45 @@ export function DropPanel(props: DropPanelProps) {
     if (ocrBusy) {
       return {
         tone: 'attention',
-        title: '正在识别这张截图',
-        detail: '我会先保存图片，再跑 OCR，并尝试把物品名和备注回填到表单里。',
-        meta: '识别完成前，不需要重复贴图'
+        title: '正在识别截图',
+        detail: '我会先保存图片，再把建议结果回填到表单。',
+        meta: '识别完成前，不用重复贴图'
       };
     }
 
     if (hasDraft) {
       return {
         tone: 'attention',
-        title: '当前有一条待保存的草稿',
-        detail: '这条草稿已经在表单里了。现在最短路径就是直接保存，或者清空后重新贴图。',
-        meta: preparedScreenshotPath ? '截图已经落盘' : '当前还没有正式写入账本'
+        title: '有一条待保存',
+        detail: '现在最短路径就是直接保存，或清空后重来。',
+        meta: preparedScreenshotPath ? '截图已经落盘' : '还没正式写入战报'
       };
     }
 
     if (dailySummary.totalCount === 0) {
       return {
         tone: 'attention',
-        title: '今天的战报还没开账',
-        detail: '先 Ctrl+V 贴一张截图，或者手填第一条掉落，战报页才会开始出现今天的统计和预览。',
-        meta: '第一条记录写进去后，这页会明显变得有内容'
+        title: '今天还没开账',
+        detail: '先记第一条掉落，战报页才会开始有内容。',
+        meta: '第一条保存后，这页会立刻充实起来'
       };
     }
 
     if (hasFilters && filteredDrops.length === 0) {
       return {
         tone: 'error',
-        title: '当前筛选下没有结果',
-        detail: '这不是数据丢了，而是筛选条件把今天的记录都筛掉了。可以先清空筛选再看。',
+        title: '当前筛选没有结果',
+        detail: '不是数据丢了，是筛选条件太严了。',
         meta: `今天共有 ${todayDrops.length} 条记录，当前命中 0 条`
       };
     }
 
     return {
       tone: 'success',
-      title: '战报已经在正常工作',
+      title: '战报工作正常',
       detail: latestTodayDrop
         ? `最近一条是 ${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}。`
-        : '今天的战报已经开起来了，可以继续贴图或回看最近几条。',
+        : '现在可以继续贴图，或回看最近几条。',
       meta: `今天共 ${dailySummary.totalCount} 条，其中高亮 ${dailySummary.highlightedCount} 条`
     };
   }, [
@@ -716,7 +716,7 @@ export function DropPanel(props: DropPanelProps) {
             {dropFocus.primaryLabel}
           </button>
           <button className="ghost-button" onClick={handleDropFocusSecondary} type="button">
-            {hasDraft ? '清空当前草稿' : showAdvancedReport ? '收起详细战报' : dropFocus.secondaryLabel}
+            {hasDraft ? '清空草稿' : showAdvancedReport ? '收起战报' : dropFocus.secondaryLabel}
           </button>
           {latestTodayDrop?.screenshotPath ? (
             <button
@@ -1113,7 +1113,7 @@ export function DropPanel(props: DropPanelProps) {
             onClick={() => toggleAdvancedReport()}
             type="button"
           >
-            {showAdvancedReport ? '收起详细战报' : '展开详细战报'}
+            {showAdvancedReport ? '收起战报' : '详细战报'}
           </button>
         </div>
 
