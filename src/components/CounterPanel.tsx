@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { formatCompactDateTime, formatDuration } from '../lib/date';
+import { PanelStateCard } from './PanelStateCard';
 import type { SetupGuideHint } from '../lib/setupGuideState';
 import type { TodayStats } from '../lib/stats';
 import type {
@@ -66,6 +67,13 @@ interface BattlePulseItem {
   label: string;
   value: string;
   detail: string;
+}
+
+interface CompanionStateCard {
+  tone: 'success' | 'attention' | 'error';
+  title: string;
+  detail: string;
+  meta: string;
 }
 
 function getLatestRunText(recentRuns: RunRecord[]): string {
@@ -536,6 +544,101 @@ export function CounterPanel(props: CounterPanelProps) {
       tone: 'attention' as const
     }));
   }, [latestRunText, readinessItems]);
+  const companionStateCard = useMemo<CompanionStateCard>(() => {
+    if (props.busy) {
+      return {
+        tone: 'attention',
+        title: props.activeRun ? '正在结算这一轮刷图' : '正在开始新的刷图记录',
+        detail: props.activeRun
+          ? '这次结算完成后，今天的次数、耗时和上次中断点都会同步更新。'
+          : '路线一旦启动成功，首页和战报就会开始滚动出今天的内容。',
+        meta: props.activeRun ? `当前计时 ${props.activeDurationText}` : '请先等本次动作完成'
+      };
+    }
+
+    if (props.preflightBusy) {
+      return {
+        tone: 'attention',
+        title: '正在刷新工坊和环境状态',
+        detail: '我正在重新读取运行环境、依赖、坐标配置和任务预检，首页结果会随之更新。',
+        meta: '这一步完成后，首页会明确告诉你现在还缺什么'
+      };
+    }
+
+    if (!props.preflight) {
+      return {
+        tone: 'attention',
+        title: '首页还在读取今天的可用状态',
+        detail: '桌宠已经打开，但工坊和环境诊断还没返回完。先稍等一下，或直接开始第一轮也可以。',
+        meta: '预检回来后，这里会直接显示“可开跑”还是“先补条件”'
+      };
+    }
+
+    if (!props.setupGuideCompleted) {
+      return {
+        tone: 'attention',
+        title: props.setupGuideHint.title,
+        detail: `${props.setupGuideHint.detail} 这一步补完后，首页会彻底回到纯日常模式。`,
+        meta: '现在先跟着引导做，不用同时看养成、收藏和详细数据'
+      };
+    }
+
+    if (blockingTask) {
+      return {
+        tone: 'error',
+        title: '工坊还有阻塞项',
+        detail: `${blockingTask.summary}。建议先去工坊把这条补齐，再决定是否直接开跑。`,
+        meta: '阻塞项不处理，自动化联调会不稳定'
+      };
+    }
+
+    if (warningTask) {
+      return {
+        tone: 'attention',
+        title: '工坊还有提醒项',
+        detail: `${warningTask.summary}。它不会完全挡住你，但最好先看一眼。`,
+        meta: '提醒项通常不会阻止陪刷，只会影响后续自动化稳定性'
+      };
+    }
+
+    if (props.activeRun) {
+      return {
+        tone: 'success',
+        title: `正在记录 ${props.activeRun.mapName}`,
+        detail: '这一轮已经在首页计时里了，刷完回来点完成，然后顺手去战报收口掉落就行。',
+        meta: `当前计时 ${props.activeDurationText}`
+      };
+    }
+
+    if (props.stats.totalCount === 0) {
+      return {
+        tone: 'success',
+        title: '现在可以开始今天第一轮',
+        detail: '环境和首页状态已经能看清了。先开一轮熟图，今天的路线、掉落和统计就会自动热起来。',
+        meta: '建议从你最熟的路线开局'
+      };
+    }
+
+    return {
+      tone: 'success',
+      title: '今天已经进入日常模式',
+      detail: '现在可以继续上一条路线、去记新掉落，或者切去工坊做试运行。',
+      meta: `今天已完成 ${props.stats.totalCount} 轮，已记录 ${props.recentDrops.length} 条掉落`
+    };
+  }, [
+    blockingTask,
+    props.activeDurationText,
+    props.activeRun,
+    props.busy,
+    props.preflight,
+    props.preflightBusy,
+    props.recentDrops.length,
+    props.setupGuideCompleted,
+    props.setupGuideHint.detail,
+    props.setupGuideHint.title,
+    props.stats.totalCount,
+    warningTask
+  ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -561,6 +664,14 @@ export function CounterPanel(props: CounterPanelProps) {
           <span className="status-pill">待命中</span>
         )}
       </div>
+
+      <PanelStateCard
+        detail={companionStateCard.detail}
+        eyebrow="当前状态"
+        meta={companionStateCard.meta}
+        title={companionStateCard.title}
+        tone={companionStateCard.tone}
+      />
 
       <article className="card companion-focus-card">
         <div className="integration-head">

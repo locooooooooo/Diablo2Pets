@@ -11,6 +11,7 @@ import {
   getIntegrationLabel,
   isTaskProfileReady
 } from '../lib/setupGuideState';
+import { PanelStateCard } from './PanelStateCard';
 import type {
   AutomationAdminAction,
   AutomationCheckItem,
@@ -121,6 +122,19 @@ interface WorkshopFocusState {
   primaryLabel: string;
   secondaryLabel: string;
   taskId?: IntegrationId;
+}
+
+interface WorkshopStateCard {
+  tone: 'success' | 'attention' | 'error';
+  title: string;
+  detail: string;
+  meta: string;
+  actions?: Array<{
+    label: string;
+    kind?: 'primary' | 'secondary';
+    disabled?: boolean;
+    onClick: () => void;
+  }>;
 }
 
 function getIntegration(
@@ -1546,6 +1560,178 @@ export function AutomationPanel(props: AutomationPanelProps) {
     preflightMap,
     selectedTask.id,
     taskItems
+  ]);
+  const workshopStateCard = useMemo<WorkshopStateCard>(() => {
+    if (props.busyKey === getEnvironmentBusyKey('install-python-runtime')) {
+      return {
+        tone: 'attention',
+        title: '正在安装内置运行环境',
+        detail: '这一步会把桌宠自己的 Python 运行环境准备好，后面自动化会更稳。',
+        meta: '安装过程中先不要重复点击工坊动作'
+      };
+    }
+
+    if (props.busyKey === getEnvironmentBusyKey('install-python-deps')) {
+      return {
+        tone: 'attention',
+        title: '正在安装 Python 依赖',
+        detail: '依赖和 OCR 组件装完后，预检会自动重新刷新。',
+        meta: '完成后这里会从“处理中”切回明确诊断'
+      };
+    }
+
+    if (recordingGuide?.status === 'recording') {
+      return {
+        tone: 'attention',
+        title: `正在录 ${getIntegrationLabel(recordingGuide.taskId)} 坐标配置`,
+        detail: recordingGuide.detail,
+        meta: recordingGuide.lastLine || '请看弹出的录制窗口提示'
+      };
+    }
+
+    if (recordingGuide?.status === 'error') {
+      return {
+        tone: 'error',
+        title: `${getIntegrationLabel(recordingGuide.taskId)} 坐标录制失败`,
+        detail: recordingGuide.detail,
+        meta: '建议先看日志，再重新录这一条',
+        actions: [
+          {
+            label: '重录这一条',
+            kind: 'primary',
+            disabled: props.busyKey !== null,
+            onClick: () => {
+              const item = getIntegration(props.integrations, recordingGuide.taskId);
+              handleSelectTask(recordingGuide.taskId);
+              openRecordingGuide(item);
+              void runAdmin(item, 'record-profile');
+            }
+          }
+        ]
+      };
+    }
+
+    if (recordingGuide?.status === 'success') {
+      return {
+        tone: 'success',
+        title: `${getIntegrationLabel(recordingGuide.taskId)} 坐标配置已录好`,
+        detail: recordingGuide.detail,
+        meta: '下一步建议直接试运行，先看计划再决定是否正式执行',
+        actions: [
+          {
+            label: '试运行这一条',
+            kind: 'primary',
+            disabled: props.busyKey !== null,
+            onClick: () => void runTask(recordingGuide.taskId, 'dry-run')
+          }
+        ]
+      };
+    }
+
+    if (preflightBusy) {
+      return {
+        tone: 'attention',
+        title: '工坊正在刷新诊断',
+        detail: '我正在重新读取环境、依赖、坐标配置和三条任务线的预检结果。',
+        meta: '刷新完成后，这里会直接告诉你是“可开跑”还是“先补条件”'
+      };
+    }
+
+    if (preflightError) {
+      return {
+        tone: 'error',
+        title: '工坊诊断这次没读出来',
+        detail: preflightError,
+        meta: '先重试一次；如果还失败，再看更多诊断和日志',
+        actions: [
+          {
+            label: '重新诊断',
+            kind: 'primary',
+            disabled: props.busyKey !== null,
+            onClick: requestPreflightRefresh
+          },
+          {
+            label: '展开更多诊断',
+            kind: 'secondary',
+            onClick: () => setShowWorkshopAdvanced(true)
+          }
+        ]
+      };
+    }
+
+    if (!preflight) {
+      return {
+        tone: 'attention',
+        title: '工坊还在准备第一轮状态',
+        detail: '桌宠已经打开，但工坊诊断还没完整返回。稍等片刻，或者手动刷新一次。',
+        meta: '返回后会自动告诉你先补环境、先录坐标，还是已经能试运行',
+        actions: [
+          {
+            label: '刷新诊断',
+            kind: 'primary',
+            disabled: props.busyKey !== null,
+            onClick: requestPreflightRefresh
+          }
+        ]
+      };
+    }
+
+    if (needsEmbeddedRuntime || needsDependencyInstall || nextProfileStep) {
+      return {
+        tone: workshopFocus.tone,
+        title: workshopFocus.title,
+        detail: workshopFocus.detail,
+        meta:
+          needsEmbeddedRuntime || needsDependencyInstall
+            ? '先补环境，再录坐标，再试运行，这是最短路径'
+            : '先把缺的这条坐标配置录好，后面的工坊动作就会顺很多',
+        actions: [
+          {
+            label: workshopFocus.primaryLabel,
+            kind: 'primary',
+            disabled: props.busyKey !== null,
+            onClick: handleWorkshopFocusPrimary
+          },
+          {
+            label: workshopFocus.secondaryLabel,
+            kind: 'secondary',
+            onClick: handleWorkshopFocusSecondary
+          }
+        ]
+      };
+    }
+
+    return {
+      tone: 'success',
+      title: '工坊已经进入可联调状态',
+      detail: `${getIntegrationLabel(selectedTask.id)} 当前可试运行，其余任务线也已经有明确状态。`,
+      meta: '建议先试运行，再决定是否正式执行',
+      actions: [
+        {
+          label: '试运行当前任务',
+          kind: 'primary',
+          disabled: props.busyKey !== null,
+          onClick: () => void runTask(selectedTask.id, 'dry-run')
+        },
+        {
+          label: '展开更多诊断',
+          kind: 'secondary',
+          onClick: () => setShowWorkshopAdvanced((current) => !current)
+        }
+      ]
+    };
+  }, [
+    needsDependencyInstall,
+    needsEmbeddedRuntime,
+    nextProfileStep,
+    preflight,
+    preflightBusy,
+    preflightError,
+    props.busyKey,
+    props.integrations,
+    recordingGuide,
+    selectedTask.id,
+    workshopFocus
   ]);
 
   useEffect(() => {
@@ -3183,6 +3369,15 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </div>
         <span className="status-pill">先做当前这一项</span>
       </div>
+
+      <PanelStateCard
+        actions={workshopStateCard.actions}
+        detail={workshopStateCard.detail}
+        eyebrow="当前状态"
+        meta={workshopStateCard.meta}
+        title={workshopStateCard.title}
+        tone={workshopStateCard.tone}
+      />
 
       {renderWorkshopFocusPanel()}
       {renderTaskSwitcher()}

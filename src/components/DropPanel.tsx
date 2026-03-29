@@ -22,6 +22,7 @@ import {
   type DropCategory,
   type PreparedDropRecord
 } from '../lib/dropReport';
+import { PanelStateCard } from './PanelStateCard';
 import type {
   DropOcrResult,
   DropRecord,
@@ -55,6 +56,13 @@ interface DropPanelProps {
 }
 
 type CategoryFilter = 'all' | DropCategory;
+
+interface DropStateCard {
+  tone: 'success' | 'attention' | 'error';
+  title: string;
+  detail: string;
+  meta: string;
+}
 
 function getRecentDayKeys(todayKey: string, count: number): string[] {
   const [year, month, day] = todayKey.split('-').map(Number);
@@ -243,6 +251,81 @@ export function DropPanel(props: DropPanelProps) {
       secondaryLabel: '展开详细战报'
     };
   }, [dailySummary.totalCount, hasDraft, latestTodayDrop, ocrBusy]);
+  const dropStateCard = useMemo<DropStateCard>(() => {
+    const hasFilters =
+      searchText.trim().length > 0 ||
+      categoryFilter !== 'all' ||
+      mapFilter !== 'all' ||
+      highlightOnly;
+
+    if (props.busy) {
+      return {
+        tone: 'attention',
+        title: '正在保存这条掉落记录',
+        detail: '保存完成后，最近几条、今日摘要和详细战报都会立刻刷新。',
+        meta: '请先等这次写入结束'
+      };
+    }
+
+    if (ocrBusy) {
+      return {
+        tone: 'attention',
+        title: '正在识别这张截图',
+        detail: '我会先保存图片，再跑 OCR，并尝试把物品名和备注回填到表单里。',
+        meta: '识别完成前，不需要重复贴图'
+      };
+    }
+
+    if (hasDraft) {
+      return {
+        tone: 'attention',
+        title: '当前有一条待保存的草稿',
+        detail: '这条草稿已经在表单里了。现在最短路径就是直接保存，或者清空后重新贴图。',
+        meta: preparedScreenshotPath ? '截图已经落盘' : '当前还没有正式写入账本'
+      };
+    }
+
+    if (dailySummary.totalCount === 0) {
+      return {
+        tone: 'attention',
+        title: '今天的战报还没开账',
+        detail: '先 Ctrl+V 贴一张截图，或者手填第一条掉落，战报页才会开始出现今天的统计和预览。',
+        meta: '第一条记录写进去后，这页会明显变得有内容'
+      };
+    }
+
+    if (hasFilters && filteredDrops.length === 0) {
+      return {
+        tone: 'error',
+        title: '当前筛选下没有结果',
+        detail: '这不是数据丢了，而是筛选条件把今天的记录都筛掉了。可以先清空筛选再看。',
+        meta: `今天共有 ${todayDrops.length} 条记录，当前命中 0 条`
+      };
+    }
+
+    return {
+      tone: 'success',
+      title: '战报已经在正常工作',
+      detail: latestTodayDrop
+        ? `最近一条是 ${latestTodayDrop.itemName}${latestTodayDrop.mapName ? ` · ${latestTodayDrop.mapName}` : ''}。`
+        : '今天的战报已经开起来了，可以继续贴图或回看最近几条。',
+      meta: `今天共 ${dailySummary.totalCount} 条，其中高亮 ${dailySummary.highlightedCount} 条`
+    };
+  }, [
+    categoryFilter,
+    dailySummary.highlightedCount,
+    dailySummary.totalCount,
+    filteredDrops.length,
+    hasDraft,
+    highlightOnly,
+    latestTodayDrop,
+    mapFilter,
+    ocrBusy,
+    preparedScreenshotPath,
+    props.busy,
+    searchText,
+    todayDrops.length
+  ]);
 
   useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
@@ -548,6 +631,14 @@ export function DropPanel(props: DropPanelProps) {
           {ocrBusy ? 'OCR 识别中' : dailySummary.totalCount > 0 ? `今日 ${dailySummary.totalCount} 条` : '等待第一条'}
         </span>
       </div>
+
+      <PanelStateCard
+        detail={dropStateCard.detail}
+        eyebrow="当前状态"
+        meta={dropStateCard.meta}
+        title={dropStateCard.title}
+        tone={dropStateCard.tone}
+      />
 
       <article className={`card drop-focus-card tone-${dropFocus.tone}`}>
         <div className="integration-head">
