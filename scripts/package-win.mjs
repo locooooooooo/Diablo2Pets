@@ -66,7 +66,15 @@ const packagerBaseArgs = [
   '--icon',
   'build/icon.ico',
   '--prune=true',
-  '--asar.unpackDir=automation/python_runtime'
+  '--asar.unpackDir=automation/python_runtime',
+  '--ignore=^/release',
+  '--ignore=^/release-fixed',
+  '--ignore=^/src',
+  '--ignore=^/docs',
+  '--ignore=^/scripts',
+  '--ignore=^/vendor',
+  '--ignore=^/.git',
+  '--ignore=^/node_modules'
 ];
 
 if (electronCacheDir && existsSync(electronCacheDir)) {

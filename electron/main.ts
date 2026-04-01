@@ -92,6 +92,8 @@ const reportPreviewRoot = () => join(app.getPath('userData'), 'd2-pet', 'report-
 const managedPythonRoot = () => join(app.getPath('userData'), 'd2-pet', 'python-runtime');
 const runtimeRequirementsPath = () => join(pythonRuntimeRoot, 'requirements.txt');
 const runtimeReadmePath = () => join(pythonRuntimeRoot, 'README.md');
+const runCounterScriptPath = () => join(pythonRuntimeRoot, 'tasks', 'run_counter_monitor.py');
+const runCounterTemplateRoot = () => join(pythonRuntimeRoot, 'assets', 'run_counter');
 
 function getProjectBundledPythonRoot(): string {
   return join(workspaceRoot, 'vendor', 'python-runtime', 'win32-x64');
@@ -119,6 +121,9 @@ let pythonEnvironmentProbeCache:
       value: PythonEnvironmentProbe;
     }
   | null = null;
+let runCounterMonitorProcess: ReturnType<typeof spawn> | null = null;
+let runCounterMonitorExpectedExit = false;
+let runCounterMonitorEventChain: Promise<void> = Promise.resolve();
 
 interface PythonDependencyProbeItem {
   module: string;
@@ -1013,6 +1018,7 @@ function defaultAutomationDrafts(): AutomationDrafts {
 
 function createDefaultData(): AppData {
   return {
+    counterSession: null,
     activeRun: null,
     runHistory: [],
     drops: [],
@@ -1040,6 +1046,7 @@ function mergeIntegrations(existing: IntegrationConfig[] | undefined): Integrati
 function normalizeData(input: Partial<AppData> | undefined): AppData {
   const fallback = createDefaultData();
   return {
+    counterSession: input?.counterSession ?? fallback.counterSession,
     activeRun: input?.activeRun ?? fallback.activeRun,
     runHistory: Array.isArray(input?.runHistory) ? input.runHistory : fallback.runHistory,
     drops: Array.isArray(input?.drops) ? input.drops : fallback.drops,
@@ -1133,6 +1140,240 @@ async function writeDataStore(
     void refreshTrayMenu(normalized);
   }
   return normalized;
+}
+
+function buildCounterSession(mapName: string) {
+  const startedAt = new Date().toISOString();
+  return {
+    id: buildId('counter-session'),
+    mapName,
+    startedAt,
+    state: 'waiting-for-game' as const,
+    completedRuns: 0,
+    totalDurationSeconds: 0,
+    lastEventAt: startedAt,
+    lastDetectedState: 'booting' as const,
+    lastDetail: '自动统计刚刚开始，等待识别游戏状态。'
+  };
+}
+
+function isCounterInGameState(state: string): boolean {
+  return state === 'in-game' || state === 'in-game-menu';
+}
+
+function isCounterLobbyState(state: string): boolean {
+  return state === 'lobby';
+}
+
+function finalizeActiveRunRecord(data: AppData, endedAt: Date) {
+  if (!data.activeRun) {
+    return null;
+  }
+
+  const finishedRun = data.activeRun;
+  const durationSeconds = Math.max(
+    1,
+    Math.round((endedAt.getTime() - new Date(finishedRun.startedAt).getTime()) / 1000)
+  );
+
+  data.runHistory.unshift({
+    ...finishedRun,
+    endedAt: endedAt.toISOString(),
+    durationSeconds,
+    dayKey: getDayKey(endedAt)
+  });
+  data.runHistory = data.runHistory.slice(0, 1000);
+  data.activeRun = null;
+
+  return {
+    mapName: finishedRun.mapName,
+    durationSeconds,
+    endedAt: endedAt.toISOString()
+  };
+}
+
+function enqueueRunCounterMonitorUpdate(task: () => Promise<void>): void {
+  runCounterMonitorEventChain = runCounterMonitorEventChain
+    .then(task)
+    .catch((error) => {
+      console.error('Run counter monitor update failed:', error);
+    });
+}
+
+async function stopRunCounterMonitor(): Promise<void> {
+  if (!runCounterMonitorProcess) {
+    return;
+  }
+
+  runCounterMonitorExpectedExit = true;
+  const processRef = runCounterMonitorProcess;
+  runCounterMonitorProcess = null;
+
+  try {
+    processRef.kill();
+  } catch {
+    return;
+  }
+}
+
+async function handleRunCounterStateEvent(event: {
+  state: string;
+  detail?: string;
+  detectedAt?: string;
+}): Promise<void> {
+  const data = await readDataStore();
+  if (!data.counterSession) {
+    return;
+  }
+
+  const session = data.counterSession;
+  const detectedAt = event.detectedAt ? new Date(event.detectedAt) : new Date();
+  session.lastEventAt = detectedAt.toISOString();
+  session.lastDetectedState = (event.state || 'unknown') as typeof session.lastDetectedState;
+  session.lastDetail = event.detail?.trim() || session.lastDetail;
+
+  if (isCounterInGameState(event.state)) {
+    session.state = 'in-game';
+
+    if (!data.activeRun) {
+      data.activeRun = {
+        id: buildId('run'),
+        mapName: session.mapName,
+        startedAt: detectedAt.toISOString()
+      };
+
+      const nextData = await writeDataStore(data);
+      void sendDesktopNotification(
+        '已识别进游戏',
+        `${session.mapName} 已开始自动计时。`
+      );
+      return void nextData;
+    }
+
+    await writeDataStore(data);
+    return;
+  }
+
+  if (isCounterLobbyState(event.state)) {
+    const finalized = finalizeActiveRunRecord(data, detectedAt);
+    session.state = finalized ? 'waiting-next-game' : 'waiting-for-game';
+
+    if (finalized) {
+      session.completedRuns += 1;
+      session.totalDurationSeconds += finalized.durationSeconds;
+      session.lastRunDurationSeconds = finalized.durationSeconds;
+      session.lastRunEndedAt = finalized.endedAt;
+    }
+
+    await writeDataStore(data);
+
+    if (finalized) {
+      void sendDesktopNotification(
+        `第 ${session.completedRuns} 把已记录`,
+        `${finalized.mapName} 用时 ${formatDurationText(finalized.durationSeconds)}，累计 ${session.completedRuns} 把。`
+      );
+    }
+    return;
+  }
+
+  if (!data.activeRun) {
+    session.state = session.completedRuns > 0 ? 'waiting-next-game' : 'waiting-for-game';
+  }
+
+  await writeDataStore(data);
+}
+
+async function ensureRunCounterMonitor(): Promise<void> {
+  if (runCounterMonitorProcess && !runCounterMonitorProcess.killed) {
+    return;
+  }
+
+  const pythonCommand = resolvePythonCommand();
+  const scriptPath = runCounterScriptPath();
+  const templateRoot = runCounterTemplateRoot();
+
+  if (!existsSync(scriptPath)) {
+    throw new Error(`自动计数脚本不存在：${scriptPath}`);
+  }
+
+  if (!existsSync(templateRoot)) {
+    throw new Error(`自动计数模板目录不存在：${templateRoot}`);
+  }
+
+  runCounterMonitorExpectedExit = false;
+  const child = spawn(pythonCommand, [scriptPath, '--template-root', templateRoot], {
+    cwd: pythonRuntimeRoot,
+    windowsHide: true
+  });
+  runCounterMonitorProcess = child;
+
+  let stdoutBuffer = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk: string) => {
+    stdoutBuffer += chunk;
+    const lines = stdoutBuffer.split(/\r?\n/);
+    stdoutBuffer = lines.pop() ?? '';
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line.startsWith('{')) {
+        continue;
+      }
+
+      try {
+        const payload = JSON.parse(line) as {
+          type?: string;
+          state?: string;
+          detail?: string;
+          detectedAt?: string;
+        };
+
+        if (payload.type !== 'state' || !payload.state) {
+          continue;
+        }
+
+        enqueueRunCounterMonitorUpdate(() => handleRunCounterStateEvent(payload as { state: string; detail?: string; detectedAt?: string; }));
+      } catch (error) {
+        console.error('Failed to parse run counter monitor payload:', line, error);
+      }
+    }
+  });
+
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk: string) => {
+    const message = chunk.trim();
+    if (!message) {
+      return;
+    }
+    console.error('run_counter_monitor stderr:', message);
+  });
+
+  child.on('exit', (code, signal) => {
+    runCounterMonitorProcess = null;
+    const expectedExit = runCounterMonitorExpectedExit;
+    runCounterMonitorExpectedExit = false;
+
+    if (expectedExit) {
+      return;
+    }
+
+    enqueueRunCounterMonitorUpdate(async () => {
+      const data = await readDataStore();
+      if (!data.counterSession) {
+        return;
+      }
+
+      data.counterSession.state = 'error';
+      data.counterSession.lastDetectedState = 'stopped';
+      data.counterSession.lastEventAt = new Date().toISOString();
+      data.counterSession.lastDetail = `自动计数监控已退出（code=${code ?? 'null'}, signal=${signal ?? 'null'}）。`;
+      await writeDataStore(data);
+      void sendDesktopNotification(
+        '自动计数已中断',
+        '后台监控进程意外退出了，请重新开始一次陪刷统计。'
+      );
+    });
+  });
 }
 
 function applyAlwaysOnTopState(value: boolean): void {
@@ -2657,46 +2898,58 @@ ipcMain.handle('run:start', async (_event, payload: StartRunInput) => {
   }
 
   const data = await readDataStore();
+  if (data.counterSession) {
+    throw new Error('自动统计已经在运行。进游戏后会自动开始计时。');
+  }
+
   if (data.activeRun) {
     throw new Error('当前已经有一条进行中的刷图记录。');
   }
 
-  data.activeRun = {
-    id: buildId('run'),
-    mapName,
-    startedAt: new Date().toISOString()
-  };
+  data.counterSession = buildCounterSession(mapName);
+  const nextData = await writeDataStore(data);
 
-  return writeDataStore(data);
+  try {
+    await ensureRunCounterMonitor();
+  } catch (error) {
+    const rollbackData = await readDataStore();
+    rollbackData.counterSession = null;
+    await writeDataStore(rollbackData);
+    throw error;
+  }
+
+  void sendDesktopNotification('自动计数已开启', `${mapName} 已进入等待识别状态。进游戏后会自动起表。`);
+  return nextData;
 });
 
 ipcMain.handle('run:stop', async () => {
   const data = await readDataStore();
-  if (!data.activeRun) {
-    throw new Error('当前没有正在进行中的刷图。');
+  if (!data.counterSession && !data.activeRun) {
+    throw new Error('当前没有正在进行中的自动统计。');
   }
 
-  const now = new Date();
-  const completedMapName = data.activeRun.mapName;
-  const startedAt = new Date(data.activeRun.startedAt);
-  const durationSeconds = Math.max(
-    1,
-    Math.round((now.getTime() - startedAt.getTime()) / 1000)
-  );
+  await stopRunCounterMonitor();
 
-  data.runHistory.unshift({
-    ...data.activeRun,
-    endedAt: now.toISOString(),
-    durationSeconds,
-    dayKey: getDayKey(now)
-  });
-  data.runHistory = data.runHistory.slice(0, 1000);
-  data.activeRun = null;
+  const now = new Date();
+  const finalized = finalizeActiveRunRecord(data, now);
+  if (data.counterSession && finalized) {
+    data.counterSession.completedRuns += 1;
+    data.counterSession.totalDurationSeconds += finalized.durationSeconds;
+    data.counterSession.lastRunDurationSeconds = finalized.durationSeconds;
+    data.counterSession.lastRunEndedAt = finalized.endedAt;
+  }
+
+  const session = data.counterSession;
+  const sessionMapName = session?.mapName ?? finalized?.mapName ?? '本次陪刷';
+  const completedRuns = session?.completedRuns ?? (finalized ? 1 : 0);
+  const totalDurationSeconds =
+    session?.totalDurationSeconds ?? finalized?.durationSeconds ?? 0;
+  data.counterSession = null;
 
   const nextData = await writeDataStore(data);
   void sendDesktopNotification(
-    '刷图记录已完成',
-    `${completedMapName} 已记录，耗时 ${formatDurationText(durationSeconds)}。`
+    '自动计数已停止',
+    `${sessionMapName} 共记录 ${completedRuns} 把，累计 ${formatDurationText(totalDurationSeconds)}。`
   );
   return nextData;
 });

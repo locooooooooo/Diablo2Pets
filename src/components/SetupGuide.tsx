@@ -27,6 +27,7 @@ interface SetupGuideProps {
   onRefresh: () => void;
   onInstallRuntime: () => Promise<void>;
   onInstallDependencies: () => Promise<void>;
+  onInstallAllEnvironments?: () => Promise<void>;
   onNextAction: () => void;
   onOpenWorkshop: () => void;
   onOpenWorkshopTask: (id: IntegrationId) => void;
@@ -117,11 +118,14 @@ export function SetupGuide(props: SetupGuideProps) {
   const requiredCompletedSteps = [runtimeReady, dependencyReady, profilesReady].filter(Boolean).length;
   const installRuntimeBusy = props.busyKey === 'env-install-python-runtime';
   const installDepsBusy = props.busyKey === 'env-install-python-deps';
+  const installAllBusy = props.busyKey === 'env-install-all';
   const busyText = installRuntimeBusy
     ? '正在准备内置 Python 运行环境。首次执行可能需要几十秒，请先不要关闭桌宠。'
     : installDepsBusy
       ? '正在安装 Python 依赖和 OCR 组件。完成后我会自动重新诊断。'
-      : '';
+      : installAllBusy
+        ? '正在一键配置运行环境与依赖。首次执行可能需要一些时间，请耐心等待...'
+        : '';
   const blockingSummary = [
     !runtimeReady ? '内置运行环境还没到位' : null,
     !dependencyReady ? '依赖和 OCR 还没装齐' : null,
@@ -164,10 +168,16 @@ export function SetupGuide(props: SetupGuideProps) {
           ]
         : [
             {
-              label: installRuntimeBusy ? '安装中...' : '安装内置 Python 运行环境',
+              label: installAllBusy || installRuntimeBusy ? '安装中...' : (!dependencyReady && props.onInstallAllEnvironments) ? '一键静默安装环境与依赖' : '安装内置 Python 运行环境',
               kind: 'primary',
-              disabled: props.busyKey !== null && !installRuntimeBusy,
-              onClick: () => void props.onInstallRuntime()
+              disabled: props.busyKey !== null && !installRuntimeBusy && !installAllBusy,
+              onClick: () => {
+                if (!dependencyReady && props.onInstallAllEnvironments) {
+                  void props.onInstallAllEnvironments();
+                } else {
+                  void props.onInstallRuntime();
+                }
+              }
             },
             {
               label: props.loading ? '刷新中...' : '刷新诊断',

@@ -141,7 +141,10 @@ export function PetShell(props: PetShellProps) {
         <span className="pet-scene-orb orb-c" />
       </div>
 
-      <div className="compact-header drag-strip">
+      <div 
+        className="compact-header drag-strip"
+        onDoubleClick={() => props.onToggleWindowMode('floating')}
+      >
         <div className="compact-brand">
           <button
             aria-label="摸头互动，双击庆祝"

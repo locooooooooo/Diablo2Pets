@@ -737,156 +737,14 @@ export function CounterPanel(props: CounterPanelProps) {
         )}
       </div>
 
-      <PanelStateCard
-        detail={companionStateCard.detail}
-        eyebrow="当前状态"
-        meta={companionStateCard.meta}
-        title={companionStateCard.title}
-        tone={companionStateCard.tone}
-      />
-
-      <article className="card companion-focus-card">
-        <div className="integration-head">
-          <div>
-            <div className="card-title">现在该做什么</div>
-            <p className="secondary-text">首页默认只留主动作、关键阻塞和一个次入口。</p>
-          </div>
-          <span className={`status-pill ${readinessTone}`}>
-            {readinessReadyCount}/{readinessItems.length} 已就绪
-          </span>
-        </div>
-
-        <div className="command-focus">
-          <strong>{suggestedAction.title}</strong>
-          <p>{suggestedAction.detail}</p>
-        </div>
-
-        <div className="companion-issue-grid">
-          {companionIssues.map((item) => (
-            <article className={`companion-issue-card tone-${item.tone}`} key={item.title}>
-              <strong>{item.title}</strong>
-              <p>{item.detail}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className="summary-list">
-          <div className="summary-row">
-            <span>最近路线</span>
-            <strong>{latestRunText}</strong>
-          </div>
-          <div className="summary-row">
-            <span>最近掉落</span>
-            <strong>{latestDropText}</strong>
-          </div>
-          <div className="summary-row">
-            <span>工坊状态</span>
-            <strong>
-              {props.preflightBusy
-                ? '正在刷新预检'
-                : blockingTask
-                  ? '还有阻塞项'
-                  : warningTask
-                    ? '还有提醒项'
-                    : props.preflight
-                      ? '预检稳定'
-                      : '等待预检'}
-            </strong>
-          </div>
-        </div>
-
-        <div className="inline-actions">
-          <button
-            className={suggestedAction.kind === 'primary' ? 'primary-button' : 'ghost-button'}
-            disabled={props.busy}
-            onClick={suggestedAction.onClick}
-            type="button"
-          >
-            {suggestedAction.label}
-          </button>
-          <button className="ghost-button" onClick={focusSecondaryAction.onClick} type="button">
-            {focusSecondaryAction.label}
-          </button>
-        </div>
-      </article>
-
-      {showAdvancedCompanion ? (
-        <div className="companion-recovery-grid">
-        <article className="card recovery-card">
-          <div className="integration-head">
-            <div>
-              <div className="card-title">上次中断点</div>
-              <p className="secondary-text">
-                我把你上一次停下来的位置和最顺手的续跑方式收在这里，打开桌宠就知道先做哪一步。
-              </p>
-            </div>
-            <span className="status-chip">{recoveryState.badge}</span>
-          </div>
-
-          <div className="recovery-stage">
-            <strong>{recoveryState.title}</strong>
-            <p>{recoveryState.detail}</p>
-          </div>
-
-          <div className="recovery-meta">{recoveryState.meta}</div>
-
-          <div className="inline-actions">
-            {recoveryState.actions.map((action) => (
-              <button
-                className={action.kind === 'primary' ? 'primary-button' : 'ghost-button'}
-                disabled={props.busy}
-                key={action.label}
-                onClick={action.onClick}
-                type="button"
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="card hero-card warm-card">
-          <div className="card-title">今日战况</div>
-          <div className="metric-grid">
-            <article className="metric-card">
-              <span>今日次数</span>
-              <strong>{props.stats.totalCount}</strong>
-            </article>
-            <article className="metric-card">
-              <span>总耗时</span>
-              <strong>{formatDuration(props.stats.totalDurationSeconds)}</strong>
-            </article>
-            <article className="metric-card">
-              <span>平均单次</span>
-              <strong>{formatDuration(props.stats.averageDurationSeconds)}</strong>
-            </article>
-          </div>
-
-          <div className="summary-list">
-            <div className="summary-row">
-              <span>战果脉冲</span>
-              <strong>{activePulse.value}</strong>
-            </div>
-            <div className="summary-row">
-              <span>当前信号</span>
-              <strong>{activePulse.label}</strong>
-            </div>
-            <div className="summary-row">
-              <span>今日掉落</span>
-              <strong>{props.recentDrops.length} 条记录</strong>
-            </div>
-          </div>
-        </article>
-        </div>
-      ) : null}
-
-      <div className="companion-hero companion-hero-compact">
+      {/* 1. 首屏核心：当前狩猎状态（主路径） */}
+      <div className="companion-hero companion-hero-compact" style={{ marginTop: '16px', marginBottom: '16px' }}>
         <article className="card hero-card hero-banner">
           <div className="integration-head">
             <div>
               <div className="card-title">当前狩猎状态</div>
               <p className="secondary-text">
-                在这里开始或收口一轮刷图，其他事情再去下一页处理。
+                在这里开始或收口一轮刷图。
               </p>
             </div>
             <span className="status-chip">
@@ -922,8 +780,13 @@ export function CounterPanel(props: CounterPanelProps) {
               </div>
             </div>
 
-            <div className="inline-actions">
-              <button className="primary-button" disabled={props.busy} type="submit">
+            <div className="inline-actions" style={{ marginTop: '8px' }}>
+              <button 
+                className="primary-button" 
+                disabled={props.busy} 
+                type="submit"
+                style={{ padding: '12px 32px', fontSize: '1.1rem', fontWeight: 'bold' }}
+              >
                 {props.busy
                   ? props.activeRun
                     ? '正在结算...'
@@ -937,30 +800,28 @@ export function CounterPanel(props: CounterPanelProps) {
               </button>
             </div>
           </form>
-
-          <div className="summary-list">
-            <div className="summary-row">
-              <span>今日建议</span>
-              <strong>
-                {props.activeRun
-                  ? '刷完就点完成，然后顺手去战报页把今天的掉落收口。'
-                  : missingGuide
-                    ? `${props.setupGuideHint.title}，后面每天上线就能直接开跑。`
-                    : '可以直接沿用最近路线开刷，或者先去工坊看今天的自动化预检。'}
-              </strong>
-            </div>
-          </div>
         </article>
       </div>
 
+      {/* 2. 状态简报 */}
+      <PanelStateCard
+        detail={companionStateCard.detail}
+        eyebrow="系统状态"
+        meta={companionStateCard.meta}
+        title={companionStateCard.title}
+        tone={companionStateCard.tone}
+      />
+
+      {/* 3. 展开详情的开关 */}
       <article
         className={`card companion-advanced-card ${showAdvancedCompanion ? 'expanded' : ''}`}
         ref={advancedCardRef}
+        style={{ marginTop: '16px' }}
       >
         <div className="integration-head">
           <div>
             <div className="card-title">今日详细面板</div>
-            <p className="secondary-text">把就绪度、战果脉冲、地图分布和战果预览都收在这里。</p>
+            <p className="secondary-text">查看今日战况、战果脉冲、地图分布及工坊就绪度。</p>
           </div>
           <button
             className="ghost-button"
@@ -974,16 +835,12 @@ export function CounterPanel(props: CounterPanelProps) {
         {!showAdvancedCompanion ? (
           <div className="companion-focus-grid">
             <article className="focus-step-card">
-              <strong>就绪度</strong>
-              <p>{readinessReadyCount}/{readinessItems.length} 项已经就绪。</p>
-            </article>
-            <article className="focus-step-card">
               <strong>战果脉冲</strong>
               <p>{activePulse.label} · {activePulse.value}</p>
             </article>
             <article className="focus-step-card">
-              <strong>详细页内容</strong>
-              <p>展开后可以看地图分布、最近刷图、完整战果和更多快捷入口。</p>
+              <strong>今日掉落</strong>
+              <p>{props.recentDrops.length} 条记录</p>
             </article>
           </div>
         ) : (
@@ -1055,55 +912,63 @@ export function CounterPanel(props: CounterPanelProps) {
         )}
       </article>
 
+      {/* 4. 折叠的详细内容 */}
       {showAdvancedCompanion ? (
         <>
-          <div className="insight-grid">
-            <article className="insight-card">
-              <span className="eyebrow">Route Pulse</span>
-              <strong>{topRouteText}</strong>
-              <p>
-                {props.stats.mapBreakdown[0]
-                  ? `平均 ${formatDuration(props.stats.mapBreakdown[0].averageDurationSeconds)} 一轮。`
-                  : '等你完成第一轮后，桌宠就会开始画出今天的路线节奏。'}
-              </p>
+          <div className="companion-recovery-grid" style={{ marginTop: '16px' }}>
+            <article className="card recovery-card">
+              <div className="integration-head">
+                <div>
+                  <div className="card-title">上次中断点</div>
+                  <p className="secondary-text">
+                    我把你上一次停下来的位置和最顺手的续跑方式收在这里。
+                  </p>
+                </div>
+                <span className="status-chip">{recoveryState.badge}</span>
+              </div>
+
+              <div className="recovery-stage">
+                <strong>{recoveryState.title}</strong>
+                <p>{recoveryState.detail}</p>
+              </div>
+
+              <div className="recovery-meta">{recoveryState.meta}</div>
+
+              <div className="inline-actions">
+                {recoveryState.actions.map((action) => (
+                  <button
+                    className={action.kind === 'primary' ? 'primary-button' : 'ghost-button'}
+                    disabled={props.busy}
+                    key={action.label}
+                    onClick={action.onClick}
+                    type="button"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
             </article>
-            <article className="insight-card">
-              <span className="eyebrow">Latest Loot</span>
-              <strong>{latestDropText}</strong>
-              <p>
-                {props.recentDrops.length > 0
-                  ? '最近战利品会优先挂在首页前排，方便你随手回看。'
-                  : '去战报页贴图后，这里就会变成今天的战果热区。'}
-              </p>
-            </article>
-            <article className="insight-card">
-              <span className="eyebrow">Next Step</span>
-              <strong>{suggestedAction.title}</strong>
-              <p>{suggestedAction.detail}</p>
+
+            <article className="card hero-card warm-card">
+              <div className="card-title">今日战况</div>
+              <div className="metric-grid">
+                <article className="metric-card">
+                  <span>今日次数</span>
+                  <strong>{props.stats.totalCount}</strong>
+                </article>
+                <article className="metric-card">
+                  <span>总耗时</span>
+                  <strong>{formatDuration(props.stats.totalDurationSeconds)}</strong>
+                </article>
+                <article className="metric-card">
+                  <span>平均单次</span>
+                  <strong>{formatDuration(props.stats.averageDurationSeconds)}</strong>
+                </article>
+              </div>
             </article>
           </div>
 
-          <div className="quick-grid">
-            <article className="action-tile">
-              <span className="eyebrow">Quick Flow</span>
-              <strong>战利品账本</strong>
-              <p>截图、OCR、备注和保存都在一页完成，适合刷图结束后立刻收口。</p>
-              <button className="text-button" onClick={props.onGoToDrops} type="button">
-                现在去记一条
-              </button>
-            </article>
-
-            <article className="action-tile">
-              <span className="eyebrow">Workshop</span>
-              <strong>赫拉迪姆工坊</strong>
-              <p>符文、宝石、金币三条任务线集中管理，适合试运行、联调和查看日志。</p>
-              <button className="text-button" onClick={props.onGoToWorkshop} type="button">
-                进入工坊
-              </button>
-            </article>
-          </div>
-
-          <div className="split-grid">
+          <div className="split-grid" style={{ marginTop: '16px' }}>
             <article className="card">
               <div className="card-title">地图分布</div>
               {props.stats.mapBreakdown.length === 0 ? (
@@ -1154,7 +1019,7 @@ export function CounterPanel(props: CounterPanelProps) {
             </article>
           </div>
 
-          <article className="card">
+          <article className="card" style={{ marginTop: '16px' }}>
             <div className="panel-header">
               <div>
                 <div className="card-title">今日战果预览</div>

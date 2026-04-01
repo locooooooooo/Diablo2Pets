@@ -133,6 +133,7 @@ export function DropPanel(props: DropPanelProps) {
   const [highlightOnly, setHighlightOnly] = useState(false);
   const [exportBusyKey, setExportBusyKey] = useState('');
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const advancedCardRef = useRef<HTMLElement | null>(null);
   const reportFiltersRef = useRef<HTMLElement | null>(null);
   const [exportNote, setExportNote] = useState(
@@ -374,6 +375,7 @@ export function DropPanel(props: DropPanelProps) {
     setPreparedScreenshotPath('');
     setOcrResult(null);
     setOcrBusy(false);
+    setShowManualEntry(false);
     setPasteHint('截图后直接按 Ctrl+V，我会自动保存图片、跑 OCR，并帮你预填一条掉落记录。');
   }
 
@@ -614,7 +616,7 @@ export function DropPanel(props: DropPanelProps) {
       }
     }
 
-    const pasteZone = document.getElementById('drop-paste-zone');
+    const pasteZone = document.getElementById('drop-paste-zone') || document.getElementById('drop-paste-zone-main');
     pasteZone?.focus();
     pasteZone?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     props.onSurfaceNotice?.({
@@ -936,11 +938,50 @@ export function DropPanel(props: DropPanelProps) {
         </article>
         ) : null}
 
+        {(!showManualEntry && !hasDraft) ? (
+          <div 
+            className="card hero-card paste-hero-card" 
+            id="drop-paste-zone-main"
+            style={{ 
+              textAlign: 'center', 
+              padding: '48px 16px', 
+              border: '2px dashed var(--border-color)', 
+              backgroundColor: 'var(--surface-color)', 
+              cursor: 'pointer',
+              marginBottom: '16px'
+            }} 
+            onClick={() => {
+              const pasteZone = document.getElementById('drop-paste-zone-main');
+              pasteZone?.focus();
+            }}
+            tabIndex={0}
+            onPaste={handlePasteZone}
+          >
+            <div style={{ fontSize: '3rem', opacity: 0.5, marginBottom: '16px' }}>📋</div>
+            <div className="card-title" style={{ fontSize: '1.5rem', marginBottom: '8px' }}>请在此页面直接按下 Ctrl+V</div>
+            <p className="secondary-text" style={{ fontSize: '1.1rem' }}>粘贴游戏掉落截图，自动识别物品并记账</p>
+            <button 
+              className="text-button" 
+              style={{ marginTop: '24px' }} 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowManualEntry(true);
+              }}
+              type="button"
+            >
+              没有截图？点击这里手动录入
+            </button>
+          </div>
+        ) : null}
+
+        {(showManualEntry || hasDraft) ? (
         <form className="card hero-card drop-entry-card" id="drop-entry-form" onSubmit={handleSubmit}>
           <div className="integration-head">
             <div>
-              <div className="card-title">记录一条战利品</div>
-              <p className="secondary-text">先贴图，再补场景和备注，这样最快。</p>
+              <div className="card-title">{hasDraft ? '完善掉落记录' : '手动记录战利品'}</div>
+              <p className="secondary-text">
+                {hasDraft ? '检查 OCR 结果，补充场景和备注后保存。' : '手动填写物品名称和场景。随时可按 Ctrl+V 补充截图。'}
+              </p>
             </div>
             <span className="status-pill">当前分类建议：{getDropCategoryLabel(currentCategory)}</span>
           </div>
@@ -1072,6 +1113,7 @@ export function DropPanel(props: DropPanelProps) {
             </button>
           </div>
         </form>
+        ) : null}
       </div>
 
       <article className="card drop-preview-card">

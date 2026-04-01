@@ -14,6 +14,35 @@ export interface ActiveRun {
   startedAt: string;
 }
 
+export type CounterSessionState =
+  | 'waiting-for-game'
+  | 'in-game'
+  | 'waiting-next-game'
+  | 'error';
+
+export type CounterDetectedState =
+  | 'booting'
+  | 'window-missing'
+  | 'unknown'
+  | 'lobby'
+  | 'in-game'
+  | 'in-game-menu'
+  | 'stopped';
+
+export interface CounterSession {
+  id: string;
+  mapName: string;
+  startedAt: string;
+  state: CounterSessionState;
+  completedRuns: number;
+  totalDurationSeconds: number;
+  lastEventAt: string;
+  lastDetectedState: CounterDetectedState;
+  lastDetail: string;
+  lastRunDurationSeconds?: number;
+  lastRunEndedAt?: string;
+}
+
 export interface RunRecord extends ActiveRun {
   endedAt: string;
   durationSeconds: number;
@@ -92,6 +121,7 @@ export interface AutomationDrafts {
 }
 
 export interface AppData {
+  counterSession: CounterSession | null;
   activeRun: ActiveRun | null;
   runHistory: RunRecord[];
   drops: DropRecord[];

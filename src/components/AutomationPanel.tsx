@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -201,9 +201,9 @@ function getInputModeLabel(mode: GemInputMode): string {
 function getAdminLabel(action: AutomationAdminAction): string {
   switch (action) {
     case 'record-profile':
-      return '录坐标';
+      return '录制坐标配置';
     case 'print-profile':
-      return '看坐标';
+      return '查看坐标配置';
     case 'import-legacy-config':
       return '导旧配置';
   }
@@ -273,9 +273,9 @@ function getInputModeLabelText(mode: GemInputMode): string {
 function getAdminLabelText(action: AutomationAdminAction): string {
   switch (action) {
     case 'record-profile':
-      return '录坐标';
+      return '录制坐标配置';
     case 'print-profile':
-      return '看坐标';
+      return '查看坐标配置';
     case 'import-legacy-config':
       return '导入旧配置';
   }
@@ -420,7 +420,7 @@ function buildTaskDiagnosisText(
   if (profileCheck?.level === 'error') {
     pushAction(actions, {
       key: 'record-profile',
-        label: '重录坐标',
+        label: '重录制坐标配置',
       kind: 'admin',
       adminAction: 'record-profile'
     });
@@ -859,7 +859,7 @@ function buildTaskDiagnosis(
   if (profileCheck?.level === 'error') {
     pushAction(actions, {
       key: 'record-profile',
-      label: '重录坐标',
+      label: '重录制坐标配置',
       kind: 'admin',
       adminAction: 'record-profile'
     });
@@ -1062,7 +1062,7 @@ function buildEnvironmentDiagnosis(
   if (pythonCheck?.level === 'error') {
     return {
       tone: 'error',
-      title: 'Python 解释器还没就位',
+      title: '运行环境还没就绪',
       description: pythonCheck.detail,
       actions
     };
@@ -1095,7 +1095,7 @@ function buildEnvironmentDiagnosis(
   if (dependencyCheck?.level === 'error') {
     pushAction(actions, {
       key: 'install-python-deps',
-      label: '安装 Python 依赖',
+      label: '安装运行环境依赖',
       kind: 'environment-action',
       environmentAction: 'install-python-deps'
     });
@@ -1110,13 +1110,13 @@ function buildEnvironmentDiagnosis(
   if (ocrCheck?.level === 'warning') {
     pushAction(actions, {
       key: 'install-python-deps',
-      label: '补装 OCR 相关依赖',
+      label: '补装文字识别组件相关依赖',
       kind: 'environment-action',
       environmentAction: 'install-python-deps'
     });
     return {
       tone: 'attention',
-      title: 'OCR 识别还没准备好',
+      title: '文字识别组件还没准备好',
       description: ocrCheck.detail,
       actions
     };
@@ -1125,7 +1125,7 @@ function buildEnvironmentDiagnosis(
   return {
     tone: 'success',
     title: '环境已经就绪',
-    description: 'Python、依赖清单、运行时包和 OCR 能力都已经通过检查。',
+    description: '运行环境、依赖清单、运行时包和文字识别能力都已经通过检查。',
     actions
   };
 }
@@ -1153,13 +1153,13 @@ function getActionSummaryLabel(action: string): string {
     case 'execute':
       return '立即执行';
     case 'record-profile':
-      return '录坐标';
+      return '录制坐标配置';
     case 'print-profile':
-      return '看坐标';
+      return '查看坐标配置';
     case 'import-legacy-config':
       return '导旧配置';
     case 'install-python-deps':
-      return '安装 Python 依赖';
+      return '安装运行环境依赖';
     default:
       return action || '未命名动作';
   }
@@ -1408,8 +1408,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           : '安装内置运行环境',
         detail:
           pythonSourceCheck?.level === 'warning'
-            ? '当前还在使用系统 Python，切到桌宠自己的运行环境会更稳。'
-            : '先把桌宠自己的 Python 运行环境装好，再继续后面的自动化。'
+            ? '当前还在使用系统环境，切到桌宠自带的运行环境会更稳。'
+            : '先把桌宠自带的运行环境装好，再继续后面的自动化。'
       };
     }
 
@@ -1418,8 +1418,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
         action: 'install-python-deps' as const,
         label: props.busyKey === getEnvironmentBusyKey('install-python-deps')
           ? '安装依赖中...'
-          : '安装 Python 依赖',
-        detail: '依赖和 OCR 补齐后，工坊任务与截图识别才会完整可用。'
+          : '安装运行环境依赖',
+        detail: '依赖和文字识别组件补齐后，工坊任务与截图识别才会完整可用。'
       };
     }
 
@@ -1446,7 +1446,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         ready,
         summary: ready ? '这条坐标已经录好。' : '还没录制，当前不能稳定执行这条任务。',
         detail: ready
-          ? '可以直接试运行，或者点“看坐标”确认当前配置。'
+          ? '可以直接试运行，或者点“查看坐标配置”确认当前配置。'
           : task
             ? getProfileGuideDetailText(item.id)
             : '我还在等预检返回这条任务的坐标状态。'
@@ -1500,7 +1500,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (needsDependencyInstall) {
       return {
         tone: 'error',
-        title: '先补 Python 依赖',
+        title: '先补运行环境依赖',
         detail: environmentPrimaryAction.detail,
         primaryLabel: environmentPrimaryAction.label,
         secondaryLabel: '更多诊断'
@@ -1580,7 +1580,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
     if (props.busyKey === getEnvironmentBusyKey('install-python-deps')) {
       return {
         tone: 'attention',
-        title: '正在安装 Python 依赖',
+        title: '正在安装运行环境依赖',
         detail: '装完后，预检会自动刷新。',
         meta: '请先等当前动作完成'
       };
@@ -1689,7 +1689,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         detail: workshopFocus.detail,
         meta:
           needsEmbeddedRuntime || needsDependencyInstall
-            ? '先补环境，再录坐标，再试运行'
+            ? '先补环境，再录制坐标配置，再试运行'
             : '先把这条坐标录好，再往下走',
         actions: [
           {
@@ -1787,7 +1787,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       time: preflight.generatedAt,
       tone: environmentDiagnosis.tone,
       title: `环境快照 · ${environmentDiagnosis.title}`,
-      detail: `${environmentDiagnosis.description} 依赖 ${installedDependencies}/${dependencyChecks.length || 0}，OCR ${
+      detail: `${environmentDiagnosis.description} 依赖 ${installedDependencies}/${dependencyChecks.length || 0}，文字识别 ${
         findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? '已就绪' : '待补齐'
       }。`,
       meta: '自动预检'
@@ -1906,7 +1906,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       taskId: item.id,
       stepIndex: 0,
       status: 'recording',
-      detail: 'Python 录制窗口已经打开。请看弹出的控制台，按顺序对准游戏界面并按 F10 捕获当前点位。',
+      detail: '录制窗口已经打开。请看弹出的控制台，按顺序对准游戏界面并按 F10 捕获当前点位。',
       updatedAt: new Date().toISOString(),
       lastLine: '正在等待第一条录制提示...',
       live: false
@@ -2012,7 +2012,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       `- 状态：${getDiagnosisToneLabel(environmentDiagnosis.tone)}`,
       `- 说明：${environmentDiagnosis.description}`,
       `- 依赖安装：${installedDependencies}/${dependencyChecks.length || 0}`,
-      `- OCR：${ocrReady ? '已就绪' : '待补齐'}`,
+      `- 文字识别：${ocrReady ? '已就绪' : '待补齐'}`,
       `- 运行环境目录：${runeTask.workingDirectory}`,
       '',
       '## 全局预检',
@@ -2123,7 +2123,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           stepIndex: Math.max(0, getReadableRecordStepsText(item.id).length - 1),
           status: response.result.success ? 'success' : 'error',
           detail: response.result.success
-            ? `${getIntegrationLabel(item.id)} 坐标配置录制完成，预检会自动刷新。你现在可以看坐标，或者直接试运行这条任务。`
+            ? `${getIntegrationLabel(item.id)} 坐标配置录制完成，预检会自动刷新。你现在可以查看坐标配置，或者直接试运行这条任务。`
             : response.result.stderr || '坐标配置录制失败，请查看日志或重新录制。',
           updatedAt: new Date().toISOString(),
           lastLine: response.result.stderr || response.result.stdout || '录制流程已结束。',
@@ -2187,7 +2187,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           action === 'install-python-runtime'
             ? '环境修复 / 安装内置运行环境日志'
             : action === 'install-python-deps'
-              ? '环境修复 / 安装 Python 依赖日志'
+              ? '环境修复 / 安装运行环境依赖日志'
               : '环境修复日志',
         path: response.log.path,
         content: response.log.content
@@ -2199,7 +2199,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           action === 'install-python-runtime'
             ? '安装内置运行环境'
             : action === 'install-python-deps'
-              ? '安装 Python 依赖'
+              ? '安装运行环境依赖'
               : '执行环境修复动作',
         detail: response.result.success
           ? nextParsedLog?.headline || '环境修复动作已经完成。'
@@ -2292,7 +2292,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <article className="task-live-guide recording">
           <div>
             <p className="eyebrow">正在录制</p>
-            <strong>这张任务卡正在录坐标配置</strong>
+            <strong>这张任务卡正在录制坐标配置配置</strong>
             <p>
               当前步骤：{currentStepLabel ?? '等待同步'}。把鼠标对到目标位置后，回到录制窗口按
               <code> F10</code>。
@@ -2336,7 +2336,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               onClick={() => void runAdmin(item, 'print-profile')}
               type="button"
             >
-              看坐标
+              查看坐标配置
             </button>
           </div>
         </article>
@@ -2361,7 +2361,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               }}
               type="button"
             >
-              重新录坐标
+              重新录制坐标配置
             </button>
             <button
               className="ghost-button"
@@ -2391,7 +2391,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 ? preflightTask?.status === 'ready'
                   ? '预检也已经通过了，先跑一遍试运行最稳。'
                   : '坐标配置已经有了，但还有别的条件没补齐，先看诊断卡。'
-                : '顺着这张卡往下点，先录坐标，再试运行。'}
+                : '顺着这张卡往下点，先录制坐标配置，再试运行。'}
             </p>
           </div>
           <div className="task-live-actions">
@@ -2414,7 +2414,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                 }}
                 type="button"
               >
-                先录坐标
+                先录制坐标配置
               </button>
             )}
           </div>
@@ -2426,6 +2426,39 @@ export function AutomationPanel(props: AutomationPanelProps) {
   }
 
   function renderRunButtons(id: IntegrationId) {
+    if (needsEmbeddedRuntime || needsDependencyInstall) {
+      return (
+        <button
+          className="primary-button"
+          disabled={props.busyKey !== null}
+          onClick={handleWorkshopFocusPrimary}
+          type="button"
+        >
+          {needsEmbeddedRuntime ? '第一步：准备运行环境' : '第一步：补齐环境依赖'}
+        </button>
+      );
+    }
+
+    const task = preflightMap.get(id);
+    const profileReady = task ? isTaskProfileReady(task) : false;
+
+    if (!profileReady) {
+      return (
+        <button
+          className="primary-button"
+          disabled={props.busyKey !== null}
+          onClick={() => {
+            const item = getIntegration(props.integrations, id);
+            openRecordingGuide(item);
+            void runAdmin(item, 'record-profile');
+          }}
+          type="button"
+        >
+          第二步：录制坐标配置
+        </button>
+      );
+    }
+
     return (
       <>
         {(['dry-run', 'execute'] as AutomationRunMode[]).map((mode) => {
@@ -2608,7 +2641,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               onClick={() => void runAdmin(item, 'print-profile')}
               type="button"
             >
-              查看坐标
+              查查看坐标配置
             </button>
             <button
               className="ghost-button"
@@ -2638,7 +2671,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
             ? '读取中...'
-            : '看坐标'}
+            : '查看坐标配置'}
         </button>
         <button
           className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
@@ -2651,7 +2684,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
             ? '录制中...'
-            : '录坐标'}
+            : '录制坐标配置'}
         </button>
         {item.supportsLegacyImport ? (
           <button
@@ -2691,7 +2724,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         >
           {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
             ? '读取中...'
-            : '看坐标'}
+            : '查看坐标配置'}
         </button>
         <button
           className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
@@ -2705,8 +2738,8 @@ export function AutomationPanel(props: AutomationPanelProps) {
           {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
             ? '录制中...'
             : recordingState === 'success' || recordingState === 'error'
-              ? '重录坐标'
-              : '录坐标'}
+              ? '重录制坐标配置'
+              : '录制坐标配置'}
         </button>
         {item.supportsLegacyImport ? (
           <button
@@ -2741,7 +2774,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div>
             <div className="card-title">工坊预检</div>
             <p className="secondary-text">
-          这里会实时检查 Python、运行环境、依赖包、坐标配置和当前输入条件，先扫雷再执行。
+          这里会实时检查运行环境、依赖包、坐标配置和当前输入条件，先扫雷再执行。
             </p>
           </div>
           <div className="tool-row">
@@ -2784,7 +2817,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div>
             <div className="card-title">环境修复站</div>
             <p className="secondary-text">
-              把 Python 解释器、requirements、运行时依赖和 OCR 能力收进一个地方管理。
+              把运行环境、依赖清单、运行时包和文字识别能力收进一个地方管理。
             </p>
           </div>
           <span className={`status-pill ${diagnosis.tone}`}>
@@ -2802,9 +2835,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div className="tag-row">
             <span className="mini-pill">依赖已安装 {installedDependencies}/{dependencyChecks.length || 0}</span>
             {findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? (
-              <span className="mini-pill">OCR 已就绪</span>
+              <span className="mini-pill">文字识别已就绪</span>
             ) : (
-              <span className="mini-pill">OCR 待补齐</span>
+              <span className="mini-pill">文字识别待补齐</span>
             )}
           </div>
         </div>
@@ -2891,7 +2924,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
           <div>
             <div className="card-title">环境修复站</div>
             <p className="secondary-text">
-              把 Python 解释器、requirements、运行时依赖和 OCR 能力收进一个地方管理。
+              把运行环境、依赖清单、运行时包和文字识别能力收进一个地方管理。
             </p>
           </div>
           <span className={`status-pill ${environmentDiagnosis.tone}`}>
@@ -2907,9 +2940,9 @@ export function AutomationPanel(props: AutomationPanelProps) {
               依赖已安装 {installedDependencies}/{dependencyChecks.length || 0}
             </span>
             {findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? (
-              <span className="mini-pill">OCR 已就绪</span>
+              <span className="mini-pill">文字识别已就绪</span>
             ) : (
-              <span className="mini-pill">OCR 待补齐</span>
+              <span className="mini-pill">文字识别待补齐</span>
             )}
             {environmentLog?.path ? <span className="mini-pill">最近修复日志已留存</span> : null}
           </div>
@@ -3185,7 +3218,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
       <article className="card profile-guide-card">
         <div className="integration-head">
           <div>
-            <p className="eyebrow">先录坐标</p>
+            <p className="eyebrow">先录制坐标配置</p>
             <div className="card-title">坐标录制向导</div>
             <p className="secondary-text">
               先把三条任务线的坐标录好，工坊才会从“能看”变成“能跑”。录制时按 <code>F10</code> 捕获点位，按 <code>F12</code> 结束。
@@ -3292,7 +3325,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                     >
                       {props.busyKey === getAdminBusyKey(step.id, 'record-profile')
                         ? '录制中...'
-                        : '录坐标'}
+                        : '录制坐标配置'}
                     </button>
                   ) : (
                     <button
@@ -3301,7 +3334,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
                       onClick={() => void runAdmin(item, 'print-profile')}
                       type="button"
                     >
-                      看坐标
+                      查看坐标配置
                     </button>
                   )}
                   <button
@@ -3672,7 +3705,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
         <div className="integration-head">
           <div>
             <div className="card-title small">更多诊断与维护</div>
-            <p className="secondary-text">环境修复、录坐标向导、全局预检和详细日志都收在这里。</p>
+            <p className="secondary-text">环境修复、录制坐标配置向导、全局预检和详细日志都收在这里。</p>
           </div>
           <button
             className={showWorkshopAdvanced ? 'ghost-button active' : 'ghost-button'}

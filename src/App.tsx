@@ -91,9 +91,32 @@ const DEFAULT_SETTINGS: AppData['settings'] = {
   windowPlacement: {}
 };
 
+function translateError(errorText: string): string {
+  if (errorText.includes('EPERM') || errorText.includes('Access is denied')) {
+    return '权限不足，请尝试以管理员身份运行暗黑2桌宠。';
+  }
+  if (errorText.includes('not found') && errorText.includes('D2R.exe')) {
+    return '未检测到游戏运行，请先启动《暗黑破坏神 II：重制版》。';
+  }
+  if (errorText.includes('python: can\'t open file')) {
+    return 'Python 脚本丢失，请尝试重新安装环境或检查杀毒软件是否误删。';
+  }
+  if (errorText.includes('ModuleNotFoundError') || errorText.includes('No module named')) {
+    return '缺少必要的 Python 依赖包，请在引导或工坊中点击"一键安装依赖"。';
+  }
+  if (errorText.includes('tesseract') || errorText.includes('TesseractNotFoundError')) {
+    return '图像识别引擎 (OCR) 异常，请检查依赖是否完整安装。';
+  }
+  return errorText;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    return error.message;
+    return translateError(error.message);
+  }
+
+  if (typeof error === 'string') {
+    return translateError(error);
   }
 
   return '发生了未知错误。';
@@ -978,6 +1001,57 @@ export default function App() {
     }
   }
 
+  async function handleInstallAllEnvironments() {
+    setBusyKey('env-install-all');
+    setMessage(null);
+
+    try {
+      setSetupGuideActivity({
+        title: '一键静默安装',
+        detail: '正在准备内置 Python 运行环境...',
+        tone: 'attention',
+        timestampLabel: getSetupActivityTimeLabel()
+      });
+
+      const runtimeResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-runtime' });
+      if (!runtimeResponse.result.success) {
+        throw new Error(runtimeResponse.result.stderr || 'Python 环境安装失败');
+      }
+
+      setSetupGuideActivity({
+        title: '一键静默安装',
+        detail: 'Python 环境准备完成，正在安装依赖...',
+        tone: 'attention',
+        timestampLabel: getSetupActivityTimeLabel()
+      });
+
+      const depsResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-deps' });
+      if (!depsResponse.result.success) {
+        throw new Error(depsResponse.result.stderr || '依赖安装失败');
+      }
+
+      setMessage({ kind: 'success', text: '一键静默安装环境及依赖完成。' });
+      setSetupGuideActivity({
+        title: '一键静默安装结果',
+        detail: '内置 Python 运行环境及依赖均已准备就绪。',
+        tone: 'success',
+        timestampLabel: getSetupActivityTimeLabel()
+      });
+      refreshSetupGuide();
+    } catch (error) {
+      const text = getErrorMessage(error);
+      setMessage({ kind: 'error', text });
+      setSetupGuideActivity({
+        title: '一键静默安装失败',
+        detail: text,
+        tone: 'error',
+        timestampLabel: getSetupActivityTimeLabel()
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function handleGetAutomationLog(
     id: RunAutomationTaskInput['id']
   ): Promise<AutomationLogDocument> {
@@ -1639,6 +1713,7 @@ export default function App() {
                   onInstallDependencies={() =>
                     handleRunEnvironmentAction({ action: 'install-python-deps' }).then(() => undefined)
                   }
+                  onInstallAllEnvironments={handleInstallAllEnvironments}
                   onNextAction={handleFollowSetupGuideHint}
                   onOpenWorkshop={handleOpenWorkshopFromGuide}
                   onOpenWorkshopTask={handleOpenWorkshopTaskFromGuide}
@@ -1800,27 +1875,25 @@ export default function App() {
                 </article>
               ) : null}
 
-              {showCompanionDetails ? (
-                <CounterPanel
-                  activeDurationText={activeDurationText}
-                  activeRun={data.activeRun}
-                  busy={busyKey === 'start-run' || busyKey === 'stop-run'}
-                  onFollowSetupGuideHint={handleFollowSetupGuideHint}
-                  onOpenSetupGuide={handleOpenSetupGuide}
-                  onGoToDrops={() => handleSelectTab('drops')}
-                  onGoToWorkshop={() => handleSelectTab('workshop')}
-                  onStartRun={handleStartRun}
-                  onStopRun={handleStopRun}
-                  preflight={setupPreflight}
-                  preflightBusy={setupPreflightBusy}
-                  recentDrops={todayDrops}
-                  recentRuns={recentRuns}
-                  onSurfaceNotice={announceSurfaceNotice}
-                  setupGuideHint={setupGuideHint}
-                  setupGuideCompleted={data.settings.setupGuideCompleted}
-                  stats={todayStats}
-                />
-              ) : null}
+              <CounterPanel
+                activeDurationText={activeDurationText}
+                activeRun={data.activeRun}
+                busy={busyKey === 'start-run' || busyKey === 'stop-run'}
+                onFollowSetupGuideHint={handleFollowSetupGuideHint}
+                onOpenSetupGuide={handleOpenSetupGuide}
+                onGoToDrops={() => handleSelectTab('drops')}
+                onGoToWorkshop={() => handleSelectTab('workshop')}
+                onStartRun={handleStartRun}
+                onStopRun={handleStopRun}
+                preflight={setupPreflight}
+                preflightBusy={setupPreflightBusy}
+                recentDrops={todayDrops}
+                recentRuns={recentRuns}
+                onSurfaceNotice={announceSurfaceNotice}
+                setupGuideHint={setupGuideHint}
+                setupGuideCompleted={data.settings.setupGuideCompleted}
+                stats={todayStats}
+              />
 
               {showPetCodex && petCodex ? (
                 <PetCodexOverlay
