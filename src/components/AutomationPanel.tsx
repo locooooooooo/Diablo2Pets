@@ -1,4 +1,4 @@
-﻿import {
+﻿﻿﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +11,7 @@ import {
   getIntegrationLabel,
   isTaskProfileReady
 } from '../lib/setupGuideState';
+import { GemCubingWorkbench, RuneCubingWorkbench } from './CubingWorkbench';
 import { PanelStateCard } from './PanelStateCard';
 import type {
   AutomationAdminAction,
@@ -154,26 +155,6 @@ function getIntegration(
   return target;
 }
 
-function getTaskMeta(id: IntegrationId): { title: string; description: string } {
-  switch (id) {
-    case 'rune-cube':
-      return {
-        title: '自动合成低级符文',
-        description: '读取符文数量后生成合成计划，适合先试运行再切回游戏执行。'
-      };
-    case 'gem-cube':
-      return {
-        title: '自动合成宝石',
-        description: '支持矩阵输入和截图识别两种方式，适合共享仓库联调。'
-      };
-    case 'drop-shared-gold':
-      return {
-        title: '共享仓库丢金币',
-        description: '根据总额和角色等级计算分批方案，降低手工重复操作。'
-      };
-  }
-}
-
 function getBusyKey(id: IntegrationId, mode: AutomationRunMode): string {
   return `task-${id}-${mode}`;
 }
@@ -184,58 +165,6 @@ function getAdminBusyKey(id: IntegrationId, action: AutomationAdminAction): stri
 
 function getEnvironmentBusyKey(action: EnvironmentAction): string {
   return `env-${action}`;
-}
-
-function getModeLabel(mode: AutomationRunMode): string {
-  return mode === 'dry-run' ? '试运行' : '立即执行';
-}
-
-function getStatusText(item: IntegrationConfig): string {
-  return item.lastRunAt ? `上次执行 ${formatCompactDateTime(item.lastRunAt)}` : '尚未执行';
-}
-
-function getInputModeLabel(mode: GemInputMode): string {
-  return mode === 'matrix' ? '输入矩阵' : '截图识别';
-}
-
-function getAdminLabel(action: AutomationAdminAction): string {
-  switch (action) {
-    case 'record-profile':
-      return '录制坐标配置';
-    case 'print-profile':
-      return '查看坐标配置';
-    case 'import-legacy-config':
-      return '导旧配置';
-  }
-}
-
-function getRecordSteps(id: IntegrationId): string[] {
-  switch (id) {
-    case 'rune-cube':
-      return ['输出格', 'Transmute', '第 1 格符文', '第 9 格符文', '第 28 格符文'];
-    case 'gem-cube':
-      return [
-        '输入格 1',
-        '输入格 2',
-        '输入格 3',
-        '输出格',
-        'Transmute',
-        '结果落点',
-        '第 1 堆宝石',
-        '第 7 堆宝石',
-        '第 29 堆宝石'
-      ];
-    case 'drop-shared-gold':
-      return ['仓库物体', '共享标签', '仓库金币按钮', '背包金币按钮'];
-  }
-}
-
-function getProfileNote(item: IntegrationConfig): string {
-  if (item.supportsLegacyImport && item.legacyConfigPath) {
-    return `默认旧配置路径：${item.legacyConfigPath}`;
-  }
-
-  return '这条任务线没有独立旧配置，建议直接录新的坐标配置。';
 }
 
 function getTaskMetaText(id: IntegrationId): { title: string; description: string } {
@@ -264,10 +193,6 @@ function getModeLabelText(mode: AutomationRunMode): string {
 
 function getStatusTextText(item: IntegrationConfig): string {
   return item.lastRunAt ? `上次执行 ${formatCompactDateTime(item.lastRunAt)}` : '还没有执行过';
-}
-
-function getInputModeLabelText(mode: GemInputMode): string {
-  return mode === 'matrix' ? '矩阵输入' : '截图识别';
 }
 
 function getAdminLabelText(action: AutomationAdminAction): string {
@@ -340,17 +265,6 @@ function getTaskHintText(message?: string): string {
   return '如果这次结果不符合预期，优先看预检和日志。';
 }
 
-function getTaskSpotlightLabelText(id: IntegrationId): string {
-  switch (id) {
-    case 'rune-cube':
-      return '符文任务';
-    case 'gem-cube':
-      return '宝石任务';
-    case 'drop-shared-gold':
-      return '金币任务';
-  }
-}
-
 function getProfileGuideDetailText(id: IntegrationId): string {
   switch (id) {
     case 'rune-cube':
@@ -362,18 +276,6 @@ function getProfileGuideDetailText(id: IntegrationId): string {
   }
 }
 
-function getPreflightStatusLabelText(status?: AutomationPreflightStatus): string {
-  switch (status) {
-    case 'ready':
-      return '可以开跑';
-    case 'warning':
-      return '先看提醒';
-    case 'error':
-      return '先补条件';
-    default:
-      return '等待预检';
-  }
-}
 function buildTaskDiagnosisText(
   item: IntegrationConfig,
   task: AutomationPreflightTask | null,
@@ -615,27 +517,6 @@ function describeRecordingProgress(event: AutomationRecordProgressEvent): string
   return translatedLine;
 }
 
-function getReadableRecordSteps(id: IntegrationId): string[] {
-  switch (id) {
-    case 'rune-cube':
-      return ['方块输出格', 'Transmute 按钮', '左上符文格', '右上符文格', '左下符文格'];
-    case 'gem-cube':
-      return [
-        '输入格 1',
-        '输入格 2',
-        '输入格 3',
-        '输出格',
-        'Transmute 按钮',
-        '结果落点',
-        '左上宝石堆',
-        '右上宝石堆',
-        '左下宝石堆'
-      ];
-    case 'drop-shared-gold':
-      return ['仓库点击点', '共享标签', '仓库金币按钮', '背包金币按钮'];
-  }
-}
-
 function getRecordingFailureSummary(rawText: string): string {
   const text = rawText.trim();
   const normalized = text.toLowerCase();
@@ -740,34 +621,6 @@ function getTaskToneClass(task: AutomationPreflightTask | null): string {
   }
 }
 
-function getTaskHint(message?: string): string {
-  if (!message) {
-    return '先看预检，再决定是试运行还是正式执行。';
-  }
-
-  if (message.includes('未找到')) {
-    return '通常是脚本、坐标配置、旧配置或截图路径不存在，先看预检项里哪一条红了。';
-  }
-
-  if (message.includes('整数')) {
-    return '检查数量、金额、等级这些输入是否都是整数。';
-  }
-
-  if (message.includes('截图')) {
-    return '先粘贴截图，或者把现有截图路径填完整。';
-  }
-
-  if (message.includes('停用')) {
-    return '任务当前被禁用了，先确认任务状态。';
-  }
-
-  if (message.includes('执行失败')) {
-    return '先点“看日志”，再对照预检看是环境问题还是输入问题。';
-  }
-
-  return '如果这条结果不符合预期，优先看预检和日志。';
-}
-
 function findCheck(task: AutomationPreflightTask | null, key: string): AutomationCheckItem | null {
   return task?.checks.find((check) => check.key === key) ?? null;
 }
@@ -811,205 +664,6 @@ function getWaitRepair(
     case 'drop-shared-gold':
       return { draftKey: 'goldWaitSeconds', value: 5 };
   }
-}
-
-function buildTaskDiagnosis(
-  item: IntegrationConfig,
-  task: AutomationPreflightTask | null,
-  drafts: AutomationDrafts,
-  hasGemClipboardImage: boolean
-): TaskDiagnosis {
-  const actions: QuickFixAction[] = [];
-
-  if (!task) {
-    return {
-      tone: 'attention',
-      title: '诊断准备中',
-      description: '我还在重新扫描这条任务的环境、坐标配置和输入条件。',
-      actions: [{ key: 'refresh', label: '立即刷新', kind: 'refresh' }]
-    };
-  }
-
-  const profileCheck = findCheck(task, 'profile-path');
-  const legacyCheck = findCheck(task, 'legacy-config');
-  const scriptCheck = findCheck(task, 'script-path');
-  const pythonCheck = findCheck(task, 'python-global');
-  const screenshotCheck = findCheck(task, 'gem-screenshot');
-  const matrixCheck = findCheck(task, 'gem-matrix');
-  const inactiveCheck = findCheck(task, 'inactive-window');
-  const waitCheck =
-    findCheck(task, 'rune-wait') ?? findCheck(task, 'gem-wait') ?? findCheck(task, 'gold-wait');
-
-  if (pythonCheck?.level === 'error' || scriptCheck?.level === 'error') {
-    pushAction(actions, {
-      key: 'open-runtime',
-      label: '打开运行时目录',
-      kind: 'open-path',
-      path: item.workingDirectory
-    });
-
-    return {
-      tone: 'error',
-      title: '运行环境还没就绪',
-      description: pythonCheck?.detail ?? scriptCheck?.detail ?? task.summary,
-      actions
-    };
-  }
-
-  if (profileCheck?.level === 'error') {
-    pushAction(actions, {
-      key: 'record-profile',
-      label: '重录制坐标配置',
-      kind: 'admin',
-      adminAction: 'record-profile'
-    });
-    pushAction(actions, {
-      key: 'open-profile-dir',
-      label: '打开坐标目录',
-      kind: 'open-path',
-      path: getParentPath(item.profilePath)
-    });
-
-    if (item.supportsLegacyImport && legacyCheck?.level === 'ok') {
-      pushAction(actions, {
-        key: 'import-legacy',
-        label: '导入旧配置',
-        kind: 'admin',
-        adminAction: 'import-legacy-config'
-      });
-    }
-
-    return {
-      tone: 'error',
-      title: '坐标配置还没就位',
-      description: profileCheck.detail,
-      actions
-    };
-  }
-
-  if (screenshotCheck?.level === 'error') {
-    if (drafts.gemMatrix.trim()) {
-      pushAction(actions, {
-        key: 'switch-gem-matrix',
-        label: '改用矩阵模式',
-        kind: 'set-gem-mode',
-        mode: 'matrix'
-      });
-    }
-
-    if (drafts.gemImagePath.trim()) {
-      pushAction(actions, {
-        key: 'open-image-dir',
-        label: '打开截图目录',
-        kind: 'open-path',
-        path: getParentPath(drafts.gemImagePath)
-      });
-      pushAction(actions, {
-        key: 'clear-image-path',
-        label: '清空截图路径',
-        kind: 'clear-gem-path'
-      });
-    }
-
-    if (!hasGemClipboardImage && !drafts.gemImagePath.trim()) {
-      pushAction(actions, { key: 'refresh', label: '刷新诊断', kind: 'refresh' });
-    }
-
-    return {
-      tone: 'error',
-      title: '宝石截图来源未就绪',
-      description: screenshotCheck.detail,
-      actions
-    };
-  }
-
-  if (matrixCheck?.level === 'error') {
-    if (hasGemClipboardImage || drafts.gemImagePath.trim()) {
-      pushAction(actions, {
-        key: 'switch-gem-scan',
-        label: '改用截图识别',
-        kind: 'set-gem-mode',
-        mode: 'scan-image'
-      });
-    }
-
-    return {
-      tone: 'error',
-      title: '宝石矩阵还没填好',
-      description: matrixCheck.detail,
-      actions
-    };
-  }
-
-  if (inactiveCheck?.level === 'warning') {
-    pushAction(actions, {
-      key: 'focus-window',
-      label: '改回前台执行',
-      kind: 'set-allow-inactive',
-      value: false
-    });
-
-    return {
-      tone: 'attention',
-      title: '当前允许后台点击',
-      description: inactiveCheck.detail,
-      actions
-    };
-  }
-
-  if (waitCheck?.level === 'warning') {
-    const waitRepair = getWaitRepair(item.id);
-    pushAction(actions, {
-      key: `repair-${waitRepair.draftKey}`,
-      label: `恢复 ${waitRepair.value} 秒等待`,
-      kind: 'set-wait',
-      value: waitRepair.value
-    });
-
-    return {
-      tone: 'attention',
-      title: '等待时间偏长',
-      description: waitCheck.detail,
-      actions
-    };
-  }
-
-  if (task.status === 'ready') {
-    pushAction(actions, {
-      key: 'print-profile',
-      label: '查看当前坐标',
-      kind: 'admin',
-      adminAction: 'print-profile'
-    });
-
-    if (item.lastLogPath) {
-      pushAction(actions, {
-        key: 'open-last-log',
-        label: '打开最新日志',
-        kind: 'open-path',
-        path: item.lastLogPath
-      });
-    }
-
-    return {
-      tone: 'success',
-      title: '这条任务已经可以开跑',
-      description: '环境和输入已经通过诊断，建议先试运行，再决定是否正式执行。',
-      actions
-    };
-  }
-
-  const focusCheck =
-    task.checks.find((check) => check.level === 'error') ??
-    task.checks.find((check) => check.level === 'warning') ??
-    null;
-
-  return {
-    tone: task.status === 'error' ? 'error' : 'attention',
-    title: task.status === 'error' ? '还有阻塞项待处理' : '还有提醒项建议处理',
-    description: focusCheck?.detail ?? task.summary,
-    actions
-  };
 }
 
 function buildEnvironmentDiagnosis(
@@ -1224,28 +878,6 @@ function getTaskStatusLabel(status: AutomationPreflightStatus | undefined): stri
   }
 }
 
-function getTaskSpotlightLabel(id: IntegrationId): string {
-  switch (id) {
-    case 'rune-cube':
-      return '符文任务';
-    case 'gem-cube':
-      return '宝石任务';
-    case 'drop-shared-gold':
-      return '金币任务';
-  }
-}
-
-function getProfileGuideDetail(id: IntegrationId): string {
-  switch (id) {
-    case 'rune-cube':
-      return '先录方块输出格、Transmute 和符文起始格，后面填数量就能跑。';
-    case 'gem-cube':
-      return '先录输入格、输出格和宝石堆起点，矩阵和截图识别都会靠这套坐标。';
-    case 'drop-shared-gold':
-      return '先录共享仓库、金币按钮和背包金币位，后面才能自动分批丢金币。';
-  }
-}
-
 export function AutomationPanel(props: AutomationPanelProps) {
   const [drafts, setDrafts] = useState<AutomationDrafts>(props.initialDrafts);
   const [gemImageDataUrl, setGemImageDataUrl] = useState('');
@@ -1381,10 +1013,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
   );
   const pythonSourceCheck = useMemo(
     () => findGlobalCheck(globalChecks, 'python-source'),
-    [globalChecks]
-  );
-  const pipCheck = useMemo(
-    () => findGlobalCheck(globalChecks, 'pip-command'),
     [globalChecks]
   );
   const dependencyCheck = useMemo(
@@ -2657,59 +2285,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
     );
   }
 
-  function renderAdminButtons(item: IntegrationConfig) {
-    const recordingState =
-      recordingGuide?.taskId === item.id ? recordingGuide.status : null;
-
-    return (
-      <>
-        <button
-          className="ghost-button"
-          disabled={props.busyKey !== null}
-          onClick={() => void runAdmin(item, 'print-profile')}
-          type="button"
-        >
-          {props.busyKey === getAdminBusyKey(item.id, 'print-profile')
-            ? '读取中...'
-            : '查看坐标配置'}
-        </button>
-        <button
-          className={recordingState === 'recording' ? 'primary-button' : 'ghost-button'}
-          disabled={props.busyKey !== null}
-          onClick={() => {
-            openRecordingGuide(item);
-            void runAdmin(item, 'record-profile');
-          }}
-          type="button"
-        >
-          {props.busyKey === getAdminBusyKey(item.id, 'record-profile')
-            ? '录制中...'
-            : '录制坐标配置'}
-        </button>
-        {item.supportsLegacyImport ? (
-          <button
-            className="ghost-button"
-            disabled={props.busyKey !== null}
-            onClick={() => void runAdmin(item, 'import-legacy-config')}
-            type="button"
-          >
-            {props.busyKey === getAdminBusyKey(item.id, 'import-legacy-config')
-              ? '导入中...'
-              : '导旧配置'}
-          </button>
-        ) : null}
-        <button
-          className="ghost-button"
-          disabled={props.busyKey !== null || logBusyId === item.id}
-          onClick={() => void openLogViewer(item.id, `${getTaskMetaText(item.id).title} / 执行日志`)}
-          type="button"
-        >
-          {logBusyId === item.id ? '读取日志中...' : '看日志'}
-        </button>
-      </>
-    );
-  }
-
   function renderAdminButtonsSmart(item: IntegrationConfig) {
     const recordingState =
       recordingGuide?.taskId === item.id ? recordingGuide.status : null;
@@ -2805,114 +2380,6 @@ export function AutomationPanel(props: AutomationPanelProps) {
             ))}
           </div>
         )}
-      </article>
-    );
-  }
-
-  function renderEnvironmentStation() {
-    const diagnosis = environmentDiagnosis;
-    return (
-      <article className={`card environment-card environment-card-${environmentDiagnosis.tone}`}>
-        <div className="integration-head">
-          <div>
-            <div className="card-title">环境修复站</div>
-            <p className="secondary-text">
-              把运行环境、依赖清单、运行时包和文字识别能力收进一个地方管理。
-            </p>
-          </div>
-          <span className={`status-pill ${diagnosis.tone}`}>
-            {diagnosis.tone === 'success'
-              ? '环境就绪'
-              : diagnosis.tone === 'error'
-                ? '需要修复'
-                : '建议处理'}
-          </span>
-        </div>
-
-        <div className="environment-summary">
-          <strong>{diagnosis.title}</strong>
-          <p>{diagnosis.description}</p>
-          <div className="tag-row">
-            <span className="mini-pill">依赖已安装 {installedDependencies}/{dependencyChecks.length || 0}</span>
-            {findGlobalCheck(globalChecks, 'ocr-engine')?.level === 'ok' ? (
-              <span className="mini-pill">文字识别已就绪</span>
-            ) : (
-              <span className="mini-pill">文字识别待补齐</span>
-            )}
-          </div>
-        </div>
-
-        <article className="environment-entry-banner">
-          <div>
-            <p className="eyebrow">当前优先</p>
-            <strong>{environmentPrimaryAction.label.replace('中...', '').replace('...', '')}</strong>
-            <p className="secondary-text">{environmentPrimaryAction.detail}</p>
-          </div>
-          <div className="tool-row">
-            <button
-              className="primary-button"
-              disabled={
-                props.busyKey !== null ||
-                (environmentPrimaryAction.action === null && preflightBusy)
-              }
-              onClick={() => {
-                if (environmentPrimaryAction.action) {
-                  void runEnvironmentAction(environmentPrimaryAction.action);
-                  return;
-                }
-
-                requestPreflightRefresh();
-              }}
-              type="button"
-            >
-              {environmentPrimaryAction.label}
-            </button>
-            <button
-              className="ghost-button"
-              disabled={props.busyKey !== null || preflightBusy}
-              onClick={requestPreflightRefresh}
-              type="button"
-            >
-              {preflightBusy ? '刷新中...' : '刷新诊断'}
-            </button>
-          </div>
-        </article>
-
-        <div className="diagnosis-actions">
-          {diagnosis.actions.map((action, index) => (
-            <button
-              className={index === 0 ? 'primary-button' : 'ghost-button'}
-              disabled={
-                props.busyKey !== null ||
-                (action.kind === 'refresh' && preflightBusy) ||
-                (action.kind === 'environment-action' &&
-                  props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction))
-              }
-              key={action.key}
-              onClick={() => void handleQuickFix(runeTask, action)}
-              type="button"
-            >
-              {action.kind === 'refresh' && preflightBusy
-                ? '刷新中...'
-                : action.kind === 'environment-action' &&
-                    props.busyKey === getEnvironmentBusyKey(action.environmentAction as EnvironmentAction)
-                  ? '处理中...'
-                  : action.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="environment-dependency-grid">
-          {dependencyChecks.map((check) => (
-            <article className={`dependency-card ${getCheckToneClass(check.level)}`} key={check.key}>
-              <div className="dependency-card-head">
-                <strong>{getDependencyTitle(check)}</strong>
-                <span>{check.level === 'ok' ? '已安装' : '缺失'}</span>
-              </div>
-              <p>{check.detail}</p>
-            </article>
-          ))}
-        </div>
       </article>
     );
   }
@@ -3466,39 +2933,13 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           {renderTaskLiveGuide(runeTask)}
-
-          <div className="task-section">
-            <span className="task-section-label">运行</span>
-            <div className="task-toolbar">{renderRunButtons('rune-cube')}</div>
-          </div>
-          <div className="task-section">
-            <span className="task-section-label">维护</span>
-            <div className="task-toolbar secondary">{renderAdminButtonsSmart(runeTask)}</div>
-          </div>
-
-          <label className="field">
-            <span>符文数量</span>
-            <textarea
-              onChange={(event) => updateDraft('runeCounts', event.target.value)}
-              placeholder="例如：12 6 0 0 0 0 0 0 0"
-              rows={2}
-              value={drafts.runeCounts}
-            />
-          </label>
-
-          <div className="task-grid">
-            <label className="field">
-              <span>等待秒数</span>
-              <input
-                min={0}
-                onChange={(event) => updateWaitSeconds('runeWaitSeconds', event.target.value)}
-                type="number"
-                value={drafts.runeWaitSeconds}
-              />
-            </label>
-          </div>
-
-          <p className="helper-text">空格分隔即可，执行前会先等几秒让你切回游戏。</p>
+          <RuneCubingWorkbench
+            adminButtons={renderAdminButtonsSmart(runeTask)}
+            drafts={drafts}
+            onRuneCountsChange={(value) => updateDraft('runeCounts', value)}
+            onWaitChange={(value) => updateWaitSeconds('runeWaitSeconds', value)}
+            runButtons={renderRunButtons('rune-cube')}
+          />
           {renderTaskDiagnosis(runeTask)}
           {renderTaskChecks('rune-cube')}
           {renderAdvancedDetails(runeTask)}
@@ -3529,97 +2970,20 @@ export function AutomationPanel(props: AutomationPanelProps) {
           </div>
 
           {renderTaskLiveGuide(gemTask)}
-
-          <div className="task-section">
-            <span className="task-section-label">运行</span>
-            <div className="task-toolbar">{renderRunButtons('gem-cube')}</div>
-          </div>
-          <div className="task-section">
-            <span className="task-section-label">维护</span>
-            <div className="task-toolbar secondary">{renderAdminButtonsSmart(gemTask)}</div>
-          </div>
-
-          <div className="mode-switch">
-            {(['matrix', 'scan-image'] as GemInputMode[]).map((mode) => (
-              <button
-                className={
-                  drafts.gemInputMode === mode ? 'mode-button active' : 'mode-button'
-                }
-                key={mode}
-                onClick={() => updateDraft('gemInputMode', mode)}
-                type="button"
-              >
-                {getInputModeLabelText(mode)}
-              </button>
-            ))}
-          </div>
-
-          {drafts.gemInputMode === 'matrix' ? (
-            <label className="field">
-              <span>宝石矩阵</span>
-              <textarea
-                onChange={(event) => updateDraft('gemMatrix', event.target.value)}
-                placeholder="例如：10 5 2 0 0; 8 4 1 0 0"
-                rows={3}
-                value={drafts.gemMatrix}
-              />
-            </label>
-          ) : (
-            <div className="stack compact">
-              <div
-                className={`paste-zone compact-zone ${gemImageDataUrl ? 'ready' : ''}`}
-                onPaste={handleGemPasteZone}
-                tabIndex={0}
-              >
-                <div>
-                  <strong>宝石截图粘贴区</strong>
-                  <p>{gemPasteHint}</p>
-                </div>
-                {gemImageDataUrl ? (
-                  <img alt="宝石截图预览" className="paste-preview" src={gemImageDataUrl} />
-                ) : (
-                  <span className="paste-empty">点这里后也可以直接 Ctrl+V 粘贴截图</span>
-                )}
-              </div>
-
-              <label className="field">
-                <span>或使用现有截图路径</span>
-                <input
-                  onChange={(event) => updateDraft('gemImagePath', event.target.value)}
-                  placeholder="例如：E:\\screenshots\\gems.png"
-                  value={drafts.gemImagePath}
-                />
-              </label>
-
-              <div className="tool-row">
-                <button className="ghost-button" onClick={clearGemImage} type="button">
-                  清空截图
-                </button>
-                <button
-                  className="ghost-button"
-                  disabled={!drafts.gemImagePath.trim()}
-                  onClick={() => void props.onOpenPath(drafts.gemImagePath)}
-                  type="button"
-                >
-                  打开当前截图
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="task-grid">
-            <label className="field">
-              <span>等待秒数</span>
-              <input
-                min={0}
-                onChange={(event) => updateWaitSeconds('gemWaitSeconds', event.target.value)}
-                type="number"
-                value={drafts.gemWaitSeconds}
-              />
-            </label>
-          </div>
-
-          <p className="helper-text">矩阵适合手填库存，截图识别适合直接粘贴共享仓库截图。</p>
+          <GemCubingWorkbench
+            adminButtons={renderAdminButtonsSmart(gemTask)}
+            drafts={drafts}
+            gemImageDataUrl={gemImageDataUrl}
+            gemPasteHint={gemPasteHint}
+            onClearGemImage={clearGemImage}
+            onGemImagePathChange={(value) => updateDraft('gemImagePath', value)}
+            onGemMatrixChange={(value) => updateDraft('gemMatrix', value)}
+            onGemModeChange={(value) => updateDraft('gemInputMode', value)}
+            onGemPaste={handleGemPasteZone}
+            onOpenPath={props.onOpenPath}
+            onWaitChange={(value) => updateWaitSeconds('gemWaitSeconds', value)}
+            runButtons={renderRunButtons('gem-cube')}
+          />
           {renderTaskDiagnosis(gemTask)}
           {renderTaskChecks('gem-cube')}
           {renderAdvancedDetails(gemTask)}

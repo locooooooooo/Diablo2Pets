@@ -1,0 +1,1 @@
+Set-Content -Path "e:\暗黑2桌宠\log.txt" -Value "Test"

@@ -5,6 +5,11 @@ import type {
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
+  CounterSceneTemplatePickResult,
+  CounterRouteCaptureResult,
+  CounterRouteDraftResult,
+  CounterRouteProbeResult,
+  CounterRouteTemplateStatus,
   CopyTextInput,
   CreateDropInput,
   DropOcrPreviewInput,
@@ -24,7 +29,8 @@ import type {
   SaveImageResult,
   StartRunInput,
   UpdateSettingsInput,
-  UpdateIntegrationInput
+  UpdateIntegrationInput,
+  FastLauncherLaunchInput
 } from '../src/types.js';
 
 const api = {
@@ -32,6 +38,9 @@ const api = {
   startRun: (payload: StartRunInput) =>
     ipcRenderer.invoke('run:start', payload) as Promise<AppData>,
   stopRun: () => ipcRenderer.invoke('run:stop') as Promise<AppData>,
+  resetCounterHistory: () => ipcRenderer.invoke('run:reset-history') as Promise<AppData>,
+  pickCounterSceneTemplate: () =>
+    ipcRenderer.invoke('counter:pick-scene-template') as Promise<CounterSceneTemplatePickResult | null>,
   createDrop: (payload: CreateDropInput) =>
     ipcRenderer.invoke('drop:create', payload) as Promise<AppData>,
   previewDropOcr: (payload: DropOcrPreviewInput) =>
@@ -58,6 +67,16 @@ const api = {
     ipcRenderer.invoke('clipboard:write-text', payload) as Promise<void>,
   exportVisualReport: (payload: ExportVisualReportInput) =>
     ipcRenderer.invoke('report:export-visual', payload) as Promise<ExportVisualReportResult>,
+  getCounterRouteTemplateStatus: () =>
+    ipcRenderer.invoke('counter:get-route-template-status') as Promise<CounterRouteTemplateStatus>,
+  initializeCounterRouteTemplates: () =>
+    ipcRenderer.invoke('counter:initialize-route-templates') as Promise<CounterRouteTemplateStatus>,
+  captureCounterRouteSnapshot: () =>
+    ipcRenderer.invoke('counter:capture-route-snapshot') as Promise<CounterRouteCaptureResult>,
+  generateCounterRouteDrafts: (routeName: string) =>
+    ipcRenderer.invoke('counter:generate-route-drafts', routeName) as Promise<CounterRouteDraftResult>,
+  probeCounterRouteDetection: () =>
+    ipcRenderer.invoke('counter:probe-route-detection') as Promise<CounterRouteProbeResult>,
   onDataChanged: (listener: (data: AppData) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: AppData) => {
       listener(data);
@@ -94,7 +113,11 @@ const api = {
     ipcRenderer.invoke('shell:open-path', targetPath) as Promise<string>,
   minimize: () => ipcRenderer.invoke('window:minimize') as Promise<void>,
   setAlwaysOnTop: (value: boolean) =>
-    ipcRenderer.invoke('window:set-always-on-top', value) as Promise<AppData>
+    ipcRenderer.invoke('window:set-always-on-top', value) as Promise<AppData>,
+  fastLauncherGetPath: () => ipcRenderer.invoke('fast-launcher:get-path') as Promise<string>,
+  fastLauncherKillMutex: () => ipcRenderer.invoke('fast-launcher:kill-mutex') as Promise<string>,
+  fastLauncherLaunch: (payload: FastLauncherLaunchInput) =>
+    ipcRenderer.invoke('fast-launcher:launch', payload) as Promise<string>
 };
 
 contextBridge.exposeInMainWorld('d2Pet', api);

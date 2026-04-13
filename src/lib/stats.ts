@@ -12,6 +12,14 @@ export interface TodayStats {
   }>;
 }
 
+export interface RunHistoryStats {
+  totalCount: number;
+  totalDurationSeconds: number;
+  averageDurationSeconds: number;
+  fastestDurationSeconds: number;
+  latestDurationSeconds: number;
+}
+
 export function buildTodayStats(runHistory: RunRecord[], todayKey: string): TodayStats {
   const todayRuns = runHistory.filter((run) => run.dayKey === todayKey);
   const totalCount = todayRuns.length;
@@ -51,5 +59,34 @@ export function buildTodayStats(runHistory: RunRecord[], todayKey: string): Toda
     totalDurationSeconds,
     averageDurationSeconds,
     mapBreakdown
+  };
+}
+
+export function buildRunHistoryStats(runHistory: RunRecord[]): RunHistoryStats {
+  if (runHistory.length === 0) {
+    return {
+      totalCount: 0,
+      totalDurationSeconds: 0,
+      averageDurationSeconds: 0,
+      fastestDurationSeconds: 0,
+      latestDurationSeconds: 0
+    };
+  }
+
+  const totalDurationSeconds = runHistory.reduce(
+    (sum, run) => sum + run.durationSeconds,
+    0
+  );
+  const fastestDurationSeconds = runHistory.reduce(
+    (fastest, run) => Math.min(fastest, run.durationSeconds),
+    runHistory[0].durationSeconds
+  );
+
+  return {
+    totalCount: runHistory.length,
+    totalDurationSeconds,
+    averageDurationSeconds: totalDurationSeconds / runHistory.length,
+    fastestDurationSeconds,
+    latestDurationSeconds: runHistory[0].durationSeconds
   };
 }

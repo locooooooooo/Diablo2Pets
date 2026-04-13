@@ -1,6 +1,6 @@
 import { exec, execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -25,7 +25,16 @@ import type {
   AutomationRecordProgressEvent,
   AutomationDrafts,
   AutomationLogDocument,
+  CounterRouteCaptureResult,
+  CounterRouteDraftEntry,
+  CounterRouteDraftResult,
+  CounterRouteProbeResult,
+  CounterSceneTemplatePickResult,
+  CounterRouteTemplateStatus,
+  CounterRecognitionEvent,
   CopyTextInput,
+  CounterDetectedState,
+  CounterRouteSource,
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationPreflightStatus,
@@ -50,13 +59,15 @@ import type {
   UpdateSettingsInput,
   VisualReportPayload,
   WindowBounds,
-  WindowMode
+  WindowMode,
+  FastLauncherLaunchInput
 } from '../src/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const workspaceRoot = resolve(__dirname, '../..');
 const toggleWindowShortcut = 'Alt+Shift+D';
+const toggleCounterLockShortcut = 'Alt+Shift+L';
 
 function getBuildAssetPath(...segments: string[]): string {
   return join(workspaceRoot, 'build', ...segments);
@@ -90,10 +101,23 @@ const screenshotRoot = () => join(app.getPath('userData'), 'd2-pet', 'screenshot
 const automationLogRoot = () => join(app.getPath('userData'), 'd2-pet', 'automation-logs');
 const reportPreviewRoot = () => join(app.getPath('userData'), 'd2-pet', 'report-previews');
 const managedPythonRoot = () => join(app.getPath('userData'), 'd2-pet', 'python-runtime');
+const runCounterUserTemplateRoot = () => join(app.getPath('userData'), 'd2-pet', 'run-counter');
+const runCounterUserCaptureRoot = () => join(runCounterUserTemplateRoot(), 'captures');
+const runCounterUserRoutesRoot = () => join(runCounterUserTemplateRoot(), 'routes');
+const runCounterUserSceneTemplateRoot = () => join(runCounterUserTemplateRoot(), 'scene-templates');
+const runCounterUserManifestPath = () => join(runCounterUserTemplateRoot(), 'route_templates.json');
+const runCounterUserExampleManifestPath = () =>
+  join(runCounterUserTemplateRoot(), 'route_templates.example.json');
 const runtimeRequirementsPath = () => join(pythonRuntimeRoot, 'requirements.txt');
 const runtimeReadmePath = () => join(pythonRuntimeRoot, 'README.md');
 const runCounterScriptPath = () => join(pythonRuntimeRoot, 'tasks', 'run_counter_monitor.py');
+const captureRouteSnapshotScriptPath = () =>
+  join(pythonRuntimeRoot, 'tasks', 'capture_route_snapshot.py');
+const generateRouteTemplateDraftScriptPath = () =>
+  join(pythonRuntimeRoot, 'tasks', 'generate_route_template_drafts.py');
 const runCounterTemplateRoot = () => join(pythonRuntimeRoot, 'assets', 'run_counter');
+const runCounterTemplateExamplePath = () =>
+  join(runCounterTemplateRoot(), 'route_templates.example.json');
 
 function getProjectBundledPythonRoot(): string {
   return join(workspaceRoot, 'vendor', 'python-runtime', 'win32-x64');
@@ -105,6 +129,36 @@ function getPackagedPythonRoot(): string {
 
 function getPythonExecutablesFromRoot(rootPath: string): string[] {
   return [join(rootPath, 'Scripts', 'python.exe'), join(rootPath, 'python.exe')];
+}
+
+function getFastLauncherExecutablePath(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'bin', 'fast-launcher.exe');
+  }
+  return join(workspaceRoot, 'resources', 'fast-launcher', 'target', 'release', 'fast-launcher.exe');
+}
+
+function callFastLauncher(command: string, args: string[] = []): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const exePath = getFastLauncherExecutablePath();
+    execFile(exePath, [command, ...args], (error, stdout, stderr) => {
+      if (error) {
+        console.error(`FastLauncher error: ${stderr || error.message}`);
+        return reject(new Error(stderr || error.message));
+      }
+      try {
+        const result = JSON.parse(stdout.trim());
+        if (result.status === 'success') {
+          resolve(result.data);
+        } else {
+          reject(new Error(result.message || 'Unknown error from fast launcher'));
+        }
+      } catch (parseError) {
+        console.error(`FastLauncher parse error. Output: ${stdout}`);
+        reject(new Error(`Invalid response from fast launcher: ${stdout}`));
+      }
+    });
+  });
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -124,6 +178,7 @@ let pythonEnvironmentProbeCache:
 let runCounterMonitorProcess: ReturnType<typeof spawn> | null = null;
 let runCounterMonitorExpectedExit = false;
 let runCounterMonitorEventChain: Promise<void> = Promise.resolve();
+let runCounterMonitorIntervalSeconds: number | null = null;
 
 interface PythonDependencyProbeItem {
   module: string;
@@ -167,6 +222,7 @@ function getWindowMetrics(mode: WindowMode): {
 
 const floatingSnapDistance = 22;
 const windowStatePersistDelayMs = 220;
+const counterMarkerMinRunSeconds = 20;
 
 function sanitizeWindowBounds(input: Partial<WindowBounds> | undefined): WindowBounds | null {
   if (
@@ -367,6 +423,14 @@ function getPythonCandidates(): string[] {
   );
 }
 
+function getUtf8ChildEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8'
+  };
+}
+
 function getBootstrapPythonCandidates(): string[] {
   const home = app.getPath('home');
 
@@ -506,6 +570,286 @@ function getTimestamp(input: Date): string {
 
 function buildId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function ensureRouteTemplateWorkspace(): Promise<void> {
+  await mkdir(runCounterUserTemplateRoot(), { recursive: true });
+  await mkdir(runCounterUserCaptureRoot(), { recursive: true });
+  await mkdir(runCounterUserRoutesRoot(), { recursive: true });
+  await mkdir(runCounterUserSceneTemplateRoot(), { recursive: true });
+  await mkdir(join(runCounterUserRoutesRoot(), '3c'), { recursive: true });
+  await mkdir(join(runCounterUserRoutesRoot(), 'cow'), { recursive: true });
+  await mkdir(join(runCounterUserRoutesRoot(), 'baal'), { recursive: true });
+
+  if (
+    existsSync(runCounterTemplateExamplePath()) &&
+    !existsSync(runCounterUserExampleManifestPath())
+  ) {
+    const exampleContent = await readFile(runCounterTemplateExamplePath(), 'utf8');
+    await writeFile(runCounterUserExampleManifestPath(), exampleContent, 'utf8');
+  }
+}
+
+function buildRouteTemplateReadme(): string {
+  return [
+    '# 路线模板助手',
+    '',
+    '这个目录用于给桌宠的全自动计数提供路线识别模板。',
+    '',
+    '推荐顺序：',
+    '1. 在游戏内切到目标路线场景，比如 3C。',
+    '2. 在桌宠里点“抓当前游戏截图”。',
+    '3. 先点“为当前路线生成候选图”，让桌宠从最新截图里自动切 3 张候选模板。',
+    '4. 打开 routes 目录，必要时替换成你自己裁的更稳定小图。',
+    '5. 回桌宠点“测试当前识别”，确认已经命中目标路线。',
+    '',
+    '建议模板特征：',
+    '- 尽量选固定不变的 UI 角落或文本',
+    '- 不要选怪物、人物动作、地形阴影这类容易变化的内容',
+    '- 小图即可，越稳定越好',
+    '',
+    '常用文件：',
+    `- 当前生效清单：${runCounterUserManifestPath()}`,
+    `- 示例清单：${runCounterUserExampleManifestPath()}`,
+    `- 截图目录：${runCounterUserCaptureRoot()}`,
+    `- 模板目录：${runCounterUserRoutesRoot()}`,
+    ''
+  ].join('\n');
+}
+
+async function readRouteTemplateManifestJson(): Promise<Record<string, CounterRouteDraftEntry[]>> {
+  if (!existsSync(runCounterUserManifestPath())) {
+    return {};
+  }
+
+  try {
+    const content = await readFile(runCounterUserManifestPath(), 'utf8');
+    const parsed = JSON.parse(content) as Record<string, CounterRouteDraftEntry[]>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeRouteTemplateManifestJson(
+  manifest: Record<string, CounterRouteDraftEntry[]>
+): Promise<void> {
+  await writeFile(runCounterUserManifestPath(), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+}
+
+async function upsertRouteTemplateEntries(
+  routeName: string,
+  entries: CounterRouteDraftEntry[]
+): Promise<void> {
+  await ensureRouteTemplateWorkspace();
+
+  if (!existsSync(runCounterUserManifestPath())) {
+    const sourcePath = existsSync(runCounterUserExampleManifestPath())
+      ? runCounterUserExampleManifestPath()
+      : runCounterTemplateExamplePath();
+
+    if (existsSync(sourcePath)) {
+      const content = await readFile(sourcePath, 'utf8');
+      await writeFile(runCounterUserManifestPath(), content, 'utf8');
+    }
+  }
+
+  const manifest = await readRouteTemplateManifestJson();
+  manifest[routeName] = entries;
+  await writeRouteTemplateManifestJson(manifest);
+}
+
+async function readRouteTemplateManifestDetail(): Promise<{
+  routeNames: string[];
+  templateFiles: string[];
+}> {
+  if (!existsSync(runCounterUserManifestPath())) {
+    return {
+      routeNames: [],
+      templateFiles: []
+    };
+  }
+
+  try {
+    const manifestContent = await readFile(runCounterUserManifestPath(), 'utf8');
+    const parsed = JSON.parse(manifestContent) as Record<string, unknown>;
+    const routeNames = Object.keys(parsed).filter((key) => key.trim().length > 0);
+    const templateFiles: string[] = [];
+
+    for (const entries of Object.values(parsed)) {
+      if (!Array.isArray(entries)) {
+        continue;
+      }
+
+      for (const entry of entries) {
+        if (!entry || typeof entry !== 'object') {
+          continue;
+        }
+
+        const filename = String((entry as { filename?: unknown }).filename ?? '').trim();
+        if (filename) {
+          templateFiles.push(filename);
+        }
+      }
+    }
+
+    return {
+      routeNames,
+      templateFiles
+    };
+  } catch {
+    return {
+      routeNames: [],
+      templateFiles: []
+    };
+  }
+}
+
+async function getCounterRouteTemplateStatus(): Promise<CounterRouteTemplateStatus> {
+  await ensureRouteTemplateWorkspace();
+  const manifestDetail = await readRouteTemplateManifestDetail();
+  const missingTemplateFiles = manifestDetail.templateFiles.filter(
+    (relativePath) => !existsSync(join(runCounterUserTemplateRoot(), relativePath))
+  );
+
+  return {
+    rootPath: runCounterUserTemplateRoot(),
+    capturesPath: runCounterUserCaptureRoot(),
+    routesPath: runCounterUserRoutesRoot(),
+    manifestPath: runCounterUserManifestPath(),
+    exampleManifestPath: runCounterUserExampleManifestPath(),
+    hasActiveManifest: existsSync(runCounterUserManifestPath()),
+    configuredRouteCount: manifestDetail.routeNames.length,
+    readyTemplateCount: manifestDetail.templateFiles.length - missingTemplateFiles.length,
+    missingTemplateCount: missingTemplateFiles.length,
+    missingTemplateFiles,
+    routeNames: manifestDetail.routeNames
+  };
+}
+
+async function initializeCounterRouteTemplates(): Promise<CounterRouteTemplateStatus> {
+  await ensureRouteTemplateWorkspace();
+
+  const readmePath = join(runCounterUserTemplateRoot(), 'README.md');
+  await writeFile(readmePath, buildRouteTemplateReadme(), 'utf8');
+
+  if (!existsSync(runCounterUserManifestPath())) {
+    const sourcePath = existsSync(runCounterUserExampleManifestPath())
+      ? runCounterUserExampleManifestPath()
+      : runCounterTemplateExamplePath();
+
+    if (!existsSync(sourcePath)) {
+      throw new Error('未找到路线模板示例文件。');
+    }
+
+    const content = await readFile(sourcePath, 'utf8');
+    await writeFile(runCounterUserManifestPath(), content, 'utf8');
+  }
+
+  return getCounterRouteTemplateStatus();
+}
+
+async function captureCounterRouteSnapshot(): Promise<CounterRouteCaptureResult> {
+  await ensureRouteTemplateWorkspace();
+
+  const scriptPath = captureRouteSnapshotScriptPath();
+  if (!existsSync(scriptPath)) {
+    throw new Error(`未找到路线截图脚本：${scriptPath}`);
+  }
+
+  const pythonCommand = resolvePythonCommand();
+  const result = await executeFileCommand(
+    pythonCommand,
+    [scriptPath, '--output-dir', runCounterUserCaptureRoot()],
+    pythonRuntimeRoot
+  );
+
+  if (!result.success) {
+    throw new Error(result.stderr || result.stdout || '抓取路线模板截图失败。');
+  }
+
+  return parseJsonOutput<CounterRouteCaptureResult>(result);
+}
+
+async function generateCounterRouteDrafts(routeName: string): Promise<CounterRouteDraftResult> {
+  await initializeCounterRouteTemplates();
+
+  const scriptPath = generateRouteTemplateDraftScriptPath();
+  if (!existsSync(scriptPath)) {
+    throw new Error(`未找到路线候选图脚本：${scriptPath}`);
+  }
+
+  const pythonCommand = resolvePythonCommand();
+  const result = await executeFileCommand(
+    pythonCommand,
+    [
+      scriptPath,
+      '--capture-dir',
+      runCounterUserCaptureRoot(),
+      '--template-root',
+      runCounterUserTemplateRoot(),
+      '--route-name',
+      routeName
+    ],
+    pythonRuntimeRoot
+  );
+
+  if (!result.success) {
+    throw new Error(result.stderr || result.stdout || '生成路线候选图失败。');
+  }
+
+  const parsed = parseJsonOutput<CounterRouteDraftResult>(result);
+  await upsertRouteTemplateEntries(parsed.routeName, parsed.entries);
+  return parsed;
+}
+
+async function probeCounterRouteDetection(): Promise<CounterRouteProbeResult> {
+  await ensureRouteTemplateWorkspace();
+
+  const scriptPath = runCounterScriptPath();
+  if (!existsSync(scriptPath)) {
+    throw new Error(`未找到自动计数脚本：${scriptPath}`);
+  }
+
+  const pythonCommand = resolvePythonCommand();
+  const result = await executeFileCommand(
+    pythonCommand,
+    [
+      scriptPath,
+      '--once',
+      '--template-root',
+      runCounterTemplateRoot(),
+      '--route-template-root',
+      runCounterUserTemplateRoot()
+    ],
+    pythonRuntimeRoot
+  );
+
+  if (!result.success) {
+    throw new Error(result.stderr || result.stdout || '测试当前路线识别失败。');
+  }
+
+  const lines = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('{'));
+
+  const stateLine = [...lines]
+    .reverse()
+    .find((line) => {
+      try {
+        const parsed = JSON.parse(line) as { type?: string };
+        return parsed.type === 'state';
+      } catch {
+        return false;
+      }
+    });
+
+  if (!stateLine) {
+    throw new Error('没有拿到当前路线识别结果。');
+  }
+
+  return JSON.parse(stateLine) as CounterRouteProbeResult;
 }
 
 function sanitizeFileName(value: string): string {
@@ -1028,6 +1372,12 @@ function createDefaultData(): AppData {
       alwaysOnTop: true,
       launchOnStartup: false,
       notificationsEnabled: true,
+      autoCounterEnabled: false,
+      counterLockEnabled: false,
+      counterRecognitionIntervalSeconds: 2,
+      counterSceneTemplatePath: '',
+      counterSceneMatchThreshold: 0.82,
+      defaultRunMapName: '3C',
       windowMode: 'panel',
       setupGuideCompleted: false,
       windowPlacement: {}
@@ -1045,7 +1395,7 @@ function mergeIntegrations(existing: IntegrationConfig[] | undefined): Integrati
 
 function normalizeData(input: Partial<AppData> | undefined): AppData {
   const fallback = createDefaultData();
-  return {
+  const normalized: AppData = {
     counterSession: input?.counterSession ?? fallback.counterSession,
     activeRun: input?.activeRun ?? fallback.activeRun,
     runHistory: Array.isArray(input?.runHistory) ? input.runHistory : fallback.runHistory,
@@ -1061,6 +1411,22 @@ function normalizeData(input: Partial<AppData> | undefined): AppData {
         input?.settings?.launchOnStartup ?? fallback.settings.launchOnStartup,
       notificationsEnabled:
         input?.settings?.notificationsEnabled ?? fallback.settings.notificationsEnabled,
+      autoCounterEnabled:
+        input?.settings?.autoCounterEnabled ?? fallback.settings.autoCounterEnabled,
+      counterLockEnabled:
+        input?.settings?.counterLockEnabled ?? fallback.settings.counterLockEnabled,
+      counterRecognitionIntervalSeconds: normalizeCounterRecognitionIntervalSeconds(
+        input?.settings?.counterRecognitionIntervalSeconds
+      ),
+      counterSceneTemplatePath:
+        typeof input?.settings?.counterSceneTemplatePath === 'string'
+          ? input.settings.counterSceneTemplatePath.trim()
+          : fallback.settings.counterSceneTemplatePath,
+      counterSceneMatchThreshold: normalizeCounterSceneMatchThreshold(
+        input?.settings?.counterSceneMatchThreshold
+      ),
+      defaultRunMapName:
+        input?.settings?.defaultRunMapName?.trim() || fallback.settings.defaultRunMapName,
       windowMode: input?.settings?.windowMode ?? fallback.settings.windowMode,
       setupGuideCompleted:
         input?.settings?.setupGuideCompleted ?? fallback.settings.setupGuideCompleted,
@@ -1070,6 +1436,12 @@ function normalizeData(input: Partial<AppData> | undefined): AppData {
       }
     }
   };
+
+  if (hasRecoverableCounterSession(normalized)) {
+    normalized.counterSession = null;
+  }
+
+  return normalized;
 }
 
 function getLaunchOnStartupOptions(): { path: string; args: string[] } {
@@ -1142,7 +1514,14 @@ async function writeDataStore(
   return normalized;
 }
 
-function buildCounterSession(mapName: string) {
+function buildCounterSession(
+  mapName: string,
+  routeMeta?: {
+    source?: CounterRouteSource;
+    confidence?: number;
+    detail?: string;
+  }
+) {
   const startedAt = new Date().toISOString();
   return {
     id: buildId('counter-session'),
@@ -1153,8 +1532,64 @@ function buildCounterSession(mapName: string) {
     totalDurationSeconds: 0,
     lastEventAt: startedAt,
     lastDetectedState: 'booting' as const,
-    lastDetail: '自动统计刚刚开始，等待识别游戏状态。'
+    lastDetail: '自动统计刚刚开始，等待识别游戏状态。',
+    routeSource: routeMeta?.source,
+    routeConfidence: routeMeta?.confidence,
+    routeDetail: routeMeta?.detail,
+    recognitionHistory: [] as CounterRecognitionEvent[]
   };
+}
+
+function pushCounterRecognitionEvent(
+  session: NonNullable<AppData['counterSession']>,
+  event: CounterRecognitionEvent
+): void {
+  const current = Array.isArray(session.recognitionHistory) ? session.recognitionHistory : [];
+  current.unshift(event);
+  session.recognitionHistory = current.slice(0, 12);
+}
+
+function normalizeDefaultRunMapName(mapName: string | undefined): string {
+  const normalized = mapName?.trim();
+  return normalized && normalized.length > 0 ? normalized : '3C';
+}
+
+function normalizeCounterRecognitionIntervalSeconds(
+  input: number | string | undefined
+): number {
+  const parsed =
+    typeof input === 'number'
+      ? input
+      : typeof input === 'string'
+        ? Number.parseFloat(input)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsed)) {
+    return 5;
+  }
+
+  return Math.min(30, Math.max(1, Math.round(parsed)));
+}
+
+function normalizeCounterSceneMatchThreshold(
+  input: number | string | undefined
+): number {
+  const parsed =
+    typeof input === 'number'
+      ? input
+      : typeof input === 'string'
+        ? Number.parseFloat(input)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsed)) {
+    return 0.82;
+  }
+
+  return Math.min(0.98, Math.max(0.5, parsed));
+}
+
+function shouldKeepRunCounterMonitorAlive(data: AppData): boolean {
+  return Boolean(data.settings.autoCounterEnabled || data.counterSession || data.activeRun);
 }
 
 function isCounterInGameState(state: string): boolean {
@@ -1163,6 +1598,112 @@ function isCounterInGameState(state: string): boolean {
 
 function isCounterLobbyState(state: string): boolean {
   return state === 'lobby';
+}
+
+function getCounterRouteSourceLabel(source: CounterRouteSource | undefined): string {
+  switch (source) {
+    case 'template':
+      return '模板识别';
+    case 'history':
+      return '历史推断';
+    case 'manual':
+      return '手动指定';
+    case 'default':
+    default:
+      return '默认路线';
+  }
+}
+
+function inferPreferredCounterRouteFromHistory(data: AppData): {
+  mapName: string;
+  source: CounterRouteSource;
+  confidence?: number;
+  detail: string;
+} | null {
+  const recentRuns = data.runHistory.slice(0, 8);
+  if (recentRuns.length === 0) {
+    return null;
+  }
+
+  const stats = new Map<string, { count: number; latestEndedAt: number }>();
+  for (const run of recentRuns) {
+    const current = stats.get(run.mapName) ?? { count: 0, latestEndedAt: 0 };
+    current.count += 1;
+    current.latestEndedAt = Math.max(current.latestEndedAt, new Date(run.endedAt).getTime());
+    stats.set(run.mapName, current);
+  }
+
+  const sorted = Array.from(stats.entries())
+    .map(([mapName, value]) => ({
+      mapName,
+      count: value.count,
+      latestEndedAt: value.latestEndedAt
+    }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return right.latestEndedAt - left.latestEndedAt;
+    });
+
+  const top = sorted[0];
+  const second = sorted[1];
+  if (!top) {
+    return null;
+  }
+
+  if (top.count >= 2 && (!second || top.count >= second.count + 1)) {
+    return {
+      mapName: top.mapName,
+      source: 'history',
+      confidence: Math.min(0.92, 0.55 + top.count * 0.08),
+      detail: `最近 ${recentRuns.length} 把里，${top.mapName} 出现了 ${top.count} 次，先按这条主刷路线接管。`
+    };
+  }
+
+  return null;
+}
+
+function resolveCounterRoute(data: AppData, event: {
+  routeName?: string;
+  routeConfidence?: number;
+  routeDetail?: string;
+  preferredFallbackMapName?: string;
+}, currentMapName?: string): {
+  mapName: string;
+  source: CounterRouteSource;
+  confidence?: number;
+  detail: string;
+} {
+  const routeName = event.routeName?.trim();
+  if (routeName) {
+    return {
+      mapName: routeName,
+      source: 'template',
+      confidence: event.routeConfidence,
+      detail:
+        event.routeDetail?.trim() ||
+        `已自动识别为 ${routeName}。`
+    };
+  }
+
+  const inferred = inferPreferredCounterRouteFromHistory(data);
+  if (inferred) {
+    return inferred;
+  }
+
+  const fallbackMapName = normalizeDefaultRunMapName(
+    event.preferredFallbackMapName || currentMapName || data.settings.defaultRunMapName
+  );
+
+  return {
+    mapName: fallbackMapName,
+    source: currentMapName ? 'manual' : 'default',
+    confidence: undefined,
+    detail:
+      event.routeDetail?.trim() ||
+      `当前还没有路线模板命中，先沿用${currentMapName ? '当前会话' : '默认'}路线 ${fallbackMapName}。`
+  };
 }
 
 function finalizeActiveRunRecord(data: AppData, endedAt: Date) {
@@ -1208,6 +1749,7 @@ async function stopRunCounterMonitor(): Promise<void> {
   runCounterMonitorExpectedExit = true;
   const processRef = runCounterMonitorProcess;
   runCounterMonitorProcess = null;
+  runCounterMonitorIntervalSeconds = null;
 
   try {
     processRef.kill();
@@ -1220,17 +1762,181 @@ async function handleRunCounterStateEvent(event: {
   state: string;
   detail?: string;
   detectedAt?: string;
+  template?: string;
+  confidence?: number;
+  requiredConfidence?: number;
+  routeName?: string;
+  routeSource?: string;
+  routeDetail?: string;
+  routeConfidence?: number;
+  routeTemplate?: string;
+  routeRequiredConfidence?: number;
 }): Promise<void> {
   const data = await readDataStore();
+  const detectedAt = event.detectedAt ? new Date(event.detectedAt) : new Date();
+  const detectedState = (event.state || 'unknown') as CounterDetectedState;
+
+  if (
+    !data.counterSession &&
+    data.settings.autoCounterEnabled &&
+    detectedState === 'route-marker'
+  ) {
+    const route = resolveCounterRoute(data, {
+      routeName: event.routeName,
+      routeConfidence: event.routeConfidence,
+      routeDetail: event.routeDetail
+    });
+    data.counterSession = buildCounterSession(route.mapName, route);
+    data.counterSession.lastEventAt = detectedAt.toISOString();
+    data.counterSession.lastDetectedState = detectedState;
+    data.counterSession.routeSource = route.source;
+    data.counterSession.routeConfidence = route.confidence;
+    data.counterSession.routeDetail = route.detail;
+    data.counterSession.lastDetail =
+      event.detail?.trim() || `已命中 ${route.mapName} 地图名截图，全自动整轮会话已接管。`;
+
+    await writeDataStore(data);
+    void sendDesktopNotification('全自动整轮已接管', data.counterSession.lastDetail);
+  }
+
+  if (
+    !data.counterSession &&
+    data.settings.autoCounterEnabled &&
+    (
+      isCounterLobbyState(event.state) ||
+      isCounterInGameState(event.state) ||
+      detectedState === 'route-marker'
+    )
+  ) {
+    const route = resolveCounterRoute(data, {
+      routeName: event.routeName,
+      routeConfidence: event.routeConfidence,
+      routeDetail: event.routeDetail
+    });
+    data.counterSession = buildCounterSession(route.mapName, route);
+    data.counterSession.lastEventAt = detectedAt.toISOString();
+    data.counterSession.lastDetectedState = detectedState;
+    data.counterSession.routeSource = route.source;
+    data.counterSession.routeConfidence = route.confidence;
+    data.counterSession.routeDetail = route.detail;
+    data.counterSession.lastDetail = isCounterInGameState(event.state)
+      ? `已识别到你正在 ${route.mapName} 游戏内，自动整轮会话已接管并开始计时。`
+      : `已识别到大厅，${route.mapName} 全自动整轮会话已待命。进入游戏后会自动起表。`;
+
+      await writeDataStore(data);
+    void sendDesktopNotification(
+      isCounterInGameState(event.state) ? '全自动整轮已接管' : '全自动整轮已待命',
+      data.counterSession.lastDetail
+    );
+  }
+
   if (!data.counterSession) {
     return;
   }
 
   const session = data.counterSession;
-  const detectedAt = event.detectedAt ? new Date(event.detectedAt) : new Date();
   session.lastEventAt = detectedAt.toISOString();
-  session.lastDetectedState = (event.state || 'unknown') as typeof session.lastDetectedState;
+  session.lastDetectedState = detectedState;
   session.lastDetail = event.detail?.trim() || session.lastDetail;
+  session.lastTemplate = event.template?.trim() || '';
+  session.lastTemplateConfidence = event.confidence;
+  session.lastTemplateThreshold = event.requiredConfidence;
+  session.lastRouteTemplate = event.routeTemplate?.trim() || '';
+  session.lastRouteThreshold = event.routeRequiredConfidence;
+  const route = resolveCounterRoute(
+    data,
+    {
+      routeName: event.routeName,
+      routeConfidence: event.routeConfidence,
+      routeDetail: event.routeDetail,
+      preferredFallbackMapName: session.mapName
+    },
+    session.mapName
+  );
+  session.routeSource = route.source;
+  session.routeConfidence = route.confidence;
+  session.routeDetail = route.detail;
+  pushCounterRecognitionEvent(session, {
+    detectedAt: detectedAt.toISOString(),
+    state: detectedState,
+    detail: session.lastDetail,
+    template: session.lastTemplate,
+    confidence: session.lastTemplateConfidence,
+    requiredConfidence: session.lastTemplateThreshold,
+    routeName: session.mapName,
+    routeSource: session.routeSource,
+    routeDetail: session.routeDetail,
+    routeConfidence: event.routeConfidence,
+    routeTemplate: session.lastRouteTemplate,
+    routeRequiredConfidence: session.lastRouteThreshold
+  });
+
+  if (detectedState === 'route-marker') {
+    if (route.mapName && route.mapName !== session.mapName) {
+      session.mapName = route.mapName;
+    }
+
+    session.state = 'in-game';
+
+    if (!data.activeRun) {
+      data.activeRun = {
+        id: buildId('run'),
+        mapName: session.mapName,
+        startedAt: detectedAt.toISOString()
+      };
+      session.lastDetail =
+        event.detail?.trim() || `已命中 ${session.mapName} 的地图名截图，开始记录这一把。`;
+      await writeDataStore(data);
+      void sendDesktopNotification(
+        '3C 已开始计时',
+        `${session.mapName} 地图名已出现，这一把开始计时。`
+      );
+      return;
+    }
+
+    const activeRunStartedAt = new Date(data.activeRun.startedAt).getTime();
+    const elapsedSeconds = (detectedAt.getTime() - activeRunStartedAt) / 1000;
+    if (elapsedSeconds < counterMarkerMinRunSeconds) {
+      session.lastDetail =
+        event.detail?.trim() ||
+        `再次命中 ${session.mapName} 地图名，但距离上一把仅 ${formatDurationText(
+          elapsedSeconds
+        )}，本次忽略为重复识别。`;
+      await writeDataStore(data);
+      return;
+    }
+
+    const finalized = finalizeActiveRunRecord(data, detectedAt);
+    if (finalized) {
+      session.completedRuns += 1;
+      session.totalDurationSeconds += finalized.durationSeconds;
+      session.lastRunDurationSeconds = finalized.durationSeconds;
+      session.lastRunEndedAt = finalized.endedAt;
+    }
+
+    data.activeRun = {
+      id: buildId('run'),
+      mapName: session.mapName,
+      startedAt: detectedAt.toISOString()
+    };
+    session.lastDetail =
+      event.detail?.trim() ||
+      `再次命中 ${session.mapName} 地图名，已结算上一把并开始下一把。`;
+    await writeDataStore(data);
+
+    if (finalized) {
+      void sendDesktopNotification(
+        `第 ${session.completedRuns} 把已记录`,
+        `${finalized.mapName} 用时 ${formatDurationText(finalized.durationSeconds)}，下一把已自动开始。`
+      );
+    }
+    return;
+  }
+
+  if (!data.activeRun && route.mapName && route.mapName !== session.mapName) {
+    session.mapName = route.mapName;
+    session.lastDetail = `${session.lastDetail} 当前路线已切换为 ${route.mapName}（${getCounterRouteSourceLabel(route.source)}）。`;
+  }
 
   if (isCounterInGameState(event.state)) {
     session.state = 'in-game';
@@ -1284,13 +1990,26 @@ async function handleRunCounterStateEvent(event: {
 }
 
 async function ensureRunCounterMonitor(): Promise<void> {
+  const data = await readDataStore();
+  const monitorIntervalSeconds = normalizeCounterRecognitionIntervalSeconds(
+    data.settings.counterRecognitionIntervalSeconds
+  );
+
   if (runCounterMonitorProcess && !runCounterMonitorProcess.killed) {
-    return;
+    if (runCounterMonitorIntervalSeconds === monitorIntervalSeconds) {
+      return;
+    }
+
+    await stopRunCounterMonitor();
   }
 
   const pythonCommand = resolvePythonCommand();
   const scriptPath = runCounterScriptPath();
   const templateRoot = runCounterTemplateRoot();
+  const sceneTemplatePath = data.settings.counterSceneTemplatePath.trim();
+  const sceneThreshold = normalizeCounterSceneMatchThreshold(
+    data.settings.counterSceneMatchThreshold
+  );
 
   if (!existsSync(scriptPath)) {
     throw new Error(`自动计数脚本不存在：${scriptPath}`);
@@ -1300,12 +2019,40 @@ async function ensureRunCounterMonitor(): Promise<void> {
     throw new Error(`自动计数模板目录不存在：${templateRoot}`);
   }
 
+  await ensureRouteTemplateWorkspace();
   runCounterMonitorExpectedExit = false;
-  const child = spawn(pythonCommand, [scriptPath, '--template-root', templateRoot], {
-    cwd: pythonRuntimeRoot,
-    windowsHide: true
-  });
+  const monitorArgs = [
+    scriptPath,
+    '--template-root',
+    templateRoot,
+    '--route-template-root',
+    runCounterUserTemplateRoot(),
+    '--interval',
+    String(monitorIntervalSeconds)
+  ];
+
+  if (sceneTemplatePath && existsSync(sceneTemplatePath)) {
+    monitorArgs.push(
+      '--scene-template',
+      sceneTemplatePath,
+      '--scene-name',
+      normalizeDefaultRunMapName(data.settings.defaultRunMapName),
+      '--scene-threshold',
+      String(sceneThreshold)
+    );
+  }
+
+  const child = spawn(
+    pythonCommand,
+    monitorArgs,
+    {
+      cwd: pythonRuntimeRoot,
+      env: getUtf8ChildEnv(),
+      windowsHide: true
+    }
+  );
   runCounterMonitorProcess = child;
+  runCounterMonitorIntervalSeconds = monitorIntervalSeconds;
 
   let stdoutBuffer = '';
   child.stdout.setEncoding('utf8');
@@ -1326,13 +2073,40 @@ async function ensureRunCounterMonitor(): Promise<void> {
           state?: string;
           detail?: string;
           detectedAt?: string;
+          template?: string;
+          confidence?: number;
+          requiredConfidence?: number;
+          routeName?: string;
+          routeSource?: string;
+          routeDetail?: string;
+          routeConfidence?: number;
+          routeTemplate?: string;
+          routeRequiredConfidence?: number;
         };
 
         if (payload.type !== 'state' || !payload.state) {
           continue;
         }
 
-        enqueueRunCounterMonitorUpdate(() => handleRunCounterStateEvent(payload as { state: string; detail?: string; detectedAt?: string; }));
+        enqueueRunCounterMonitorUpdate(
+          () =>
+            handleRunCounterStateEvent(
+              payload as {
+                state: string;
+                detail?: string;
+                detectedAt?: string;
+                template?: string;
+                confidence?: number;
+                requiredConfidence?: number;
+                routeName?: string;
+                routeSource?: string;
+                routeDetail?: string;
+                routeConfidence?: number;
+                routeTemplate?: string;
+                routeRequiredConfidence?: number;
+              }
+            )
+        );
       } catch (error) {
         console.error('Failed to parse run counter monitor payload:', line, error);
       }
@@ -1350,6 +2124,7 @@ async function ensureRunCounterMonitor(): Promise<void> {
 
   child.on('exit', (code, signal) => {
     runCounterMonitorProcess = null;
+    runCounterMonitorIntervalSeconds = null;
     const expectedExit = runCounterMonitorExpectedExit;
     runCounterMonitorExpectedExit = false;
 
@@ -1360,6 +2135,13 @@ async function ensureRunCounterMonitor(): Promise<void> {
     enqueueRunCounterMonitorUpdate(async () => {
       const data = await readDataStore();
       if (!data.counterSession) {
+        if (data.settings.autoCounterEnabled || data.activeRun) {
+          try {
+            await ensureRunCounterMonitor();
+          } catch (restartError) {
+            console.error('Failed to restart run counter monitor:', restartError);
+          }
+        }
         return;
       }
 
@@ -1376,10 +2158,27 @@ async function ensureRunCounterMonitor(): Promise<void> {
   });
 }
 
+async function syncRunCounterMonitor(data: AppData): Promise<void> {
+  if (shouldKeepRunCounterMonitorAlive(data)) {
+    await ensureRunCounterMonitor();
+    return;
+  }
+
+  await stopRunCounterMonitor();
+}
+
 function applyAlwaysOnTopState(value: boolean): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setAlwaysOnTop(value, 'screen-saver');
   }
+}
+
+function applyCounterLockState(value: boolean): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.setIgnoreMouseEvents(value, { forward: value });
 }
 
 async function persistWindowPlacement(mode = activeWindowMode): Promise<void> {
@@ -1467,6 +2266,39 @@ async function applyWindowModeState(mode: WindowMode, data?: AppData): Promise<v
 async function ensureFolderAndOpen(targetPath: string): Promise<string> {
   await mkdir(targetPath, { recursive: true });
   return shell.openPath(targetPath);
+}
+
+async function pickCounterSceneTemplateFile(): Promise<CounterSceneTemplatePickResult | null> {
+  await ensureRouteTemplateWorkspace();
+
+  const dialogOptions: Electron.OpenDialogOptions = {
+    title: '选择 3C 地图名截图',
+    properties: ['openFile'],
+    filters: [
+      {
+        name: '图片文件',
+        extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp']
+      }
+    ]
+  };
+
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const sourcePath = result.filePaths[0];
+  const extension = sourcePath.split('.').pop()?.toLowerCase() || 'png';
+  const targetPath = join(runCounterUserSceneTemplateRoot(), `3c-map-name.${extension}`);
+  await copyFile(sourcePath, targetPath);
+
+  return {
+    path: targetPath,
+    fileName: targetPath.split(/[/\\]/).pop() ?? targetPath
+  };
 }
 
 function createTrayImage() {
@@ -1574,6 +2406,24 @@ async function toggleNotificationsFromTray(): Promise<void> {
   }
 }
 
+async function toggleCounterLockState(): Promise<AppData> {
+  const data = await readDataStore();
+  data.settings.counterLockEnabled = !data.settings.counterLockEnabled;
+  const nextData = await writeDataStore(data);
+  applyCounterLockState(nextData.settings.counterLockEnabled);
+
+  if (nextData.settings.notificationsEnabled) {
+    void sendDesktopNotification(
+      nextData.settings.counterLockEnabled ? '计数器已锁定' : '计数器已解锁',
+      nextData.settings.counterLockEnabled
+        ? `当前窗口已进入防误触模式，按 ${toggleCounterLockShortcut} 可解锁。`
+        : '当前窗口已经恢复可点击和拖动。'
+    );
+  }
+
+  return nextData;
+}
+
 async function toggleWindowModeFromTray(): Promise<void> {
   const data = await readDataStore();
   await flushWindowPlacementPersist(data.settings.windowMode);
@@ -1582,6 +2432,7 @@ async function toggleWindowModeFromTray(): Promise<void> {
   const nextData = await writeDataStore(data);
   await applyWindowModeState(nextData.settings.windowMode, nextData);
   applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
+  applyCounterLockState(nextData.settings.counterLockEnabled);
 }
 
 async function refreshTrayMenu(data?: AppData): Promise<void> {
@@ -1609,6 +2460,14 @@ async function refreshTrayMenu(data?: AppData): Promise<void> {
       checked: currentData.settings.launchOnStartup,
       click: () => {
         void toggleLaunchOnStartupFromTray();
+      }
+    },
+    {
+      label: '锁定计数器',
+      type: 'checkbox',
+      checked: currentData.settings.counterLockEnabled,
+      click: () => {
+        void toggleCounterLockState();
       }
     },
     {
@@ -1671,6 +2530,9 @@ function registerGlobalShortcuts(): void {
   globalShortcut.register(toggleWindowShortcut, () => {
     toggleMainWindowVisibility();
   });
+  globalShortcut.register(toggleCounterLockShortcut, () => {
+    void toggleCounterLockState();
+  });
 }
 
 async function savePngFromDataUrl(payload: SaveImageInput): Promise<string> {
@@ -1695,6 +2557,7 @@ function executeCommand(commandLine: string, cwd?: string): Promise<IntegrationR
       commandLine,
       {
         cwd: cwd || undefined,
+        env: getUtf8ChildEnv(),
         windowsHide: true,
         encoding: 'utf8',
         maxBuffer: 4 * 1024 * 1024
@@ -1733,6 +2596,7 @@ function executeFileCommand(
       args,
       {
         cwd: cwd || undefined,
+        env: getUtf8ChildEnv(),
         windowsHide,
         encoding: 'utf8',
         maxBuffer: 4 * 1024 * 1024
@@ -1873,6 +2737,7 @@ function executeFileCommandWithProgress(
 
     const child = spawn(command, args, {
       cwd: cwd || undefined,
+      env: getUtf8ChildEnv(),
       windowsHide: false,
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -2215,6 +3080,7 @@ function parseNumberDraft(value: string): number | null {
 }
 
 function buildRuneInputChecks(drafts: AutomationDrafts): AutomationCheckItem[] {
+  const maxSlots = 36;
   const tokens = drafts.runeCounts
     .split(/\s+/)
     .map((item) => item.trim())
@@ -2230,14 +3096,25 @@ function buildRuneInputChecks(drafts: AutomationDrafts): AutomationCheckItem[] {
     ];
   }
 
+  if (tokens.length > maxSlots) {
+    return [
+      createCheck(
+        'rune-counts',
+        'error',
+        '符文数量',
+        `当前填写了 ${tokens.length} 个槽位，超过了符文工作台的 ${maxSlots} 个槽位。`
+      )
+    ];
+  }
+
   return [
     createCheck(
       'rune-counts',
-      tokens.length === 9 ? 'ok' : 'warning',
+      tokens.length === maxSlots ? 'ok' : 'warning',
       '符文数量',
-      tokens.length === 9
-        ? '已填写 9 个槽位。'
-        : `当前填写了 ${tokens.length} 个槽位，建议按 9 个槽位填写。`
+      tokens.length === maxSlots
+        ? '已填写完整的 36 个符文槽位。'
+        : `当前填写了 ${tokens.length} 个槽位，桌宠会自动补齐剩余空槽为 0。`
     ),
     createCheck(
       'rune-wait',
@@ -2267,14 +3144,41 @@ function buildGemInputChecks(
       checks.push(createCheck('gem-matrix', 'error', '宝石矩阵', '还没有填写宝石矩阵。'));
     } else {
       const rows = matrix.split(';').map((item) => item.trim()).filter(Boolean);
-      checks.push(
-        createCheck(
-          'gem-matrix',
-          rows.length > 0 ? 'ok' : 'warning',
-          '宝石矩阵',
-          `已提供 ${rows.length} 行库存矩阵。`
-        )
+      const invalidRow = rows.find((row) =>
+        row
+          .split(/\s+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .some((item) => !/^\d+$/.test(item))
       );
+
+      if (invalidRow) {
+        checks.push(
+          createCheck('gem-matrix', 'error', '宝石矩阵', '矩阵里包含了非整数内容。')
+        );
+      } else if (rows.length > 7) {
+        checks.push(
+          createCheck('gem-matrix', 'error', '宝石矩阵', '宝石矩阵最多支持 7 个颜色列。')
+        );
+      } else {
+        const longestColumn = rows.reduce((max, row) => {
+          const length = row.split(/\s+/).map((item) => item.trim()).filter(Boolean).length;
+          return Math.max(max, length);
+        }, 0);
+        const level: AutomationCheckItem['level'] =
+          rows.length === 7 && longestColumn === 5 ? 'ok' : 'warning';
+
+        checks.push(
+          createCheck(
+            'gem-matrix',
+            level,
+            '宝石矩阵',
+            level === 'ok'
+              ? '已填写完整的 7 色 x 5 阶矩阵。'
+              : `当前提供了 ${rows.length} 个颜色列，最长一列 ${longestColumn} 个等级，桌宠会自动补齐缺失的空位。`
+          )
+        );
+      }
     }
   } else {
     const imagePath = drafts.gemImagePath.trim();
@@ -2819,6 +3723,7 @@ async function createMainWindow(): Promise<void> {
 
   applyAlwaysOnTopState(data.settings.alwaysOnTop);
   await applyWindowModeState(data.settings.windowMode, data);
+  applyCounterLockState(data.settings.counterLockEnabled);
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on('close', (event) => {
@@ -2863,6 +3768,7 @@ async function createMainWindow(): Promise<void> {
 app.whenReady().then(async () => {
   app.setAppUserModelId('d2-desktop-pet');
   await createMainWindow();
+  await syncRunCounterMonitor(await readDataStore());
   createTray();
   registerGlobalShortcuts();
 
@@ -2906,7 +3812,10 @@ ipcMain.handle('run:start', async (_event, payload: StartRunInput) => {
     throw new Error('当前已经有一条进行中的刷图记录。');
   }
 
-  data.counterSession = buildCounterSession(mapName);
+  data.counterSession = buildCounterSession(mapName, {
+    source: 'manual',
+    detail: `这轮由你手动指定为 ${mapName}。`
+  });
   const nextData = await writeDataStore(data);
 
   try {
@@ -2951,6 +3860,134 @@ ipcMain.handle('run:stop', async () => {
     '自动计数已停止',
     `${sessionMapName} 共记录 ${completedRuns} 把，累计 ${formatDurationText(totalDurationSeconds)}。`
   );
+  return nextData;
+});
+
+function hasRecoverableCounterSession(data: AppData): boolean {
+  return Boolean(
+    data.counterSession &&
+      !data.activeRun &&
+      (data.counterSession.state === 'error' ||
+        data.counterSession.lastDetectedState === 'stopped')
+  );
+}
+
+function canRecycleIdleCounterSession(data: AppData): boolean {
+  return Boolean(
+    data.counterSession &&
+      !data.activeRun &&
+      data.counterSession.state !== 'in-game'
+  );
+}
+
+ipcMain.removeHandler('run:start');
+ipcMain.handle('run:start', async (_event, payload: StartRunInput) => {
+  const mapName = payload.mapName.trim();
+  if (!mapName) {
+    throw new Error('开始刷图前请先填写地图名称。');
+  }
+
+  const data = await readDataStore();
+  if (hasRecoverableCounterSession(data)) {
+    data.counterSession = null;
+  }
+
+  if (
+    canRecycleIdleCounterSession(data) &&
+    data.counterSession &&
+    data.counterSession.mapName.trim().toLowerCase() === mapName.toLowerCase()
+  ) {
+    data.counterSession.lastEventAt = new Date().toISOString();
+    data.counterSession.lastDetail = `已经在等待 ${mapName} 的游戏状态识别。进游戏后会自动开始计时。`;
+    const nextData = await writeDataStore(data);
+    await ensureRunCounterMonitor();
+    return nextData;
+  }
+
+  if (canRecycleIdleCounterSession(data)) {
+    data.counterSession = null;
+  }
+
+  if (data.counterSession) {
+    throw new Error('当前已经有一轮自动计数在进行中，请先结束本次统计。');
+  }
+
+  if (data.activeRun) {
+    throw new Error('当前已经有一把正在计时，请先结束本次统计。');
+  }
+
+  data.counterSession = buildCounterSession(mapName, {
+    source: 'manual',
+    detail: `这轮由你手动指定为 ${mapName}。`
+  });
+  data.counterSession.lastDetail = '自动计数已启动，正在等待识别游戏状态。';
+  const nextData = await writeDataStore(data);
+
+  try {
+    await ensureRunCounterMonitor();
+  } catch (error) {
+    const rollbackData = await readDataStore();
+    rollbackData.counterSession = null;
+    await writeDataStore(rollbackData);
+    throw error;
+  }
+
+  void sendDesktopNotification(
+    '自动计数已开启',
+    `${mapName} 已进入等待识别状态。进游戏后会自动起表。`
+  );
+  return nextData;
+});
+
+ipcMain.removeHandler('run:stop');
+ipcMain.handle('run:stop', async () => {
+  const data = await readDataStore();
+  if (!data.counterSession && !data.activeRun) {
+    throw new Error('当前没有正在进行中的自动统计。');
+  }
+
+  const now = new Date();
+  const finalized = finalizeActiveRunRecord(data, now);
+  if (data.counterSession && finalized) {
+    data.counterSession.completedRuns += 1;
+    data.counterSession.totalDurationSeconds += finalized.durationSeconds;
+    data.counterSession.lastRunDurationSeconds = finalized.durationSeconds;
+    data.counterSession.lastRunEndedAt = finalized.endedAt;
+  }
+
+  const session = data.counterSession;
+  const sessionMapName = session?.mapName ?? finalized?.mapName ?? '本次陪刷';
+  const completedRuns = session?.completedRuns ?? (finalized ? 1 : 0);
+  const totalDurationSeconds = session?.totalDurationSeconds ?? finalized?.durationSeconds ?? 0;
+  data.counterSession = null;
+
+  const nextData = await writeDataStore(data);
+  await syncRunCounterMonitor(nextData);
+  void sendDesktopNotification(
+    nextData.settings.autoCounterEnabled ? '本次统计已结束' : '自动计数已停止',
+    nextData.settings.autoCounterEnabled
+      ? `${sessionMapName} 共记录 ${completedRuns} 把，累计 ${formatDurationText(totalDurationSeconds)}。全自动待命仍然开启。`
+      : `${sessionMapName} 共记录 ${completedRuns} 把，累计 ${formatDurationText(totalDurationSeconds)}。`
+  );
+  return nextData;
+});
+
+ipcMain.removeHandler('run:reset-history');
+ipcMain.handle('run:reset-history', async () => {
+  const data = await readDataStore();
+
+  if (data.activeRun || data.counterSession?.state === 'in-game') {
+    throw new Error('当前还有一把正在计时，请先结束本次统计，再执行重置。');
+  }
+
+  data.counterSession = null;
+  data.activeRun = null;
+  data.runHistory = [];
+
+  const nextData = await writeDataStore(data);
+  await syncRunCounterMonitor(nextData);
+
+  void sendDesktopNotification('计数历史已重置', '3C 计数器已经清零，可以重新开始新一轮统计。');
   return nextData;
 });
 
@@ -3020,9 +4057,13 @@ ipcMain.handle('settings:update', async (_event, payload: UpdateSettingsInput) =
     );
   }
 
+  nextSettings.defaultRunMapName = normalizeDefaultRunMapName(nextSettings.defaultRunMapName);
+
   data.settings = nextSettings;
   const nextData = await writeDataStore(data);
+  await syncRunCounterMonitor(nextData);
   applyAlwaysOnTopState(nextData.settings.alwaysOnTop);
+  applyCounterLockState(nextData.settings.counterLockEnabled);
   if (payload.patch.windowMode) {
     await applyWindowModeState(nextData.settings.windowMode, nextData);
   }
@@ -3281,6 +4322,55 @@ ipcMain.handle('shell:open-path', async (_event, targetPath: string) => {
   return shell.openPath(targetPath);
 });
 
+ipcMain.handle(
+  'counter:get-route-template-status',
+  async (): Promise<CounterRouteTemplateStatus> => {
+    return getCounterRouteTemplateStatus();
+  }
+);
+
+ipcMain.handle(
+  'counter:pick-scene-template',
+  async (): Promise<CounterSceneTemplatePickResult | null> => {
+    return pickCounterSceneTemplateFile();
+  }
+);
+
+ipcMain.handle(
+  'counter:initialize-route-templates',
+  async (): Promise<CounterRouteTemplateStatus> => {
+    return initializeCounterRouteTemplates();
+  }
+);
+
+ipcMain.handle(
+  'counter:capture-route-snapshot',
+  async (): Promise<CounterRouteCaptureResult> => {
+    const result = await captureCounterRouteSnapshot();
+    void sendDesktopNotification('路线截图已保存', '已经抓取当前游戏窗口，你可以去模板目录里裁出 3C 或其他路线模板。');
+    return result;
+  }
+);
+
+ipcMain.handle(
+  'counter:generate-route-drafts',
+  async (_event, routeName: string): Promise<CounterRouteDraftResult> => {
+    const result = await generateCounterRouteDrafts(routeName);
+    void sendDesktopNotification(
+      '候选模板已生成',
+      `${result.routeName} 已生成 ${result.entries.length} 张候选模板，下一步可以直接测试当前识别。`
+    );
+    return result;
+  }
+);
+
+ipcMain.handle(
+  'counter:probe-route-detection',
+  async (): Promise<CounterRouteProbeResult> => {
+    return probeCounterRouteDetection();
+  }
+);
+
 ipcMain.handle('window:minimize', async () => {
   hideMainWindow();
 });
@@ -3291,4 +4381,26 @@ ipcMain.handle('window:set-always-on-top', async (_event, value: boolean) => {
   const nextData = await writeDataStore(data);
   applyAlwaysOnTopState(value);
   return nextData;
+});
+
+ipcMain.handle('fast-launcher:get-path', async () => {
+  return callFastLauncher('get_d2r_path');
+});
+
+ipcMain.handle('fast-launcher:kill-mutex', async () => {
+  return callFastLauncher('kill_d2r_mutex');
+});
+
+ipcMain.handle('fast-launcher:launch', async (_event, payload: FastLauncherLaunchInput) => {
+  const args = [payload.path];
+  if (payload.args) {
+    args.push(...payload.args);
+  }
+  if (payload.username) {
+    args.push('--user', payload.username);
+  }
+  if (payload.password) {
+    args.push('--pass', payload.password);
+  }
+  return callFastLauncher('launch_d2r', args);
 });

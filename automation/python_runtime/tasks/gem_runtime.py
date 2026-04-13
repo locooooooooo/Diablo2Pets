@@ -17,7 +17,6 @@ from common.game_actions import (  # noqa: E402
     DEFAULT_DELAY_MIN,
     DEFAULT_GAME_WINDOW_TITLE,
     DEFAULT_STOP_KEY,
-    calculate_grid_coords,
     check_stop,
     get_absolute_coords,
     random_sleep,
@@ -25,6 +24,13 @@ from common.game_actions import (  # noqa: E402
     safe_batch_transfer,
     safe_click,
     safe_move_item,
+)
+from common.grid_layout import GEM_ANCHOR_TYPE_LEGACY_OCR, build_mode_grids  # noqa: E402
+from common.layout_profiles import (  # noqa: E402
+    get_runtime_profile_meta,
+    get_runtime_profile_name,
+    resolve_runtime_profile,
+    store_runtime_profile,
 )
 from common.ocr_utils import (  # noqa: E402
     capture_grid_cell_variants,
@@ -34,6 +40,11 @@ from common.ocr_utils import (  # noqa: E402
     recognize_number,
 )
 from common.profile_store import read_json, write_json  # noqa: E402
+from common.window_scaling import (  # noqa: E402
+    build_scaled_config,
+    get_game_window_metrics,
+    get_mode_coordinate_keys,
+)
 
 
 GRID_ROWS = 5
@@ -54,6 +65,7 @@ def create_default_profile() -> dict[str, Any]:
         "delay_min": DEFAULT_DELAY_MIN,
         "delay_max": DEFAULT_DELAY_MAX,
         "mode": "grid",
+        "grid_anchor_type": None,
         "cube_slots": [],
         "cube_output_slot": None,
         "transmute_btn": None,
@@ -64,15 +76,58 @@ def create_default_profile() -> dict[str, Any]:
     }
 
 
-def load_profile(path: Path) -> dict[str, Any]:
-    profile = create_default_profile()
+def _read_raw_profile(path: Path) -> dict[str, Any]:
     loaded = read_json(path, default={}) or {}
-    profile.update(loaded)
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _format_profile_hint(profile: dict[str, Any]) -> str:
+    profile_name = get_runtime_profile_name(profile)
+    if not profile_name:
+        return ""
+    profile_meta = get_runtime_profile_meta(profile)
+    selection_reason = profile_meta.get("selection_reason") or "active"
+    return f"[{profile_name} | {selection_reason}]"
+
+
+def _print_runtime_hints(profile: dict[str, Any], scale_info: dict[str, Any]) -> None:
+    profile_hint = _format_profile_hint(profile)
+    if profile_hint:
+        print(f"Using layout profile {profile_hint}")
+
+    if scale_info.get("active"):
+        print(
+            "Detected window scaling, auto-adjusted coordinates: "
+            f"x{scale_info['scale_x']:.3f}, y{scale_info['scale_y']:.3f}"
+        )
+    elif not scale_info.get("reference_window"):
+        print("No reference window recorded yet; this run will use the original coordinates.")
+
+
+def load_profile(path: Path) -> dict[str, Any]:
+    current_metrics = get_game_window_metrics()
+    raw_profile = _read_raw_profile(path)
+
+    if not raw_profile:
+        return create_default_profile()
+
+    runtime_profile, _normalized, _profile_meta = resolve_runtime_profile(
+        raw_profile,
+        current_metrics=current_metrics,
+    )
+    profile = create_default_profile()
+    profile.update(runtime_profile or {})
     return profile
 
 
 def save_profile(path: Path, profile: dict[str, Any]) -> None:
-    write_json(path, profile)
+    merged_profile, _stored_profile_name = store_runtime_profile(
+        _read_raw_profile(path),
+        profile,
+        current_metrics=get_game_window_metrics(),
+        profile_name=get_runtime_profile_name(profile),
+    )
+    write_json(path, merged_profile)
 
 
 def import_legacy_config(legacy_path: Path, output_path: Path) -> dict[str, Any]:
@@ -90,11 +145,12 @@ def import_legacy_config(legacy_path: Path, output_path: Path) -> dict[str, Any]
             "mode": legacy.get("mode", "grid"),
             "grid_anchors": legacy.get("grid_anchors"),
             "gem_sources": legacy.get("gem_sources", []),
+            "grid_anchor_type": legacy.get("grid_anchor_type") or GEM_ANCHOR_TYPE_LEGACY_OCR,
             "imported_from": str(legacy_path),
         }
     )
     save_profile(output_path, profile)
-    return profile
+    return load_profile(output_path)
 
 
 def profile_is_complete_for_grid(profile: dict[str, Any]) -> bool:
@@ -156,16 +212,42 @@ def record_profile(path: Path, profile: dict[str, Any] | None = None) -> dict[st
             game_window_title=game_window_title,
         ),
     }
+    current["grid_anchor_type"] = current.get("grid_anchor_type") or GEM_ANCHOR_TYPE_LEGACY_OCR
 
     save_profile(path, current)
-    return current
+    return load_profile(path)
+
+
+def prepare_runtime_state(profile: dict[str, Any], current_metrics=None):
+    runtime_profile = create_default_profile()
+    runtime_profile.update(profile or {})
+
+    scaled_profile, scale_info = build_scaled_config(
+        runtime_profile,
+        coordinate_keys=get_mode_coordinate_keys("Gem"),
+        current_metrics=current_metrics,
+    )
+
+    mode_grids = None
+    anchors = scaled_profile.get("grid_anchors")
+    if anchors:
+        mode_grids = build_mode_grids(
+            anchors,
+            rows=GRID_ROWS,
+            cols=GRID_COLS,
+            mode="Gem",
+            anchor_type=scaled_profile.get("grid_anchor_type"),
+        )
+
+    _print_runtime_hints(profile, scale_info)
+    return scaled_profile, scale_info, mode_grids
 
 
 def build_grid(profile: dict[str, Any]) -> list[list[tuple[int, int]]]:
-    anchors = profile.get("grid_anchors")
-    if not anchors:
+    _runtime_profile, _scale_info, mode_grids = prepare_runtime_state(profile)
+    if not mode_grids:
         raise RuntimeError("Gem profile is missing grid anchors.")
-    return calculate_grid_coords(anchors, GRID_ROWS, GRID_COLS)
+    return mode_grids.get("interaction_grid") or []
 
 
 def parse_column_matrix(matrix_text: str) -> list[list[int]]:
@@ -195,6 +277,7 @@ def scan_stack_count_at_position(
     *,
     loaded_image: Any | None = None,
     game_window_title: str = DEFAULT_GAME_WINDOW_TITLE,
+    crop_scale=None,
 ) -> tuple[int, dict[str, Any]]:
     if loaded_image is None:
         absolute_x, absolute_y = get_absolute_coords(
@@ -202,13 +285,18 @@ def scan_stack_count_at_position(
             relative_anchor[1],
             game_window_title=game_window_title,
         )
-        crop_variants = capture_grid_cell_variants(absolute_x, absolute_y)
+        crop_variants = capture_grid_cell_variants(
+            absolute_x,
+            absolute_y,
+            crop_scale=crop_scale,
+        )
         source = "screen"
     else:
         crop_variants = crop_grid_cell_variants_from_image(
             loaded_image,
             relative_anchor[0],
             relative_anchor[1],
+            crop_scale=crop_scale,
         )
         source = "image"
 
@@ -226,6 +314,7 @@ def scan_stack_count_at_position(
     for crop_name, cropped in crop_variants:
         if cropped is None:
             continue
+
         value, meta = recognize_number(
             cropped,
             default=OCR_FALLBACK_COUNT,
@@ -256,19 +345,28 @@ def scan_grid_counts(
             "No OCR engine is available. Install rapidocr_onnxruntime or pytesseract."
         )
 
-    grid = build_grid(profile)
+    runtime_profile, scale_info, mode_grids = prepare_runtime_state(profile)
+    if not mode_grids:
+        raise RuntimeError("Gem profile is missing grid anchors.")
+
+    scan_grid = mode_grids.get("scan_grid") or []
     loaded_image = open_image_file(image_path) if image_path else None
-    game_window_title = str(profile["game_window_title"])
-    positions = list(positions or [(row, col) for col in range(GRID_COLS) for row in range(GRID_ROWS)])
+    game_window_title = str(runtime_profile["game_window_title"])
+    crop_scale = (scale_info.get("scale_x", 1.0), scale_info.get("scale_y", 1.0))
+    positions = list(
+        positions
+        or [(row, col) for col in range(GRID_COLS) for row in range(GRID_ROWS)]
+    )
 
     counts = [[0 for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
     diagnostics: list[dict[str, Any]] = []
 
     for row_index, col_index in positions:
         value, meta = scan_stack_count_at_position(
-            grid[row_index][col_index],
+            scan_grid[row_index][col_index],
             loaded_image=loaded_image,
             game_window_title=game_window_title,
+            crop_scale=crop_scale,
         )
         counts[row_index][col_index] = value
         diagnostics.append(
@@ -361,17 +459,23 @@ def execute_grid_crafting_plan(plan: list[dict[str, Any]], profile: dict[str, An
     if not profile_is_complete_for_grid(profile):
         raise RuntimeError("Gem profile is incomplete for grid execution.")
 
-    grid = build_grid(profile)
-    cube_slots = profile.get("cube_slots") or []
-    cube_output_slot = profile.get("cube_output_slot") or (cube_slots[2] if len(cube_slots) >= 3 else None)
-    transmute_btn = profile.get("transmute_btn")
+    runtime_profile, _scale_info, mode_grids = prepare_runtime_state(profile)
+    if not mode_grids:
+        raise RuntimeError("Gem profile is missing grid anchors.")
+
+    grid = mode_grids.get("interaction_grid") or []
+    cube_slots = runtime_profile.get("cube_slots") or []
+    cube_output_slot = runtime_profile.get("cube_output_slot") or (
+        cube_slots[2] if len(cube_slots) >= 3 else None
+    )
+    transmute_btn = runtime_profile.get("transmute_btn")
     if cube_output_slot is None:
         raise RuntimeError("Gem profile has no cube output slot.")
 
-    game_window_title = str(profile["game_window_title"])
-    stop_key = str(profile["stop_key"])
-    delay_min = float(profile["delay_min"])
-    delay_max = float(profile["delay_max"])
+    game_window_title = str(runtime_profile["game_window_title"])
+    stop_key = str(runtime_profile["stop_key"])
+    delay_min = float(runtime_profile["delay_min"])
+    delay_max = float(runtime_profile["delay_max"])
 
     for step in plan:
         row_index = int(step["row_index"])

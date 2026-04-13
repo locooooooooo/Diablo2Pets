@@ -1,0 +1,1 @@
+Set-Content -Path "E:\暗黑2桌宠\out2.txt" -Value "hello from ps1"

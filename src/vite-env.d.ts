@@ -6,6 +6,11 @@ import type {
   AutomationPreflightInput,
   AutomationPreflightResponse,
   AutomationLogDocument,
+  CounterSceneTemplatePickResult,
+  CounterRouteCaptureResult,
+  CounterRouteDraftResult,
+  CounterRouteProbeResult,
+  CounterRouteTemplateStatus,
   CopyTextInput,
   CreateDropInput,
   DropOcrPreviewInput,
@@ -25,7 +30,8 @@ import type {
   SaveImageResult,
   StartRunInput,
   UpdateSettingsInput,
-  UpdateIntegrationInput
+  UpdateIntegrationInput,
+  FastLauncherLaunchInput
 } from './types';
 
 declare global {
@@ -34,6 +40,8 @@ declare global {
       getData: () => Promise<AppData>;
       startRun: (payload: StartRunInput) => Promise<AppData>;
       stopRun: () => Promise<AppData>;
+      resetCounterHistory: () => Promise<AppData>;
+      pickCounterSceneTemplate: () => Promise<CounterSceneTemplatePickResult | null>;
       createDrop: (payload: CreateDropInput) => Promise<AppData>;
       previewDropOcr: (payload: DropOcrPreviewInput) => Promise<DropOcrResult>;
       updateSettings: (payload: UpdateSettingsInput) => Promise<AppData>;
@@ -53,6 +61,11 @@ declare global {
       exportVisualReport: (
         payload: ExportVisualReportInput
       ) => Promise<ExportVisualReportResult>;
+      getCounterRouteTemplateStatus: () => Promise<CounterRouteTemplateStatus>;
+      initializeCounterRouteTemplates: () => Promise<CounterRouteTemplateStatus>;
+      captureCounterRouteSnapshot: () => Promise<CounterRouteCaptureResult>;
+      generateCounterRouteDrafts: (routeName: string) => Promise<CounterRouteDraftResult>;
+      probeCounterRouteDetection: () => Promise<CounterRouteProbeResult>;
       onDataChanged: (listener: (data: AppData) => void) => () => void;
       onFloatingSnapPreview: (
         listener: (preview: FloatingSnapPreview) => void
@@ -64,6 +77,9 @@ declare global {
       openPath: (targetPath: string) => Promise<string>;
       minimize: () => Promise<void>;
       setAlwaysOnTop: (value: boolean) => Promise<AppData>;
+      fastLauncherGetPath: () => Promise<string>;
+      fastLauncherKillMutex: () => Promise<string>;
+      fastLauncherLaunch: (payload: FastLauncherLaunchInput) => Promise<string>;
     };
   }
 }

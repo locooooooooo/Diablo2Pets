@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -31,9 +31,7 @@ import {
   type PetInteractionCue
 } from './lib/petPersona';
 import {
-  buildSetupGuideHint,
-  getIntegrationLabel,
-  isTaskProfileReady
+  buildSetupGuideHint
 } from './lib/setupGuideState';
 import { playPetChime } from './lib/petSound';
 import {
@@ -44,7 +42,7 @@ import {
   createPetEvent,
   type PetEvent
 } from './lib/petWorld';
-import { buildTodayStats } from './lib/stats';
+import { buildRunHistoryStats, buildTodayStats } from './lib/stats';
 import type {
   AppData,
   AutomationLogDocument,
@@ -86,6 +84,12 @@ const DEFAULT_SETTINGS: AppData['settings'] = {
   alwaysOnTop: false,
   launchOnStartup: false,
   notificationsEnabled: false,
+  autoCounterEnabled: false,
+  counterLockEnabled: false,
+  counterRecognitionIntervalSeconds: 2,
+  counterSceneTemplatePath: '',
+  counterSceneMatchThreshold: 0.82,
+  defaultRunMapName: '3C',
   windowMode: 'panel',
   setupGuideCompleted: false,
   windowPlacement: {}
@@ -93,30 +97,44 @@ const DEFAULT_SETTINGS: AppData['settings'] = {
 
 function translateError(errorText: string): string {
   if (errorText.includes('EPERM') || errorText.includes('Access is denied')) {
-    return '权限不足，请尝试以管理员身份运行暗黑2桌宠。';
+    return '权限不足，请尝试以管理员身份运行桌宠或游戏。';
   }
   if (errorText.includes('not found') && errorText.includes('D2R.exe')) {
-    return '未检测到游戏运行，请先启动《暗黑破坏神 II：重制版》。';
+    return '没有检测到暗黑 2 游戏进程，请先启动游戏。';
   }
   if (errorText.includes('python: can\'t open file')) {
-    return 'Python 脚本丢失，请尝试重新安装环境或检查杀毒软件是否误删。';
+    return 'Python 脚本缺失，请重新安装内置运行环境。';
   }
   if (errorText.includes('ModuleNotFoundError') || errorText.includes('No module named')) {
-    return '缺少必要的 Python 依赖包，请在引导或工坊中点击"一键安装依赖"。';
+    return '缺少必要的 Python 依赖，请在工坊里安装运行依赖。';
   }
   if (errorText.includes('tesseract') || errorText.includes('TesseractNotFoundError')) {
-    return '图像识别引擎 (OCR) 异常，请检查依赖是否完整安装。';
+    return 'OCR 识别引擎异常，请检查运行依赖是否安装完整。';
   }
   return errorText;
 }
 
+function normalizeFrontendErrorMessage(errorText: string): string {
+  const ipcWrapped = errorText.match(/Error invoking remote method '[^']+': Error: (.+)$/);
+  const normalizedErrorText = (ipcWrapped?.[1] ?? errorText).trim();
+
+  if (
+    normalizedErrorText.includes('自动统计已经在运行') ||
+    normalizedErrorText.includes('自动计数已经在运行')
+  ) {
+    return '这轮自动计数已经在待命了，直接进游戏就会自动开始。';
+  }
+
+  return normalizedErrorText;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
-    return translateError(error.message);
+    return normalizeFrontendErrorMessage(translateError(error.message));
   }
 
   if (typeof error === 'string') {
-    return translateError(error);
+    return normalizeFrontendErrorMessage(translateError(error));
   }
 
   return '发生了未知错误。';
@@ -127,7 +145,7 @@ function getAdminSuccessText(action: RunAutomationAdminInput['action']): string 
     case 'record-profile':
       return '坐标录制完成，日志已经更新。';
     case 'print-profile':
-      return '当前坐标配置已输出到日志。';
+      return '当前坐标配置已经输出到日志。';
     case 'import-legacy-config':
       return '旧配置已经导入到新的运行环境。';
   }
@@ -145,14 +163,6 @@ function getLogPreview(content?: string): string | undefined {
   return content.trim().split(/\r?\n/).slice(-10).join('\n');
 }
 
-type CompanionIssueTone = 'success' | 'attention' | 'error';
-
-interface CompanionIssue {
-  title: string;
-  detail: string;
-  tone: CompanionIssueTone;
-}
-
 interface PanelScrollState {
   canScrollUp: boolean;
   canScrollDown: boolean;
@@ -164,7 +174,7 @@ function getTabMeta(tab: TabKey): { label: string; detail: string } {
     case 'companion':
       return {
         label: '陪刷',
-        detail: '这里现在只保留当前动作、上次中断点和开跑入口。'
+        detail: '这里先只保留 3C 计数、开始/停止和最近几把。'
       };
     case 'drops':
       return {
@@ -174,7 +184,7 @@ function getTabMeta(tab: TabKey): { label: string; detail: string } {
     case 'workshop':
       return {
         label: '工坊',
-        detail: '先看顶部主任务，再决定是补条件、录坐标还是试运行。'
+        detail: '先看主任务，再决定是补条件、录坐标还是试运行。'
       };
   }
 }
@@ -185,11 +195,19 @@ function getBusySummary(busyKey: string | null): string | null {
   }
 
   if (busyKey === 'start-run') {
-    return '正在开始本次刷图记录。';
+    return '正在开始本次刷图统计。';
   }
 
   if (busyKey === 'stop-run') {
     return '正在结算这一轮刷图。';
+  }
+
+  if (busyKey === 'reset-run-history') {
+    return '正在清空 3C 计数历史。';
+  }
+
+  if (busyKey === 'pick-counter-template') {
+    return '正在接入 3C 地图名截图。';
   }
 
   if (busyKey === 'create-drop') {
@@ -205,7 +223,7 @@ function getBusySummary(busyKey: string | null): string | null {
   }
 
   if (busyKey.startsWith('task-')) {
-    return '自动化任务正在执行，请先等结果回写。';
+    return '自动化任务正在执行，请先等待结果返回。';
   }
 
   if (busyKey.startsWith('admin-')) {
@@ -213,83 +231,6 @@ function getBusySummary(busyKey: string | null): string | null {
   }
 
   return '当前操作还在处理中。';
-}
-
-function buildCompanionIssues(
-  preflight: AutomationPreflightResponse | null,
-  setupGuideCompleted: boolean
-): CompanionIssue[] {
-  if (!preflight) {
-    return [
-      {
-        title: '正在检查当前环境',
-        detail: '桌宠已经打开，正在读取内置运行环境、依赖和工坊状态。',
-        tone: 'attention'
-      }
-    ];
-  }
-
-  const globalChecks = preflight.globalChecks ?? [];
-  const tasks = preflight.tasks ?? [];
-  const runtimeFailed = globalChecks.some(
-    (check) =>
-      ['runtime-root', 'python-command', 'pip-command', 'requirements-file', 'python-source'].includes(
-        check.key
-      ) && check.level === 'error'
-  );
-  const dependencyFailed = globalChecks.some(
-    (check) =>
-      ['python-dependencies', 'ocr-engine'].includes(check.key) && check.level === 'error'
-  );
-  const missingProfiles = tasks.filter((task) => !isTaskProfileReady(task));
-  const warningTasks = tasks.filter((task) => task.status === 'warning');
-
-  const issues: CompanionIssue[] = [];
-
-  if (runtimeFailed) {
-    issues.push({
-      title: '内置运行环境还没完全就绪',
-      detail: '先去工坊的环境区处理运行环境，处理完再执行自动化会稳定很多。',
-      tone: 'error'
-    });
-  }
-
-  if (dependencyFailed) {
-    issues.push({
-      title: '依赖还没装齐',
-      detail: '当前主要缺少 Python 依赖或 OCR 能力，先去工坊补安装。',
-      tone: 'error'
-    });
-  }
-
-  if (missingProfiles.length > 0) {
-    const labels = missingProfiles.map((task) => getIntegrationLabel(task.id));
-    issues.push({
-      title: `还缺坐标配置：${labels.join('、')}`,
-      detail: '去工坊录好这些坐标后，符文、宝石、金币功能才能稳定执行。',
-      tone: 'attention'
-    });
-  }
-
-  if (!runtimeFailed && !dependencyFailed && missingProfiles.length === 0) {
-    issues.push({
-      title: '核心环境已经能用了',
-      detail: setupGuideCompleted
-        ? '现在可以直接刷图、记战报，或者去工坊试运行。'
-        : '虽然引导还没点完成，但核心功能已经能用了，悬浮和通知可以后面再开。',
-      tone: 'success'
-    });
-  }
-
-  if (warningTasks.length > 0) {
-    issues.push({
-      title: '工坊还有提醒项',
-      detail: warningTasks[0]?.summary ?? '建议先看一眼工坊预检，再决定是否马上执行。',
-      tone: 'attention'
-    });
-  }
-
-  return issues.slice(0, 2);
 }
 
 export default function App() {
@@ -561,6 +502,10 @@ export default function App() {
           },
     [data, todayKey]
   );
+  const historyStats = useMemo(
+    () => buildRunHistoryStats(data?.runHistory ?? []),
+    [data?.runHistory]
+  );
   const recentRuns = useMemo(() => data?.runHistory.slice(0, 6) ?? [], [data]);
   const todayDrops = useMemo(
     () => data?.drops.filter((drop) => drop.dayKey === todayKey).slice(0, 12) ?? [],
@@ -639,18 +584,6 @@ export default function App() {
     () => buildSetupGuideHint(setupPreflight, data?.settings ?? DEFAULT_SETTINGS),
     [data?.settings, setupPreflight]
   );
-  const nextWorkshopTask = useMemo(
-    () =>
-      (setupPreflight?.tasks ?? []).find(
-        (task) => task.status !== 'ready' || !isTaskProfileReady(task)
-      ) ?? null,
-    [setupPreflight]
-  );
-  const companionIssues = useMemo(
-    () => buildCompanionIssues(setupPreflight, data?.settings.setupGuideCompleted ?? false),
-    [data?.settings.setupGuideCompleted, setupPreflight]
-  );
-
   useEffect(() => {
     if (!petCodex) {
       return;
@@ -749,13 +682,89 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [busyKey, data, petEvent, petInteractionCue, petWorldInput, showSetupGuide]);
 
+  useEffect(() => {
+    const root = panelStackRef.current;
+    if (!root) {
+      return;
+    }
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      if (showPetCodex || shouldIgnorePanelWheelTarget(event.target)) {
+        return;
+      }
+
+      if (scrollPanelByDelta(event.deltaY, event.deltaMode)) {
+        event.preventDefault();
+      }
+    };
+
+    root.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => root.removeEventListener('wheel', handleNativeWheel);
+  }, [activeTab, showPetCodex]);
+
+  useEffect(() => {
+    const root = panelStackRef.current;
+    if (!root) {
+      return;
+    }
+
+    let frame = 0;
+    const scheduleRefresh = () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        refreshPanelScrollState();
+      });
+    };
+
+    const mutationObserver = new MutationObserver(() => {
+      scheduleRefresh();
+    });
+
+    mutationObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true
+    });
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleRefresh();
+      });
+      resizeObserver.observe(root);
+      Array.from(root.children).forEach((child) => resizeObserver?.observe(child));
+    }
+
+    root.addEventListener('scroll', scheduleRefresh, { passive: true });
+    window.addEventListener('resize', scheduleRefresh);
+    scheduleRefresh();
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+      root.removeEventListener('scroll', scheduleRefresh);
+      window.removeEventListener('resize', scheduleRefresh);
+    };
+  }, [activeTab, showCompanionDetails, showPetCodex, showSetupGuide]);
+
+  useEffect(() => {
+    panelStackRef.current?.focus({ preventScroll: true });
+  }, [activeTab, showPetCodex]);
+
   if (!data) {
     return (
       <div className="boot-screen">
         <div className="boot-card">
           <p className="eyebrow">Booting</p>
-          <h2>正在唤醒桌宠助手</h2>
-          <p>首次启动会创建本地数据目录、截图目录和自动化日志目录。</p>
+          <h2>正在唤起桌宠助手</h2>
+          <p>首次启动会创建数据、截图和日志目录，请稍等一下。</p>
         </div>
       </div>
     );
@@ -803,10 +812,10 @@ export default function App() {
         handleOpenSetupGuide();
         return;
       case 'start-latest':
-        void handleStartRun(recentRuns[0]?.mapName ?? '混沌避难所');
+        void handleStartRun(recentRuns[0]?.mapName ?? '3C');
         return;
       case 'start-default':
-        void handleStartRun('混沌避难所');
+        void handleStartRun('3C');
         return;
     }
   }
@@ -818,7 +827,10 @@ export default function App() {
     try {
       const nextData = await window.d2Pet.startRun({ mapName });
       setData(nextData);
-      setMessage({ kind: 'success', text: '已经开始记录本次刷图。' });
+      setMessage({
+        kind: 'success',
+        text: `${mapName} 自动计数已待命。你进游戏后会自动开始计时。`
+      });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
     } finally {
@@ -833,7 +845,70 @@ export default function App() {
     try {
       const nextData = await window.d2Pet.stopRun();
       setData(nextData);
-      setMessage({ kind: 'success', text: '本次刷图已经完成并写入统计。' });
+      setMessage({ kind: 'success', text: '自动计数已停止，本次陪刷统计已经写入今日记录。' });
+    } catch (error) {
+      setMessage({ kind: 'error', text: getErrorMessage(error) });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function handleResetCounterHistory() {
+    const confirmed = window.confirm(
+      '确认清空 3C 计数历史吗？这会清掉已完成场次、总耗时和平均耗时。'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyKey('reset-run-history');
+    setMessage(null);
+
+    try {
+      const nextData = await window.d2Pet.resetCounterHistory();
+      setData(nextData);
+      setMessage({
+        kind: 'success',
+        text: '3C 计数历史已经清空，可以重新开始新一轮统计。'
+      });
+      announceSurfaceNotice({
+        tone: 'success',
+        title: '计数历史已重置',
+        detail: '本轮统计已经归零，后续会从第 1 把重新累计。'
+      });
+    } catch (error) {
+      setMessage({ kind: 'error', text: getErrorMessage(error) });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  async function handlePickCounterSceneTemplate() {
+    setBusyKey('pick-counter-template');
+    setMessage(null);
+
+    try {
+      const picked = await window.d2Pet.pickCounterSceneTemplate();
+      if (!picked) {
+        return;
+      }
+
+      const nextData = await window.d2Pet.updateSettings({
+        patch: {
+          counterSceneTemplatePath: picked.path,
+          defaultRunMapName: '3C'
+        }
+      });
+      setData(nextData);
+      setMessage({
+        kind: 'success',
+        text: `3C 地图名截图已接入：${picked.fileName}`
+      });
+      announceSurfaceNotice({
+        tone: 'success',
+        title: '3C 模板已更新',
+        detail: '后续会优先按这张地图名截图识别 3C，并用它来自动计数。'
+      });
     } catch (error) {
       setMessage({ kind: 'error', text: getErrorMessage(error) });
     } finally {
@@ -963,8 +1038,8 @@ export default function App() {
       const response = await window.d2Pet.runEnvironmentAction(payload);
       const successText =
         payload.action === 'install-python-deps'
-          ? 'Python 运行时依赖安装完成。'
-          : '内置 Python 运行环境已准备完成。';
+          ? 'Python 运行依赖安装完成。'
+          : '内置 Python 运行环境准备完成。';
 
       setMessage({
         kind: response.result.success ? 'success' : 'error',
@@ -975,12 +1050,12 @@ export default function App() {
       setSetupGuideActivity({
         title:
           payload.action === 'install-python-deps'
-            ? '依赖安装结果'
-            : '内置运行环境处理结果',
+            ? '渚濊禆瀹夎缁撴灉'
+            : '鍐呯疆杩愯鐜澶勭悊缁撴灉',
         detail: response.result.success
           ? successText
           : response.result.stderr || response.result.stdout || '环境修复失败。',
-        tone: response.result.success ? 'success' : 'error',
+          tone: response.result.success ? 'success' : 'error',
         timestampLabel: getSetupActivityTimeLabel(),
         logPreview: getLogPreview(response.log.content)
       });
@@ -990,7 +1065,7 @@ export default function App() {
       const text = getErrorMessage(error);
       setMessage({ kind: 'error', text });
       setSetupGuideActivity({
-        title: '引导动作执行失败',
+        title: '寮曞鍔ㄤ綔鎵ц澶辫触',
         detail: text,
         tone: 'error',
         timestampLabel: getSetupActivityTimeLabel()
@@ -1007,32 +1082,32 @@ export default function App() {
 
     try {
       setSetupGuideActivity({
-        title: '一键静默安装',
-        detail: '正在准备内置 Python 运行环境...',
+        title: '一键安装',
+        detail: '姝ｅ湪鍑嗗鍐呯疆 Python 杩愯鐜...',
         tone: 'attention',
         timestampLabel: getSetupActivityTimeLabel()
       });
 
       const runtimeResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-runtime' });
       if (!runtimeResponse.result.success) {
-        throw new Error(runtimeResponse.result.stderr || 'Python 环境安装失败');
+        throw new Error(runtimeResponse.result.stderr || 'Python 鐜瀹夎澶辫触');
       }
 
       setSetupGuideActivity({
-        title: '一键静默安装',
-        detail: 'Python 环境准备完成，正在安装依赖...',
+        title: '一键安装',
+        detail: 'Python 鐜鍑嗗瀹屾垚锛屾鍦ㄥ畨瑁呬緷璧?..',
         tone: 'attention',
         timestampLabel: getSetupActivityTimeLabel()
       });
 
       const depsResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-deps' });
       if (!depsResponse.result.success) {
-        throw new Error(depsResponse.result.stderr || '依赖安装失败');
+        throw new Error(depsResponse.result.stderr || '渚濊禆瀹夎澶辫触');
       }
 
-      setMessage({ kind: 'success', text: '一键静默安装环境及依赖完成。' });
+      setMessage({ kind: 'success', text: '一键安装环境及依赖完成。' });
       setSetupGuideActivity({
-        title: '一键静默安装结果',
+        title: '一键安装结果',
         detail: '内置 Python 运行环境及依赖均已准备就绪。',
         tone: 'success',
         timestampLabel: getSetupActivityTimeLabel()
@@ -1042,7 +1117,7 @@ export default function App() {
       const text = getErrorMessage(error);
       setMessage({ kind: 'error', text });
       setSetupGuideActivity({
-        title: '一键静默安装失败',
+        title: '一键安装失败',
         detail: text,
         tone: 'error',
         timestampLabel: getSetupActivityTimeLabel()
@@ -1081,7 +1156,7 @@ export default function App() {
     try {
       const result = await window.d2Pet.exportTextFile(payload);
       if (!result.canceled && result.path) {
-        setMessage({ kind: 'success', text: `文件已导出到 ${result.path}` });
+        setMessage({ kind: 'success', text: `鏂囦欢宸插鍑哄埌 ${result.path}` });
       }
       return result;
     } catch (error) {
@@ -1112,8 +1187,8 @@ export default function App() {
           kind: 'success',
           text:
             payload.format === 'pdf'
-              ? `战报 PDF 已导出到 ${result.path}`
-              : `战报海报已导出到 ${result.path}`
+              ? `鎴樻姤 PDF 宸插鍑哄埌 ${result.path}`
+              : `鎴樻姤娴锋姤宸插鍑哄埌 ${result.path}`
         });
       }
       return result;
@@ -1158,10 +1233,43 @@ export default function App() {
             ? '已开启系统通知。'
             : '已关闭系统通知。'
         });
+      } else if (typeof patch.autoCounterEnabled === 'boolean') {
+        setMessage({
+          kind: 'success',
+          text: nextData.settings.autoCounterEnabled
+            ? `已开启全自动整轮。识别到 ${nextData.settings.defaultRunMapName} 地图名后，会自动开始计数。`
+            : '已关闭全自动整轮，后续只会在你手动开始时计数。'
+        });
+      } else if (typeof patch.counterLockEnabled === 'boolean') {
+        setMessage({
+          kind: 'success',
+          text: nextData.settings.counterLockEnabled
+            ? '计数器已锁定，按 Alt+Shift+L 可以解锁。'
+            : '计数器已解锁，现在可以继续点击和拖动窗口。'
+        });
+      } else if (typeof patch.counterRecognitionIntervalSeconds === 'number') {
+        setMessage({
+          kind: 'success',
+          text: `识别间隔已更新为 ${nextData.settings.counterRecognitionIntervalSeconds} 秒。`
+        });
+      } else if (typeof patch.counterSceneTemplatePath === 'string') {
+        setMessage({
+          kind: 'success',
+          text: nextData.settings.counterSceneTemplatePath
+            ? '3C 地图名截图已经更新。'
+            : '3C 地图名截图已清空。'
+        });
+      } else if (typeof patch.defaultRunMapName === 'string') {
+        setMessage({
+          kind: 'success',
+          text: `默认刷图路线已改成 ${nextData.settings.defaultRunMapName}。`
+        });
       } else if (typeof patch.setupGuideCompleted === 'boolean') {
         setMessage({
           kind: 'success',
-          text: patch.setupGuideCompleted ? '首次引导已经标记完成。' : '首次引导已重新开启。'
+          text: patch.setupGuideCompleted
+            ? '首次引导已经标记完成。'
+            : '首次引导已经重新开启。'
         });
       }
     } catch (error) {
@@ -1231,10 +1339,10 @@ export default function App() {
 
     setSurfaceNotice({
       tone: isSameTab ? 'success' : 'attention',
-      title: isSameTab ? `${tabMeta.label} 已回到第一屏` : `已切到${tabMeta.label}`,
+      title: isSameTab ? `${tabMeta.label} 已回到第一页` : `已切换到 ${tabMeta.label}`,
       detail: isSameTab
         ? collapsedCompanionOverlays
-          ? '我顺手把陪刷页里展开的层收回了，主路径已经回到顶部。'
+          ? '我顺手把陪刷页里展开的层收回去了，主路径已经回到顶部。'
           : '当前页已经回到顶部，继续往下滚就能看到后面的内容。'
         : tabMeta.detail
     });
@@ -1287,82 +1395,6 @@ export default function App() {
   function handlePanelScroll() {
     refreshPanelScrollState();
   }
-
-  useEffect(() => {
-    const root = panelStackRef.current;
-    if (!root) {
-      return;
-    }
-
-    const handleNativeWheel = (event: WheelEvent) => {
-      if (showPetCodex || shouldIgnorePanelWheelTarget(event.target)) {
-        return;
-      }
-
-      if (scrollPanelByDelta(event.deltaY, event.deltaMode)) {
-        event.preventDefault();
-      }
-    };
-
-    root.addEventListener('wheel', handleNativeWheel, { passive: false });
-    return () => root.removeEventListener('wheel', handleNativeWheel);
-  }, [activeTab, showPetCodex]);
-
-  useEffect(() => {
-    const root = panelStackRef.current;
-    if (!root) {
-      return;
-    }
-
-    let frame = 0;
-    const scheduleRefresh = () => {
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-      }
-
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        refreshPanelScrollState();
-      });
-    };
-
-    const mutationObserver = new MutationObserver(() => {
-      scheduleRefresh();
-    });
-
-    mutationObserver.observe(root, {
-      childList: true,
-      subtree: true,
-      attributes: true
-    });
-
-    let resizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        scheduleRefresh();
-      });
-      resizeObserver.observe(root);
-      Array.from(root.children).forEach((child) => resizeObserver?.observe(child));
-    }
-
-    root.addEventListener('scroll', scheduleRefresh, { passive: true });
-    window.addEventListener('resize', scheduleRefresh);
-    scheduleRefresh();
-
-    return () => {
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-      }
-      mutationObserver.disconnect();
-      resizeObserver?.disconnect();
-      root.removeEventListener('scroll', scheduleRefresh);
-      window.removeEventListener('resize', scheduleRefresh);
-    };
-  }, [activeTab, showCompanionDetails, showPetCodex, showSetupGuide]);
-
-  useEffect(() => {
-    panelStackRef.current?.focus({ preventScroll: true });
-  }, [activeTab, showPetCodex]);
 
   function handleOpenPanel(tab: TabKey) {
     handleSelectTab(tab);
@@ -1485,37 +1517,17 @@ export default function App() {
     setShowPetCodex(false);
   }
 
-  const defaultRouteName = recentRuns[0]?.mapName ?? '混沌避难所';
-  const companionFocusTitle = data.activeRun
-    ? `正在记录 ${data.activeRun.mapName}`
-    : !data.settings.setupGuideCompleted
-      ? setupGuideHint.title
-      : nextWorkshopTask
-        ? `先补 ${getIntegrationLabel(nextWorkshopTask.id)} 这一条`
-        : '现在可以直接开跑';
-  const companionFocusDetail = data.activeRun
-    ? '先刷完这一轮，再去战报补掉落；其他内容先不用看。'
-    : !data.settings.setupGuideCompleted
-      ? `${setupGuideHint.detail} 先把这一步补完，别的信息可以先忽略。`
-      : nextWorkshopTask
-        ? `${nextWorkshopTask.summary}。我建议先处理这一条，工坊才会更稳。`
-        : '你现在只需要做三件事里的一个：开始一轮、去工坊试运行、去战报记掉落。';
-  const companionFocusBadge = data.activeRun
-    ? '当前任务'
-    : !data.settings.setupGuideCompleted
-      ? '下一步'
-      : nextWorkshopTask
-        ? '先补条件'
-        : '已可开跑';
+  const defaultRouteName =
+    data.settings.defaultRunMapName.trim() || recentRuns[0]?.mapName || '3C';
   const activeTabMeta = getTabMeta(activeTab);
   const busySummary = getBusySummary(busyKey);
   const panelScrollLabel = panelScrollState.canScrollDown
     ? panelScrollState.canScrollUp
-      ? `已浏览 ${panelScrollState.progress}% · 继续下滑查看更多`
-      : '向下滚动查看更多'
+      ? `宸叉祻瑙?${panelScrollState.progress}% 路 缁х画涓嬫粦鏌ョ湅鏇村`
+      : '鍚戜笅婊氬姩鏌ョ湅鏇村'
     : panelScrollState.canScrollUp
-      ? '已经到底部了'
-      : '当前内容已经完整显示';
+      ? '宸茬粡鍒板簳閮ㄤ簡'
+      : '褰撳墠鍐呭宸茬粡瀹屾暣鏄剧ず';
   const panelStatusLabel = busySummary
     ? '处理中'
     : panelScrollState.canScrollDown
@@ -1642,21 +1654,21 @@ export default function App() {
             onClick={() => handleSelectTab('companion')}
             type="button"
           >
-            陪刷
+            闄埛
           </button>
           <button
             className={activeTab === 'drops' ? 'tab-button active' : 'tab-button'}
             onClick={() => handleSelectTab('drops')}
             type="button"
           >
-            战报
+            鎴樻姤
           </button>
           <button
             className={activeTab === 'workshop' ? 'tab-button active' : 'tab-button'}
             onClick={() => handleSelectTab('workshop')}
             type="button"
           >
-            工坊
+            宸ュ潑
           </button>
         </nav>
 
@@ -1691,7 +1703,7 @@ export default function App() {
           {activeTab === 'companion' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('companion')}
-              panelLabel="陪刷"
+              panelLabel="闄埛"
               resetKey={`companion-${showSetupGuide}-${showCompanionDetails}-${showPetCodex}-${data.settings.setupGuideCompleted}`}
             >
             <>
@@ -1724,175 +1736,42 @@ export default function App() {
                 />
               ) : null}
 
-              {!data.settings.setupGuideCompleted && !showSetupGuide ? (
-                <article className="card setup-guide-reminder">
-                  <div>
-                    <p className="eyebrow">下一步</p>
-                    <strong>{setupGuideHint.title}</strong>
-                    <p className="secondary-text">
-                      {setupGuideHint.detail}
-                    </p>
-                  </div>
-                  <div className="tool-row">
-                    <button className="primary-button" onClick={handleFollowSetupGuideHint} type="button">
-                      {setupGuideHint.actionLabel}
-                    </button>
-                    <button className="ghost-button" onClick={handleOpenSetupGuide} type="button">
-                      打开完整引导
-                    </button>
-                    <button className="ghost-button" onClick={handleCompleteSetupGuide} type="button">
-                      直接完成
-                    </button>
-                  </div>
-                </article>
-              ) : null}
-
-              {!showSetupGuide ? (
-                <article className="card companion-focus-card">
-                  <div className="integration-head">
-                    <div>
-                      <p className="eyebrow">{companionFocusBadge}</p>
-                      <div className="card-title">{companionFocusTitle}</div>
-                      <p className="secondary-text">{companionFocusDetail}</p>
-                    </div>
-                    <span className={`status-pill ${data.activeRun ? 'warm' : nextWorkshopTask ? 'attention' : 'success'}`}>
-                      {data.activeRun
-                        ? '先刷完这轮'
-                        : !data.settings.setupGuideCompleted
-                          ? '先补引导'
-                          : nextWorkshopTask
-                            ? '工坊待处理'
-                            : '直接开跑'}
-                    </span>
-                  </div>
-
-                  <div className="companion-focus-grid">
-                    <article className="focus-step-card">
-                      <span className="mini-pill">1</span>
-                      <strong>
-                        {data.activeRun
-                          ? '先完成这一轮'
-                          : !data.settings.setupGuideCompleted
-                            ? setupGuideHint.title
-                            : nextWorkshopTask
-                              ? `去补 ${getIntegrationLabel(nextWorkshopTask.id)}`
-                              : `开始 ${defaultRouteName}`}
-                      </strong>
-                      <p>
-                        {data.activeRun
-                          ? '刷完以后先结算本轮，再决定要不要记掉落。'
-                          : !data.settings.setupGuideCompleted
-                            ? '只跟着这一步走，不用先看养成和收藏。'
-                            : nextWorkshopTask
-                              ? '先把这条工坊线补齐，后面执行会更稳。'
-                              : '先开一轮最熟的图，首页和战报就会开始有内容。'}
-                      </p>
-                    </article>
-                    <article className="focus-step-card">
-                      <span className="mini-pill">2</span>
-                      <strong>工坊只做一件事</strong>
-                      <p>进工坊后只看顶部高亮任务卡，先录坐标或先试运行，不要同时管三条线。</p>
-                    </article>
-                    <article className="focus-step-card">
-                      <span className="mini-pill">3</span>
-                      <strong>战报最后再补</strong>
-                      <p>等真正刷完一轮，再去战报记掉落；现在可以先不用管收藏和养成。</p>
-                    </article>
-                  </div>
-
-                  <div className="tool-row">
-                    <button
-                      className="primary-button"
-                      disabled={busyKey === 'start-run' || busyKey === 'stop-run'}
-                      onClick={() => {
-                        if (data.activeRun) {
-                          void handleStopRun();
-                          return;
-                        }
-
-                        if (!data.settings.setupGuideCompleted) {
-                          handleFollowSetupGuideHint();
-                          return;
-                        }
-
-                        if (nextWorkshopTask) {
-                          handleOpenWorkshopTaskFromGuide(nextWorkshopTask.id);
-                          return;
-                        }
-
-                        void handleStartRun(defaultRouteName);
-                      }}
-                      type="button"
-                    >
-                      {data.activeRun
-                        ? busyKey === 'stop-run'
-                          ? '结算中...'
-                          : '完成这一轮'
-                        : !data.settings.setupGuideCompleted
-                          ? setupGuideHint.actionLabel
-                          : nextWorkshopTask
-                            ? `去处理${getIntegrationLabel(nextWorkshopTask.id)}`
-                            : `开始 ${defaultRouteName}`}
-                    </button>
-                    <button
-                      className="ghost-button"
-                      onClick={() =>
-                        nextWorkshopTask
-                          ? handleOpenWorkshopTaskFromGuide(nextWorkshopTask.id)
-                          : handleSelectTab('workshop')
-                      }
-                      type="button"
-                    >
-                      打开工坊
-                    </button>
-                    <button
-                      className="ghost-button"
-                      onClick={() => handleSelectTab('drops')}
-                      type="button"
-                    >
-                      打开战报
-                    </button>
-                    <button
-                      className="ghost-button"
-                      onClick={() => setShowCompanionDetails((current) => !current)}
-                      type="button"
-                    >
-                      {showCompanionDetails ? '收起扩展状态' : '展开扩展状态'}
-                    </button>
-                  </div>
-
-                  <div className="companion-issue-grid">
-                    {companionIssues.map((issue) => (
-                      <article
-                        className={`companion-issue-card tone-${issue.tone}`}
-                        key={`${issue.tone}-${issue.title}`}
-                      >
-                        <strong>{issue.title}</strong>
-                        <p>{issue.detail}</p>
-                      </article>
-                    ))}
-                  </div>
-                </article>
-              ) : null}
-
               <CounterPanel
                 activeDurationText={activeDurationText}
                 activeRun={data.activeRun}
-                busy={busyKey === 'start-run' || busyKey === 'stop-run'}
-                onFollowSetupGuideHint={handleFollowSetupGuideHint}
-                onOpenSetupGuide={handleOpenSetupGuide}
-                onGoToDrops={() => handleSelectTab('drops')}
-                onGoToWorkshop={() => handleSelectTab('workshop')}
+                autoCounterEnabled={data.settings.autoCounterEnabled}
+                busy={
+                  busyKey === 'start-run' ||
+                  busyKey === 'stop-run' ||
+                  busyKey === 'reset-run-history' ||
+                  busyKey === 'settings'
+                }
+                counterLocked={data.settings.counterLockEnabled}
+                counterRecognitionIntervalSeconds={
+                  data.settings.counterRecognitionIntervalSeconds
+                }
+                counterSceneTemplatePath={data.settings.counterSceneTemplatePath}
+                counterSession={data.counterSession}
+                defaultRouteName={defaultRouteName}
+                historyStats={historyStats}
+                onPickCounterSceneTemplate={handlePickCounterSceneTemplate}
+                onResetCounterHistory={handleResetCounterHistory}
+                onSaveDefaultRouteName={(mapName) =>
+                  handleUpdateSettings({ defaultRunMapName: mapName })
+                }
+                onSaveCounterRecognitionInterval={(seconds) =>
+                  handleUpdateSettings({ counterRecognitionIntervalSeconds: seconds })
+                }
                 onStartRun={handleStartRun}
                 onStopRun={handleStopRun}
-                preflight={setupPreflight}
-                preflightBusy={setupPreflightBusy}
-                recentDrops={todayDrops}
+                onToggleCounterLock={(enabled) =>
+                  handleUpdateSettings({ counterLockEnabled: enabled })
+                }
+                onToggleAutoCounter={(enabled) =>
+                  handleUpdateSettings({ autoCounterEnabled: enabled })
+                }
                 recentRuns={recentRuns}
-                onSurfaceNotice={announceSurfaceNotice}
-                setupGuideHint={setupGuideHint}
                 setupGuideCompleted={data.settings.setupGuideCompleted}
-                stats={todayStats}
               />
 
               {showPetCodex && petCodex ? (
@@ -1914,7 +1793,7 @@ export default function App() {
           {activeTab === 'drops' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('drops')}
-              panelLabel="战报"
+              panelLabel="鎴樻姤"
               resetKey="drops"
             >
             <DropPanel
@@ -1934,7 +1813,7 @@ export default function App() {
           {activeTab === 'workshop' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('workshop')}
-              panelLabel="工坊"
+              panelLabel="宸ュ潑"
               resetKey="workshop"
             >
             <AutomationPanel
@@ -1965,3 +1844,4 @@ export default function App() {
     </div>
   );
 }
+

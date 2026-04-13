@@ -27,7 +27,25 @@ export type CounterDetectedState =
   | 'lobby'
   | 'in-game'
   | 'in-game-menu'
+  | 'route-marker'
   | 'stopped';
+
+export type CounterRouteSource = 'manual' | 'template' | 'history' | 'default';
+
+export interface CounterRecognitionEvent {
+  detectedAt: string;
+  state: CounterDetectedState;
+  detail: string;
+  template?: string;
+  confidence?: number;
+  requiredConfidence?: number;
+  routeName?: string;
+  routeSource?: CounterRouteSource;
+  routeDetail?: string;
+  routeConfidence?: number;
+  routeTemplate?: string;
+  routeRequiredConfidence?: number;
+}
 
 export interface CounterSession {
   id: string;
@@ -39,8 +57,69 @@ export interface CounterSession {
   lastEventAt: string;
   lastDetectedState: CounterDetectedState;
   lastDetail: string;
+  routeSource?: CounterRouteSource;
+  routeConfidence?: number;
+  routeDetail?: string;
+  lastTemplate?: string;
+  lastTemplateConfidence?: number;
+  lastTemplateThreshold?: number;
+  lastRouteTemplate?: string;
+  lastRouteThreshold?: number;
+  recognitionHistory?: CounterRecognitionEvent[];
   lastRunDurationSeconds?: number;
   lastRunEndedAt?: string;
+}
+
+export interface CounterRouteTemplateStatus {
+  rootPath: string;
+  capturesPath: string;
+  routesPath: string;
+  manifestPath: string;
+  exampleManifestPath: string;
+  hasActiveManifest: boolean;
+  configuredRouteCount: number;
+  readyTemplateCount: number;
+  missingTemplateCount: number;
+  missingTemplateFiles: string[];
+  routeNames: string[];
+}
+
+export interface CounterRouteCaptureResult {
+  path: string;
+  detail: string;
+  width: number;
+  height: number;
+}
+
+export interface CounterRouteDraftEntry {
+  name: string;
+  filename: string;
+  threshold: number;
+}
+
+export interface CounterRouteDraftResult {
+  routeName: string;
+  routeSlug: string;
+  sourcePath: string;
+  previewPath: string;
+  generatedFiles: string[];
+  entries: CounterRouteDraftEntry[];
+  detail: string;
+}
+
+export interface CounterRouteProbeResult {
+  state: CounterDetectedState;
+  detail: string;
+  template: string;
+  confidence: number;
+  requiredConfidence?: number;
+  routeName: string;
+  routeSource: CounterRouteSource;
+  routeDetail: string;
+  routeConfidence: number;
+  routeTemplate?: string;
+  routeRequiredConfidence?: number;
+  detectedAt?: string;
 }
 
 export interface RunRecord extends ActiveRun {
@@ -102,9 +181,20 @@ export interface AppSettings {
   alwaysOnTop: boolean;
   launchOnStartup: boolean;
   notificationsEnabled: boolean;
+  autoCounterEnabled: boolean;
+  counterLockEnabled: boolean;
+  counterRecognitionIntervalSeconds: number;
+  counterSceneTemplatePath: string;
+  counterSceneMatchThreshold: number;
+  defaultRunMapName: string;
   windowMode: WindowMode;
   setupGuideCompleted: boolean;
   windowPlacement: WindowPlacementSettings;
+}
+
+export interface CounterSceneTemplatePickResult {
+  path: string;
+  fileName: string;
 }
 
 export interface AutomationDrafts {
@@ -309,4 +399,11 @@ export interface AutomationPreflightResponse {
   generatedAt: string;
   globalChecks: AutomationCheckItem[];
   tasks: AutomationPreflightTask[];
+}
+
+export interface FastLauncherLaunchInput {
+  path: string;
+  args?: string[];
+  username?: string;
+  password?: string;
 }

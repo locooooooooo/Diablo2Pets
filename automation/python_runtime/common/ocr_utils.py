@@ -49,6 +49,22 @@ if pytesseract and os.path.exists(TESSERACT_CMD):
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
 
+def _normalize_crop_scale(crop_scale=None) -> tuple[float, float]:
+    if crop_scale is None:
+        return 1.0, 1.0
+
+    if isinstance(crop_scale, (int, float)):
+        scale = max(0.1, float(crop_scale))
+        return scale, scale
+
+    if isinstance(crop_scale, (list, tuple)) and len(crop_scale) == 2:
+        scale_x = max(0.1, float(crop_scale[0]))
+        scale_y = max(0.1, float(crop_scale[1]))
+        return scale_x, scale_y
+
+    return 1.0, 1.0
+
+
 def _require_image_stack() -> None:
     missing: list[str] = []
     if cv2 is None:
@@ -83,6 +99,39 @@ def get_available_ocr_engine() -> str:
         return "tesseract"
     except Exception:
         return "none"
+
+
+def get_ocr_status() -> dict[str, Any]:
+    status = {
+        "available": False,
+        "backend": None,
+        "rapidocr_available": bool(rapid_ocr_engine),
+        "pytesseract_installed": bool(pytesseract),
+        "tesseract_configured_path": TESSERACT_CMD if os.path.exists(TESSERACT_CMD) else None,
+        "detail": "",
+    }
+
+    if rapid_ocr_engine is not None:
+        status["available"] = True
+        status["backend"] = "rapidocr"
+        status["detail"] = "RapidOCR available"
+        return status
+
+    if not pytesseract:
+        status["detail"] = "RapidOCR unavailable; pytesseract not installed"
+        return status
+
+    try:
+        pytesseract.get_tesseract_version()
+        status["available"] = True
+        status["backend"] = "tesseract"
+        status["detail"] = "Tesseract available"
+    except pytesseract.TesseractNotFoundError:
+        status["detail"] = "RapidOCR unavailable; Tesseract executable not found"
+    except Exception as exc:
+        status["detail"] = f"OCR probe failed: {exc}"
+
+    return status
 
 
 def get_clipboard_image() -> Any | None:
@@ -153,9 +202,12 @@ def _iter_number_variants(image: Any) -> list[tuple[str, Any]]:
     return variants
 
 
-def _normalize_crop_box(crop_box: Any) -> dict[str, int | str]:
+def _normalize_crop_box(crop_box: Any, crop_scale=None) -> dict[str, int | str]:
     if crop_box is None:
         crop_box = DEFAULT_GRID_CAPTURE_BOXES[0]
+
+    scale_x, scale_y = _normalize_crop_scale(crop_scale)
+
     if isinstance(crop_box, dict):
         offset_x, offset_y = crop_box.get("offset", (0, 0))
         width, height = crop_box.get("size", (30, 25))
@@ -165,10 +217,10 @@ def _normalize_crop_box(crop_box: Any) -> dict[str, int | str]:
         name = "custom"
     return {
         "name": str(name),
-        "offset_x": int(offset_x),
-        "offset_y": int(offset_y),
-        "width": max(1, int(width)),
-        "height": max(1, int(height)),
+        "offset_x": int(round(offset_x * scale_x)),
+        "offset_y": int(round(offset_y * scale_y)),
+        "width": max(1, int(round(width * scale_x))),
+        "height": max(1, int(round(height * scale_y))),
     }
 
 
@@ -176,8 +228,9 @@ def _resolve_capture_region(
     anchor_x: int,
     anchor_y: int,
     crop_box: Any = None,
+    crop_scale=None,
 ) -> tuple[str, int, int, int, int]:
-    normalized = _normalize_crop_box(crop_box)
+    normalized = _normalize_crop_box(crop_box, crop_scale=crop_scale)
     left = int(round(anchor_x + int(normalized["offset_x"])))
     top = int(round(anchor_y + int(normalized["offset_y"])))
     return (
@@ -307,10 +360,16 @@ def capture_grid_cell(
     center_y: int,
     *,
     crop_box: Any = None,
+    crop_scale=None,
 ) -> Any | None:
     if pyautogui is None:
         return None
-    _, left, top, width, height = _resolve_capture_region(center_x, center_y, crop_box=crop_box)
+    _, left, top, width, height = _resolve_capture_region(
+        center_x,
+        center_y,
+        crop_box=crop_box,
+        crop_scale=crop_scale,
+    )
     return pyautogui.screenshot(region=(left, top, width, height))
 
 
@@ -319,10 +378,14 @@ def capture_grid_cell_variants(
     center_y: int,
     *,
     crop_boxes: Iterable[Any] | None = None,
+    crop_scale=None,
 ) -> list[tuple[str, Any | None]]:
     crop_boxes = tuple(crop_boxes or DEFAULT_GRID_CAPTURE_BOXES)
     return [
-        (box.get("name", f"variant_{index}"), capture_grid_cell(center_x, center_y, crop_box=box))
+        (
+            box.get("name", f"variant_{index}"),
+            capture_grid_cell(center_x, center_y, crop_box=box, crop_scale=crop_scale),
+        )
         for index, box in enumerate(crop_boxes)
     ]
 
@@ -333,9 +396,15 @@ def crop_grid_cell_from_image(
     center_y: int,
     *,
     crop_box: Any = None,
+    crop_scale=None,
 ) -> Any:
     pil_image = _ensure_pil_image(image)
-    _, left, top, width, height = _resolve_capture_region(center_x, center_y, crop_box=crop_box)
+    _, left, top, width, height = _resolve_capture_region(
+        center_x,
+        center_y,
+        crop_box=crop_box,
+        crop_scale=crop_scale,
+    )
     left = max(0, left)
     top = max(0, top)
     right = min(pil_image.size[0], left + width)
@@ -349,12 +418,19 @@ def crop_grid_cell_variants_from_image(
     center_y: int,
     *,
     crop_boxes: Iterable[Any] | None = None,
+    crop_scale=None,
 ) -> list[tuple[str, Any]]:
     crop_boxes = tuple(crop_boxes or DEFAULT_GRID_CAPTURE_BOXES)
     return [
         (
             box.get("name", f"variant_{index}"),
-            crop_grid_cell_from_image(image, center_x, center_y, crop_box=box),
+            crop_grid_cell_from_image(
+                image,
+                center_x,
+                center_y,
+                crop_box=box,
+                crop_scale=crop_scale,
+            ),
         )
         for index, box in enumerate(crop_boxes)
     ]

@@ -8,24 +8,41 @@ const __dirname = dirname(__filename);
 const workspaceRoot = resolve(__dirname, '..');
 const releaseAppFolderName = 'Diablo2Pets-win32-x64';
 const vendorRuntimeRoot = join(workspaceRoot, 'vendor', 'python-runtime', 'win32-x64');
+const fastLauncherExePath = join(workspaceRoot, 'resources', 'fast-launcher', 'target', 'release', 'fast-launcher.exe');
+const packagerCliPath = join(
+  workspaceRoot,
+  'node_modules',
+  '@electron',
+  'packager',
+  'bin',
+  'electron-packager.mjs'
+);
 const electronCacheDir =
   process.platform === 'win32' && process.env.LOCALAPPDATA
     ? join(process.env.LOCALAPPDATA, 'electron', 'Cache')
     : null;
-const packagerCommand = join(
-  workspaceRoot,
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'electron-packager.cmd' : 'electron-packager'
-);
+
+function quoteCmdPart(value) {
+  if (/[\s"]/u.test(value)) {
+    return `"${value.replace(/"/g, '\\"')}"`;
+  }
+
+  return value;
+}
 
 function run(command, args, cwd = workspaceRoot) {
   const isBatchFile = /\.(cmd|bat)$/i.test(command);
-  const result = spawnSync(isBatchFile ? 'cmd.exe' : command, isBatchFile ? ['/d', '/s', '/c', command, ...args] : args, {
-    cwd,
-    stdio: 'inherit',
-    shell: false
-  });
+  const result = spawnSync(
+    isBatchFile ? 'cmd.exe' : command,
+    isBatchFile
+      ? ['/d', '/s', '/c', `${quoteCmdPart(command)} ${args.map(quoteCmdPart).join(' ')}`]
+      : args,
+    {
+      cwd,
+      stdio: 'inherit',
+      shell: false
+    }
+  );
 
   if (result.error) {
     throw result.error;
@@ -54,9 +71,31 @@ function copyBundledRuntime(outputRoot) {
   return targetRoot;
 }
 
+function copyFastLauncher(outputRoot) {
+  if (!existsSync(fastLauncherExePath)) {
+    console.warn(`Fast launcher executable is missing at ${fastLauncherExePath}, skipping copy.`);
+    return null;
+  }
+
+  const targetRoot = join(outputRoot, releaseAppFolderName, 'resources', 'bin');
+  run('powershell.exe', [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    [
+      `$targetDir = [System.IO.Path]::GetFullPath('${targetRoot.replace(/\\/g, '\\\\')}')`,
+      `$source = [System.IO.Path]::GetFullPath('${fastLauncherExePath.replace(/\\/g, '\\\\')}')`,
+      'if (!(Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }',
+      'Copy-Item -Path $source -Destination (Join-Path $targetDir "fast-launcher.exe") -Force'
+    ].join('; ')
+  ]);
+  return targetRoot;
+}
+
 run('npm.cmd', ['run', 'make:icon']);
 run('npm.cmd', ['run', 'build']);
-run('npm.cmd', ['run', 'prepare:python-runtime']);
+  run('npm.cmd', ['run', 'prepare:python-runtime']);
 
 const packagerBaseArgs = [
   '.',
@@ -81,13 +120,29 @@ if (electronCacheDir && existsSync(electronCacheDir)) {
   packagerBaseArgs.push('--electron-zip-dir', electronCacheDir);
 }
 
-let outputRoot = join(workspaceRoot, 'release');
+const releaseCandidates = [
+  join(workspaceRoot, 'release'),
+  join(workspaceRoot, 'release-fixed'),
+  join(workspaceRoot, `release-hotfix-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`)
+];
 
-try {
-  run(packagerCommand, [...packagerBaseArgs, '--out', outputRoot, '--overwrite']);
-} catch (error) {
-  outputRoot = join(workspaceRoot, 'release-fixed');
-  run(packagerCommand, [...packagerBaseArgs, '--out', outputRoot, '--overwrite']);
+let outputRoot = releaseCandidates[0];
+let packaged = false;
+let lastError = null;
+
+for (const candidate of releaseCandidates) {
+  try {
+    outputRoot = candidate;
+    run(process.execPath, [packagerCliPath, ...packagerBaseArgs, '--out', outputRoot, '--overwrite']);
+    packaged = true;
+    break;
+  } catch (error) {
+    lastError = error;
+  }
+}
+
+if (!packaged) {
+  throw lastError ?? new Error('Unable to package app.');
 }
 
 if (!existsSync(vendorRuntimeRoot)) {
@@ -95,4 +150,8 @@ if (!existsSync(vendorRuntimeRoot)) {
 }
 
 const copiedRuntimeRoot = copyBundledRuntime(outputRoot);
+const copiedLauncherRoot = copyFastLauncher(outputRoot);
 process.stdout.write(`Bundled runtime copied to ${copiedRuntimeRoot}\n`);
+if (copiedLauncherRoot) {
+  process.stdout.write(`Fast launcher copied to ${copiedLauncherRoot}\n`);
+}

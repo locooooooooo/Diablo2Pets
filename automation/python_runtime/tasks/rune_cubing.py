@@ -18,7 +18,6 @@ from common.game_actions import (  # noqa: E402
     DEFAULT_DELAY_MIN,
     DEFAULT_GAME_WINDOW_TITLE,
     DEFAULT_STOP_KEY,
-    calculate_grid_coords,
     check_stop,
     is_game_active,
     random_sleep,
@@ -27,7 +26,19 @@ from common.game_actions import (  # noqa: E402
     safe_click,
     safe_move_item,
 )
+from common.grid_layout import build_mode_grids  # noqa: E402
+from common.layout_profiles import (  # noqa: E402
+    get_runtime_profile_meta,
+    get_runtime_profile_name,
+    resolve_runtime_profile,
+    store_runtime_profile,
+)
 from common.profile_store import read_json, write_json  # noqa: E402
+from common.window_scaling import (  # noqa: E402
+    build_scaled_config,
+    get_game_window_metrics,
+    get_mode_coordinate_keys,
+)
 
 
 GRID_ROWS = 4
@@ -45,6 +56,7 @@ def create_default_profile() -> dict[str, Any]:
         "stop_key": DEFAULT_STOP_KEY,
         "delay_min": DEFAULT_DELAY_MIN,
         "delay_max": DEFAULT_DELAY_MAX,
+        "grid_anchor_type": None,
         "cube_output_slot": None,
         "transmute_btn": None,
         "grid_anchors": None,
@@ -52,15 +64,58 @@ def create_default_profile() -> dict[str, Any]:
     }
 
 
-def load_profile(path: Path) -> dict[str, Any]:
-    profile = create_default_profile()
+def _read_raw_profile(path: Path) -> dict[str, Any]:
     loaded = read_json(path, default={}) or {}
-    profile.update(loaded)
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _format_profile_hint(profile: dict[str, Any]) -> str:
+    profile_name = get_runtime_profile_name(profile)
+    if not profile_name:
+        return ""
+    profile_meta = get_runtime_profile_meta(profile)
+    selection_reason = profile_meta.get("selection_reason") or "active"
+    return f"[{profile_name} | {selection_reason}]"
+
+
+def _print_runtime_hints(profile: dict[str, Any], scale_info: dict[str, Any]) -> None:
+    profile_hint = _format_profile_hint(profile)
+    if profile_hint:
+        print(f"Using layout profile {profile_hint}")
+
+    if scale_info.get("active"):
+        print(
+            "Detected window scaling, auto-adjusted coordinates: "
+            f"x{scale_info['scale_x']:.3f}, y{scale_info['scale_y']:.3f}"
+        )
+    elif not scale_info.get("reference_window"):
+        print("No reference window recorded yet; this run will use the original coordinates.")
+
+
+def load_profile(path: Path) -> dict[str, Any]:
+    current_metrics = get_game_window_metrics()
+    raw_profile = _read_raw_profile(path)
+
+    if not raw_profile:
+        return create_default_profile()
+
+    runtime_profile, _normalized, _profile_meta = resolve_runtime_profile(
+        raw_profile,
+        current_metrics=current_metrics,
+    )
+    profile = create_default_profile()
+    profile.update(runtime_profile or {})
     return profile
 
 
 def save_profile(path: Path, profile: dict[str, Any]) -> None:
-    write_json(path, profile)
+    merged_profile, _stored_profile_name = store_runtime_profile(
+        _read_raw_profile(path),
+        profile,
+        current_metrics=get_game_window_metrics(),
+        profile_name=get_runtime_profile_name(profile),
+    )
+    write_json(path, merged_profile)
 
 
 def profile_is_complete(profile: dict[str, Any]) -> bool:
@@ -85,9 +140,10 @@ def import_legacy_config(
     profile["cube_output_slot"] = legacy.get("cube_output_slot")
     profile["transmute_btn"] = legacy.get("transmute_btn")
     profile["grid_anchors"] = legacy.get("grid_anchors")
+    profile["grid_anchor_type"] = legacy.get("grid_anchor_type")
     profile["imported_from"] = str(legacy_path)
     save_profile(output_path, profile)
-    return profile
+    return load_profile(output_path)
 
 
 def record_profile(
@@ -137,7 +193,32 @@ def record_profile(
     }
 
     save_profile(path, current)
-    return current
+    return load_profile(path)
+
+
+def prepare_runtime_state(profile: dict[str, Any], current_metrics=None):
+    runtime_profile = create_default_profile()
+    runtime_profile.update(profile or {})
+
+    scaled_profile, scale_info = build_scaled_config(
+        runtime_profile,
+        coordinate_keys=get_mode_coordinate_keys("Rune"),
+        current_metrics=current_metrics,
+    )
+
+    mode_grids = None
+    anchors = scaled_profile.get("grid_anchors")
+    if anchors:
+        mode_grids = build_mode_grids(
+            anchors,
+            rows=GRID_ROWS,
+            cols=GRID_COLS,
+            mode="Rune",
+            anchor_type=scaled_profile.get("grid_anchor_type"),
+        )
+
+    _print_runtime_hints(profile, scale_info)
+    return scaled_profile, scale_info, mode_grids
 
 
 def parse_counts_text(counts_text: str) -> list[int]:
@@ -220,18 +301,20 @@ def execute_crafting_plan(
     plan: list[dict[str, Any]],
     profile: dict[str, Any],
 ) -> None:
-    game_window_title = str(profile["game_window_title"])
-    stop_key = str(profile["stop_key"])
-    delay_min = float(profile["delay_min"])
-    delay_max = float(profile["delay_max"])
-    cube_output_slot = profile["cube_output_slot"]
-    transmute_btn = profile["transmute_btn"]
-    grid_anchors = profile["grid_anchors"]
-
     if not profile_is_complete(profile):
         raise RuntimeError("Rune profile is incomplete. Record or import it first.")
 
-    grid = calculate_grid_coords(grid_anchors, GRID_ROWS, GRID_COLS)
+    runtime_profile, _scale_info, mode_grids = prepare_runtime_state(profile)
+    if not mode_grids:
+        raise RuntimeError("Rune profile is missing grid anchors.")
+
+    grid = mode_grids.get("interaction_grid") or []
+    game_window_title = str(runtime_profile["game_window_title"])
+    stop_key = str(runtime_profile["stop_key"])
+    delay_min = float(runtime_profile["delay_min"])
+    delay_max = float(runtime_profile["delay_max"])
+    cube_output_slot = runtime_profile["cube_output_slot"]
+    transmute_btn = runtime_profile["transmute_btn"]
 
     for step in plan:
         row_index = int(step["row_index"])

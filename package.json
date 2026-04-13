@@ -48,6 +48,10 @@
       {
         "from": "vendor/python-runtime/win32-x64",
         "to": "python"
+      },
+      {
+        "from": "resources/fast-launcher/target/release/fast-launcher.exe",
+        "to": "bin/fast-launcher.exe"
       }
     ],
     "files": [
