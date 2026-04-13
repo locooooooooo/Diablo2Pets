@@ -1,0 +1,29 @@
+{
+  "profile_version": 1,
+  "name": "Default Gold Drop Profile",
+  "game_window_title": "Diablo II: Resurrected",
+  "stop_key": "f12",
+  "delay_min": 0.05,
+  "delay_max": 0.1,
+  "use_image_recognition": true,
+  "image_confidence": 0.8,
+  "stash_template_path": "E:\\暗黑2桌宠\\automation\\python_runtime\\assets\\stash_template.png",
+  "stash_object_coords": [
+    739,
+    423
+  ],
+  "shared_stash_tab_coords": [
+    267,
+    202
+  ],
+  "stash_gold_btn_coords": [
+    298,
+    717
+  ],
+  "inventory_gold_btn_coords": [
+    892,
+    711
+  ],
+  "inventory_hotkey": "b",
+  "close_ui_key": "esc"
+}

@@ -1,0 +1,23 @@
+{
+  "3C": [
+    {
+      "name": "chaos_route_hint",
+      "filename": "routes/3c/chaos_route_hint.png",
+      "threshold": 0.76
+    }
+  ],
+  "牛场": [
+    {
+      "name": "cow_route_hint",
+      "filename": "routes/cow/cow_route_hint.png",
+      "threshold": 0.76
+    }
+  ],
+  "巴尔": [
+    {
+      "name": "baal_route_hint",
+      "filename": "routes/baal/baal_route_hint.png",
+      "threshold": 0.76
+    }
+  ]
+}

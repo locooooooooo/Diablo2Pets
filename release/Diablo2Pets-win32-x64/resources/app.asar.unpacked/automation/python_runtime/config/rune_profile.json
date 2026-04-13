@@ -1,0 +1,31 @@
+{
+  "profile_version": 1,
+  "name": "Default Rune Cubing Profile",
+  "game_window_title": "Diablo II: Resurrected",
+  "stop_key": "f12",
+  "delay_min": 0.05,
+  "delay_max": 0.1,
+  "cube_output_slot": [
+    408,
+    615
+  ],
+  "transmute_btn": [
+    371,
+    684
+  ],
+  "grid_anchors": {
+    "p1": [
+      176,
+      261
+    ],
+    "p2": [
+      538,
+      261
+    ],
+    "p3": [
+      177,
+      389
+    ]
+  },
+  "imported_from": "E:\\Diablo2Tools\\rune_cubing\\rune_config.json"
+}

@@ -1,9 +1,6 @@
 node_modules/
-dist/
-dist-electron/
-release/
 release-fixed/
-build/
+tmp/
 *.log
 __pycache__/
 *.pyc

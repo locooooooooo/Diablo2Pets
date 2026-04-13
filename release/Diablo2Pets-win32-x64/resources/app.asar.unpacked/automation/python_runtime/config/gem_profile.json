@@ -1,0 +1,51 @@
+{
+  "profile_version": 1,
+  "name": "Default Gem Cubing Profile",
+  "game_window_title": "Diablo II: Resurrected",
+  "stop_key": "f12",
+  "delay_min": 0.1,
+  "delay_max": 0.2,
+  "mode": "grid",
+  "cube_slots": [
+    [
+      309,
+      477
+    ],
+    [
+      360,
+      478
+    ],
+    [
+      398,
+      478
+    ]
+  ],
+  "cube_output_slot": [
+    410,
+    595
+  ],
+  "transmute_btn": [
+    351,
+    677
+  ],
+  "result_dest": [
+    204,
+    414
+  ],
+  "grid_anchors": {
+    "p1": [
+      200,
+      244
+    ],
+    "p2": [
+      511,
+      240
+    ],
+    "p3": [
+      202,
+      410
+    ]
+  },
+  "gem_sources": [],
+  "imported_from": "E:\\Diablo2Tools\\gem_cubing\\gem_config.json"
+}

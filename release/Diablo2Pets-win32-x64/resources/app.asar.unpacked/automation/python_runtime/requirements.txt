@@ -1,0 +1,8 @@
+pyautogui
+keyboard
+pygetwindow
+opencv-python
+numpy
+pillow
+pytesseract
+rapidocr_onnxruntime
