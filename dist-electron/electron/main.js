@@ -1561,6 +1561,295 @@ async function handleRunCounterStateEvent(event) {
     }
     await writeDataStore(data);
 }
+function buildCounterSessionV2(mapName, routeMeta) {
+    const startedAt = new Date().toISOString();
+    return {
+        id: buildId('counter-session'),
+        mapName,
+        startedAt,
+        state: 'waiting-for-game',
+        completedRuns: 0,
+        totalDurationSeconds: 0,
+        lastEventAt: startedAt,
+        lastDetectedState: 'booting',
+        lastDetail: '自动统计刚刚开始，等待识别游戏状态。',
+        routeSource: routeMeta?.source,
+        routeConfidence: routeMeta?.confidence,
+        routeDetail: routeMeta?.detail,
+        recognitionHistory: []
+    };
+}
+function hasCounterSceneTemplateV2(data) {
+    return Boolean(data.settings.counterSceneTemplatePath.trim());
+}
+function getCounterRouteSourceLabelV2(source) {
+    switch (source) {
+        case 'template':
+            return '模板识别';
+        case 'history':
+            return '历史推断';
+        case 'manual':
+            return '手动指定';
+        case 'default':
+        default:
+            return '默认路线';
+    }
+}
+function inferPreferredCounterRouteFromHistoryV2(data) {
+    const recentRuns = data.runHistory.slice(0, 8);
+    if (recentRuns.length === 0) {
+        return null;
+    }
+    const stats = new Map();
+    for (const run of recentRuns) {
+        const current = stats.get(run.mapName) ?? { count: 0, latestEndedAt: 0 };
+        current.count += 1;
+        current.latestEndedAt = Math.max(current.latestEndedAt, new Date(run.endedAt).getTime());
+        stats.set(run.mapName, current);
+    }
+    const sorted = Array.from(stats.entries())
+        .map(([mapName, value]) => ({
+        mapName,
+        count: value.count,
+        latestEndedAt: value.latestEndedAt
+    }))
+        .sort((left, right) => {
+        if (right.count !== left.count) {
+            return right.count - left.count;
+        }
+        return right.latestEndedAt - left.latestEndedAt;
+    });
+    const top = sorted[0];
+    const second = sorted[1];
+    if (!top) {
+        return null;
+    }
+    if (top.count >= 2 && (!second || top.count >= second.count + 1)) {
+        return {
+            mapName: top.mapName,
+            source: 'history',
+            confidence: Math.min(0.92, 0.55 + top.count * 0.08),
+            detail: `最近 ${recentRuns.length} 把里，${top.mapName} 出现了 ${top.count} 次，先按这条路线接管。`
+        };
+    }
+    return null;
+}
+function resolveCounterRouteV2(data, event, currentMapName) {
+    const routeName = event.routeName?.trim();
+    if (routeName) {
+        return {
+            mapName: routeName,
+            source: 'template',
+            confidence: event.routeConfidence,
+            detail: event.routeDetail?.trim() || `已自动识别为 ${routeName}。`
+        };
+    }
+    const inferred = inferPreferredCounterRouteFromHistoryV2(data);
+    if (inferred) {
+        return inferred;
+    }
+    const fallbackMapName = normalizeDefaultRunMapName(event.preferredFallbackMapName || currentMapName || data.settings.defaultRunMapName);
+    return {
+        mapName: fallbackMapName,
+        source: currentMapName ? 'manual' : 'default',
+        confidence: undefined,
+        detail: event.routeDetail?.trim() ||
+            `当前还没有命中路线模板，先沿用${currentMapName ? '当前会话' : '默认'}路线 ${fallbackMapName}。`
+    };
+}
+async function handleRunCounterStateEventV2(event) {
+    const data = await readDataStore();
+    const detectedAt = event.detectedAt ? new Date(event.detectedAt) : new Date();
+    const detectedState = (event.state || 'unknown');
+    const sceneMarkerRequired = hasCounterSceneTemplateV2(data);
+    if (!data.counterSession &&
+        data.settings.autoCounterEnabled &&
+        detectedState === 'route-marker') {
+        const route = resolveCounterRouteV2(data, {
+            routeName: event.routeName,
+            routeConfidence: event.routeConfidence,
+            routeDetail: event.routeDetail
+        });
+        data.counterSession = buildCounterSessionV2(route.mapName, route);
+        data.counterSession.lastEventAt = detectedAt.toISOString();
+        data.counterSession.lastDetectedState = detectedState;
+        data.counterSession.routeSource = route.source;
+        data.counterSession.routeConfidence = route.confidence;
+        data.counterSession.routeDetail = route.detail;
+        data.counterSession.lastDetail =
+            event.detail?.trim() || `已命中 ${route.mapName} 地图名截图，自动计数开始接管。`;
+    }
+    if (!data.counterSession &&
+        data.settings.autoCounterEnabled &&
+        !sceneMarkerRequired &&
+        (isCounterLobbyState(event.state) || isCounterInGameState(event.state))) {
+        const route = resolveCounterRouteV2(data, {
+            routeName: event.routeName,
+            routeConfidence: event.routeConfidence,
+            routeDetail: event.routeDetail
+        });
+        data.counterSession = buildCounterSessionV2(route.mapName, route);
+        data.counterSession.lastEventAt = detectedAt.toISOString();
+        data.counterSession.lastDetectedState = detectedState;
+        data.counterSession.routeSource = route.source;
+        data.counterSession.routeConfidence = route.confidence;
+        data.counterSession.routeDetail = route.detail;
+        if (isCounterInGameState(event.state)) {
+            data.counterSession.state = 'in-game';
+            data.counterSession.lastDetail =
+                event.detail?.trim() || `已识别你正在 ${route.mapName} 游戏内，自动计数已开始。`;
+            data.activeRun = {
+                id: buildId('run'),
+                mapName: route.mapName,
+                startedAt: detectedAt.toISOString()
+            };
+            await writeDataStore(data);
+            void sendDesktopNotification('自动计数已开始', data.counterSession.lastDetail);
+            return;
+        }
+        data.counterSession.state = 'waiting-for-game';
+        data.counterSession.lastDetail =
+            event.detail?.trim() || `已识别大厅，${route.mapName} 自动计数已待命。进游戏后会自动起表。`;
+        await writeDataStore(data);
+        void sendDesktopNotification('自动计数已待命', data.counterSession.lastDetail);
+        return;
+    }
+    if (!data.counterSession) {
+        return;
+    }
+    const session = data.counterSession;
+    session.lastEventAt = detectedAt.toISOString();
+    session.lastDetectedState = detectedState;
+    session.lastDetail = event.detail?.trim() || session.lastDetail;
+    session.lastTemplate = event.template?.trim() || '';
+    session.lastTemplateConfidence = event.confidence;
+    session.lastTemplateThreshold = event.requiredConfidence;
+    session.lastRouteTemplate = event.routeTemplate?.trim() || '';
+    session.lastRouteThreshold = event.routeRequiredConfidence;
+    const route = resolveCounterRouteV2(data, {
+        routeName: event.routeName,
+        routeConfidence: event.routeConfidence,
+        routeDetail: event.routeDetail,
+        preferredFallbackMapName: session.mapName
+    }, session.mapName);
+    session.routeSource = route.source;
+    session.routeConfidence = route.confidence;
+    session.routeDetail = route.detail;
+    pushCounterRecognitionEvent(session, {
+        detectedAt: detectedAt.toISOString(),
+        state: detectedState,
+        detail: session.lastDetail,
+        template: session.lastTemplate,
+        confidence: session.lastTemplateConfidence,
+        requiredConfidence: session.lastTemplateThreshold,
+        routeName: session.mapName,
+        routeSource: session.routeSource,
+        routeDetail: session.routeDetail,
+        routeConfidence: event.routeConfidence,
+        routeTemplate: session.lastRouteTemplate,
+        routeRequiredConfidence: session.lastRouteThreshold
+    });
+    if (detectedState === 'route-marker') {
+        if (route.mapName && route.mapName !== session.mapName) {
+            session.mapName = route.mapName;
+        }
+        session.state = 'in-game';
+        if (!data.activeRun) {
+            data.activeRun = {
+                id: buildId('run'),
+                mapName: session.mapName,
+                startedAt: detectedAt.toISOString()
+            };
+            session.lastDetail =
+                event.detail?.trim() || `已命中 ${session.mapName} 地图名截图，开始记录这一把。`;
+            await writeDataStore(data);
+            void sendDesktopNotification('3C 已开始计时', `${session.mapName} 地图名已出现，这一把开始计时。`);
+            return;
+        }
+        const activeRunStartedAt = new Date(data.activeRun.startedAt).getTime();
+        const elapsedSeconds = (detectedAt.getTime() - activeRunStartedAt) / 1000;
+        if (elapsedSeconds < counterMarkerMinRunSeconds) {
+            session.lastDetail =
+                event.detail?.trim() ||
+                    `再次命中 ${session.mapName} 地图名，但距离上一把仅 ${formatDurationText(elapsedSeconds)}，本次忽略为重复识别。`;
+            await writeDataStore(data);
+            return;
+        }
+        const finalized = finalizeActiveRunRecord(data, detectedAt);
+        if (finalized) {
+            session.completedRuns += 1;
+            session.totalDurationSeconds += finalized.durationSeconds;
+            session.lastRunDurationSeconds = finalized.durationSeconds;
+            session.lastRunEndedAt = finalized.endedAt;
+        }
+        data.activeRun = {
+            id: buildId('run'),
+            mapName: session.mapName,
+            startedAt: detectedAt.toISOString()
+        };
+        session.lastDetail =
+            event.detail?.trim() ||
+                `再次命中 ${session.mapName} 地图名，已结算上一把并开始下一把。`;
+        await writeDataStore(data);
+        if (finalized) {
+            void sendDesktopNotification(`第 ${session.completedRuns} 把已记录`, `${finalized.mapName} 用时 ${formatDurationText(finalized.durationSeconds)}，下一把已自动开始。`);
+        }
+        return;
+    }
+    if (!data.activeRun && route.mapName && route.mapName !== session.mapName) {
+        session.mapName = route.mapName;
+        session.lastDetail = `${session.lastDetail} 当前路线已切换为 ${route.mapName}（${getCounterRouteSourceLabelV2(route.source)}）。`;
+    }
+    if (isCounterInGameState(event.state)) {
+        session.state = 'in-game';
+        if (!data.activeRun) {
+            if (sceneMarkerRequired) {
+                session.lastDetail =
+                    event.detail?.trim() || `已进入游戏，等待 ${session.mapName} 地图名截图后再起表。`;
+                await writeDataStore(data);
+                return;
+            }
+            data.activeRun = {
+                id: buildId('run'),
+                mapName: session.mapName,
+                startedAt: detectedAt.toISOString()
+            };
+            session.lastDetail = event.detail?.trim() || `${session.mapName} 已开始自动计时。`;
+            await writeDataStore(data);
+            void sendDesktopNotification('已识别进入游戏', `${session.mapName} 已开始自动计时。`);
+            return;
+        }
+        await writeDataStore(data);
+        return;
+    }
+    if (isCounterLobbyState(event.state)) {
+        const finalized = finalizeActiveRunRecord(data, detectedAt);
+        session.state = finalized ? 'waiting-next-game' : 'waiting-for-game';
+        if (finalized) {
+            session.completedRuns += 1;
+            session.totalDurationSeconds += finalized.durationSeconds;
+            session.lastRunDurationSeconds = finalized.durationSeconds;
+            session.lastRunEndedAt = finalized.endedAt;
+            session.lastDetail =
+                event.detail?.trim() || `${finalized.mapName} 已结算，当前累计 ${session.completedRuns} 把。`;
+        }
+        else {
+            session.lastDetail = event.detail?.trim()
+                || (sceneMarkerRequired
+                    ? `已回到大厅，继续等待 ${session.mapName} 地图名截图。`
+                    : '已回到大厅，等待下一把。');
+        }
+        await writeDataStore(data);
+        if (finalized) {
+            void sendDesktopNotification(`第 ${session.completedRuns} 把已记录`, `${finalized.mapName} 用时 ${formatDurationText(finalized.durationSeconds)}，累计 ${session.completedRuns} 把。`);
+        }
+        return;
+    }
+    if (!data.activeRun) {
+        session.state = session.completedRuns > 0 ? 'waiting-next-game' : 'waiting-for-game';
+    }
+    await writeDataStore(data);
+}
 async function ensureRunCounterMonitor() {
     const data = await readDataStore();
     const monitorIntervalSeconds = normalizeCounterRecognitionIntervalSeconds(data.settings.counterRecognitionIntervalSeconds);
@@ -1618,7 +1907,7 @@ async function ensureRunCounterMonitor() {
                 if (payload.type !== 'state' || !payload.state) {
                     continue;
                 }
-                enqueueRunCounterMonitorUpdate(() => handleRunCounterStateEvent(payload));
+                enqueueRunCounterMonitorUpdate(() => handleRunCounterStateEventV2(payload));
             }
             catch (error) {
                 console.error('Failed to parse run counter monitor payload:', line, error);
@@ -2684,6 +2973,68 @@ function buildRuntimeArgs(integration, payload) {
     }
     return args;
 }
+function buildRuntimeArgsV2(integration, payload) {
+    const scriptPath = getRuntimeScriptPath(payload.id);
+    const profilePath = resolveMaybeAbsolutePath(integration.profilePath);
+    const args = [scriptPath, '--profile', profilePath];
+    if (!existsSync(scriptPath)) {
+        throw new Error(`未找到运行时脚本：${scriptPath}`);
+    }
+    switch (payload.id) {
+        case 'rune-cube': {
+            const counts = payload.drafts.runeCounts.trim();
+            if (!counts) {
+                throw new Error('请先填写符文数量。');
+            }
+            args.push('--counts', counts);
+            args.push('--wait-seconds', String(payload.drafts.runeWaitSeconds));
+            break;
+        }
+        case 'gem-cube': {
+            if (payload.drafts.gemInputMode === 'scan-image') {
+                const imagePath = payload.drafts.gemImagePath.trim();
+                if (!imagePath) {
+                    throw new Error('请先粘贴或填写宝石截图。');
+                }
+                const resolvedImagePath = resolveMaybeAbsolutePath(imagePath);
+                if (!existsSync(resolvedImagePath)) {
+                    throw new Error(`未找到截图文件：${resolvedImagePath}`);
+                }
+                args.push('--scan-image', resolvedImagePath);
+            }
+            else {
+                const matrix = payload.drafts.gemMatrix.trim();
+                if (!matrix) {
+                    throw new Error('请先填写宝石矩阵。');
+                }
+                args.push('--matrix', matrix);
+            }
+            args.push('--wait-seconds', String(payload.drafts.gemWaitSeconds));
+            break;
+        }
+        case 'drop-shared-gold': {
+            const amount = payload.drafts.goldAmount.trim();
+            const level = payload.drafts.goldLevel.trim();
+            if (!/^\d+$/.test(amount)) {
+                throw new Error('金币总额必须是整数。');
+            }
+            if (!/^\d+$/.test(level)) {
+                throw new Error('角色等级必须是整数。');
+            }
+            args.push('--amount', amount);
+            args.push('--level', level);
+            args.push('--wait-seconds', String(payload.drafts.goldWaitSeconds));
+            break;
+        }
+    }
+    if (payload.drafts.allowInactiveWindow) {
+        args.push('--allow-inactive-window');
+    }
+    if (payload.mode === 'dry-run') {
+        args.push('--dry-run');
+    }
+    return args;
+}
 function buildAutomationAdminArgs(integration, payload) {
     const scriptPath = getRuntimeScriptPath(payload.id);
     const profilePath = resolveMaybeAbsolutePath(integration.profilePath);
@@ -3106,8 +3457,16 @@ ipcMain.handle('automation:run-task', async (_event, payload) => {
         ...defaultAutomationDrafts(),
         ...payload.drafts
     };
+    if (payload.id === 'gem-cube' &&
+        drafts.gemInputMode === 'scan-image' &&
+        payload.gemImageDataUrl?.trim()) {
+        drafts.gemImagePath = await savePngFromDataUrl({
+            dataUrl: payload.gemImageDataUrl,
+            suggestedName: 'gem-cube-scan'
+        });
+    }
     data.automationDrafts = drafts;
-    const { result, logPath } = await runBuiltinAutomation(target, buildRuntimeArgs(target, {
+    const { result, logPath } = await runBuiltinAutomation(target, buildRuntimeArgsV2(target, {
         ...payload,
         drafts
     }), payload.mode);

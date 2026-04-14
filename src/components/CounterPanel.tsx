@@ -47,9 +47,9 @@ function getDetectedStateLabel(state?: CounterDetectedState): string {
     case 'in-game':
       return '已识别游戏内';
     case 'in-game-menu':
-      return '已识别菜单';
+      return '已识别游戏菜单';
     case 'route-marker':
-      return '已命中地图名';
+      return '已命中 3C 地图名';
     case 'stopped':
       return '监控已停止';
     case 'unknown':
@@ -90,16 +90,8 @@ function getPrimaryStatus(
 ): { title: string; detail: string; tone: 'success' | 'attention' | 'error' } {
   if (!sceneTemplatePath.trim()) {
     return {
-      title: '先提供一张“进入崔凡克”的截图',
-      detail: '我们现在按截图命中来计数。先去“配置”里选一张只包含地图名红字的截图。',
-      tone: 'attention'
-    };
-  }
-
-  if (!setupGuideCompleted) {
-    return {
-      title: '计数器已经能单独用了',
-      detail: '当前先只做 3C 计数，不用先把整套桌宠流程跑完。',
+      title: '先接入 3C 截图',
+      detail: '选择一张只包含 3C 地图名的截图，自动计数才会按它起表。',
       tone: 'attention'
     };
   }
@@ -107,22 +99,30 @@ function getPrimaryStatus(
   if (activeRun) {
     return {
       title: '这一把正在计时',
-      detail: '等下次再次命中“进入崔凡克”时，会自动结算上一把并开始下一把。',
+      detail: '再次识别到 3C 地图名时，会自动结算上一把并开始下一把。',
       tone: 'success'
     };
   }
 
   if (autoCounterEnabled || session) {
     return {
-      title: '全自动已待命',
-      detail: '现在正常刷 3C 就行。地图名截图一出现，就会自动记一把并计时。',
+      title: '自动计数已待命',
+      detail: '现在只盯 3C 地图名，命中后才会开始或续表。',
       tone: 'success'
+    };
+  }
+
+  if (!setupGuideCompleted) {
+    return {
+      title: '先把 3C 跑通',
+      detail: '不用等全部初始化完成，接好截图后就可以先开自动。',
+      tone: 'attention'
     };
   }
 
   return {
     title: '还没开始统计',
-    detail: '点“开启全自动”后，后面只要游戏里出现地图名截图，就会自动计数。',
+    detail: '点“开启自动”后，进游戏等 3C 地图名出现即可自动起表。',
     tone: 'attention'
   };
 }
@@ -151,9 +151,7 @@ export function CounterPanel({
 }: CounterPanelProps) {
   const [activeView, setActiveView] = useState<CounterView>('stats');
   const [routeNameInput, setRouteNameInput] = useState(defaultRouteName || '3C');
-  const [intervalInput, setIntervalInput] = useState(
-    String(counterRecognitionIntervalSeconds)
-  );
+  const [intervalInput, setIntervalInput] = useState(String(counterRecognitionIntervalSeconds));
 
   useEffect(() => {
     setRouteNameInput(defaultRouteName || '3C');
@@ -188,8 +186,7 @@ export function CounterPanel({
     );
   }, [historyStats.fastestDurationSeconds, routeRuns]);
 
-  const displayCount =
-    (counterSession?.completedRuns ?? 0) + (activeRun ? 1 : 0);
+  const displayCount = (counterSession?.completedRuns ?? 0) + (activeRun ? 1 : 0);
   const latestFinishedRun = routeRuns[0];
   const lastDurationText = formatRunSeconds(
     counterSession?.lastRunDurationSeconds ?? latestFinishedRun?.durationSeconds
@@ -249,11 +246,11 @@ export function CounterPanel({
   }
 
   const primaryButtonLabel = !templateReady
-    ? '先选截图'
+    ? '先接截图'
     : autoCounterEnabled
       ? '关闭自动'
-      : '开启全自动';
-  const manualButtonLabel = activeRun || counterSession ? '结束本次统计' : '手动开始';
+      : '开启自动';
+  const manualButtonLabel = activeRun || counterSession ? '结束本轮' : '手动开始';
   const statusClassName = `counter-mini-status tone-${status.tone}`;
 
   return (
@@ -261,7 +258,7 @@ export function CounterPanel({
       <header className="counter-mini-header">
         <div>
           <p className="counter-mini-brand">3C COUNTER</p>
-          <h2>3C 自动计数器</h2>
+          <h2>3C 自动计数</h2>
         </div>
         <div className="counter-mini-tab-row">
           <button
@@ -269,14 +266,14 @@ export function CounterPanel({
             onClick={() => setActiveView('stats')}
             type="button"
           >
-            统计
+            面板
           </button>
           <button
             className={activeView === 'settings' ? 'is-active' : ''}
             onClick={() => setActiveView('settings')}
             type="button"
           >
-            配置
+            设置
           </button>
         </div>
       </header>
@@ -289,12 +286,12 @@ export function CounterPanel({
           </div>
 
           <div className="counter-mini-scene">
-            <span>当前场景</span>
+            <span>当前路线</span>
             <strong>{trackedRouteName}</strong>
           </div>
 
           <div className="counter-mini-count">{displayCount}</div>
-          <p className="counter-mini-count-label">当前场次</p>
+          <p className="counter-mini-count-label">已记录场次</p>
 
           <div className="counter-mini-metrics">
             <div>
@@ -302,11 +299,11 @@ export function CounterPanel({
               <strong>{currentDurationText}</strong>
             </div>
             <div>
-              <span>上次用时</span>
+              <span>上把用时</span>
               <strong>{lastDurationText}</strong>
             </div>
             <div>
-              <span>最近 5 场</span>
+              <span>最近 5 把</span>
               <strong>{recentAverageText}</strong>
             </div>
             <div>
@@ -325,26 +322,22 @@ export function CounterPanel({
 
           <div className="counter-mini-meta">
             <span>路线来源：{getRouteSourceLabel(counterSession)}</span>
-            <span>
-              截图模板：
-              {templateReady ? getFileName(counterSceneTemplatePath) : '未设置'}
-            </span>
+            <span>模板：{templateReady ? getFileName(counterSceneTemplatePath) : '未接入'}</span>
           </div>
 
           <div className="counter-mini-run-list">
             {routeRuns.length === 0 ? (
-              <p className="counter-mini-empty">
-                还没有已完成场次。先开自动，然后刷一把 3C 看看。
-              </p>
+              <p className="counter-mini-empty">还没有已完成记录，先跑一把 3C 看看。</p>
             ) : (
               routeRuns.map((run, index) => {
                 const runNumber = Math.max(
                   1,
                   (counterSession?.completedRuns ?? routeRuns.length) - index
                 );
+
                 return (
                   <div className="counter-mini-run-item" key={run.id}>
-                    <span>第 {runNumber} 场</span>
+                    <span>第 {runNumber} 把</span>
                     <strong>{formatRunSeconds(run.durationSeconds)}</strong>
                     <em>{formatCompactDateTime(run.endedAt)}</em>
                   </div>
@@ -376,15 +369,18 @@ export function CounterPanel({
               onClick={() => void onResetCounterHistory()}
               type="button"
             >
-              重置
+              清空记录
             </button>
           </div>
         </div>
       ) : (
         <div className="counter-mini-panel">
           <div className="counter-mini-config-block">
-            <span className="counter-config-label">场景名</span>
-            <form className="counter-mini-inline-form" onSubmit={handleSaveRouteName}>
+            <span className="counter-config-label">默认路线</span>
+            <form
+              className="counter-mini-inline-form counter-mini-inline-form-two"
+              onSubmit={handleSaveRouteName}
+            >
               <input
                 disabled={busy}
                 onChange={(event) => setRouteNameInput(event.target.value)}
@@ -398,12 +394,10 @@ export function CounterPanel({
           </div>
 
           <div className="counter-mini-config-block">
-            <span className="counter-config-label">地图名截图</span>
+            <span className="counter-config-label">3C 截图模板</span>
             <div className="counter-mini-template-box">
               <strong>{templateReady ? getFileName(counterSceneTemplatePath) : '还没选择截图'}</strong>
-              <p>
-                推荐截一张只包含“进入崔凡克”红字的 PNG，小而清晰，不要带整屏背景。
-              </p>
+              <p>推荐只保留地图名字样，画面越干净越容易命中。</p>
             </div>
             <button
               className="counter-mini-primary"
@@ -452,10 +446,7 @@ export function CounterPanel({
 
           <div className="counter-mini-footnote">
             <p>当前识别：{getDetectedStateLabel(counterSession?.lastDetectedState)}</p>
-            <p>
-              最近说明：
-              {counterSession?.lastDetail?.trim() || '还没有新的识别记录。'}
-            </p>
+            <p>{counterSession?.lastDetail?.trim() || '还没有新的识别记录。'}</p>
           </div>
         </div>
       )}

@@ -174,17 +174,17 @@ function getTabMeta(tab: TabKey): { label: string; detail: string } {
     case 'companion':
       return {
         label: '陪刷',
-        detail: '这里先只保留 3C 计数、开始/停止和最近几把。'
+        detail: '只保留 3C 计数、开始停止和最近几把。'
       };
     case 'drops':
       return {
         label: '战报',
-        detail: '先记一条掉落，再看最近几条和详细战报。'
+        detail: '先记掉落，再看最近记录和导出。'
       };
     case 'workshop':
       return {
         label: '工坊',
-        detail: '先看主任务，再决定是补条件、录坐标还是试运行。'
+        detail: '只看任务状态、补条件和试运行。'
       };
   }
 }
@@ -1050,8 +1050,8 @@ export default function App() {
       setSetupGuideActivity({
         title:
           payload.action === 'install-python-deps'
-            ? '渚濊禆瀹夎缁撴灉'
-            : '鍐呯疆杩愯鐜澶勭悊缁撴灉',
+            ? '依赖安装结果'
+            : '运行环境处理结果',
         detail: response.result.success
           ? successText
           : response.result.stderr || response.result.stdout || '环境修复失败。',
@@ -1065,7 +1065,7 @@ export default function App() {
       const text = getErrorMessage(error);
       setMessage({ kind: 'error', text });
       setSetupGuideActivity({
-        title: '寮曞鍔ㄤ綔鎵ц澶辫触',
+        title: '引导动作执行失败',
         detail: text,
         tone: 'error',
         timestampLabel: getSetupActivityTimeLabel()
@@ -1083,26 +1083,26 @@ export default function App() {
     try {
       setSetupGuideActivity({
         title: '一键安装',
-        detail: '姝ｅ湪鍑嗗鍐呯疆 Python 杩愯鐜...',
+        detail: '正在准备内置 Python 运行环境...',
         tone: 'attention',
         timestampLabel: getSetupActivityTimeLabel()
       });
 
       const runtimeResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-runtime' });
       if (!runtimeResponse.result.success) {
-        throw new Error(runtimeResponse.result.stderr || 'Python 鐜瀹夎澶辫触');
+        throw new Error(runtimeResponse.result.stderr || 'Python 环境安装失败');
       }
 
       setSetupGuideActivity({
         title: '一键安装',
-        detail: 'Python 鐜鍑嗗瀹屾垚锛屾鍦ㄥ畨瑁呬緷璧?..',
+        detail: 'Python 环境准备完成，正在安装依赖...',
         tone: 'attention',
         timestampLabel: getSetupActivityTimeLabel()
       });
 
       const depsResponse = await window.d2Pet.runEnvironmentAction({ action: 'install-python-deps' });
       if (!depsResponse.result.success) {
-        throw new Error(depsResponse.result.stderr || '渚濊禆瀹夎澶辫触');
+        throw new Error(depsResponse.result.stderr || '依赖安装失败');
       }
 
       setMessage({ kind: 'success', text: '一键安装环境及依赖完成。' });
@@ -1156,7 +1156,7 @@ export default function App() {
     try {
       const result = await window.d2Pet.exportTextFile(payload);
       if (!result.canceled && result.path) {
-        setMessage({ kind: 'success', text: `鏂囦欢宸插鍑哄埌 ${result.path}` });
+        setMessage({ kind: 'success', text: `文件已导出到 ${result.path}` });
       }
       return result;
     } catch (error) {
@@ -1187,8 +1187,8 @@ export default function App() {
           kind: 'success',
           text:
             payload.format === 'pdf'
-              ? `鎴樻姤 PDF 宸插鍑哄埌 ${result.path}`
-              : `鎴樻姤娴锋姤宸插鍑哄埌 ${result.path}`
+              ? `战报 PDF 已导出到 ${result.path}`
+              : `战报海报已导出到 ${result.path}`
         });
       }
       return result;
@@ -1523,11 +1523,11 @@ export default function App() {
   const busySummary = getBusySummary(busyKey);
   const panelScrollLabel = panelScrollState.canScrollDown
     ? panelScrollState.canScrollUp
-      ? `宸叉祻瑙?${panelScrollState.progress}% 路 缁х画涓嬫粦鏌ョ湅鏇村`
-      : '鍚戜笅婊氬姩鏌ョ湅鏇村'
+      ? `已浏览 ${panelScrollState.progress}% ，继续下滑`
+      : '向下滑动查看更多'
     : panelScrollState.canScrollUp
-      ? '宸茬粡鍒板簳閮ㄤ簡'
-      : '褰撳墠鍐呭宸茬粡瀹屾暣鏄剧ず';
+      ? '已经到底了'
+      : '当前内容已全部显示';
   const panelStatusLabel = busySummary
     ? '处理中'
     : panelScrollState.canScrollDown
@@ -1536,7 +1536,7 @@ export default function App() {
         ? '已到底'
         : '已全显';
   const panelFeedback = surfaceNotice ?? {
-    title: `当前页面：${activeTabMeta.label}`,
+    title: `当前：${activeTabMeta.label}`,
     detail: busySummary ?? activeTabMeta.detail,
     tone: (busySummary ? 'attention' : 'neutral') as SurfaceNoticeTone
   };
@@ -1654,21 +1654,21 @@ export default function App() {
             onClick={() => handleSelectTab('companion')}
             type="button"
           >
-            闄埛
+            陪刷
           </button>
           <button
             className={activeTab === 'drops' ? 'tab-button active' : 'tab-button'}
             onClick={() => handleSelectTab('drops')}
             type="button"
           >
-            鎴樻姤
+            战报
           </button>
           <button
             className={activeTab === 'workshop' ? 'tab-button active' : 'tab-button'}
             onClick={() => handleSelectTab('workshop')}
             type="button"
           >
-            宸ュ潑
+            工坊
           </button>
         </nav>
 
@@ -1703,7 +1703,7 @@ export default function App() {
           {activeTab === 'companion' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('companion')}
-              panelLabel="闄埛"
+              panelLabel="陪刷"
               resetKey={`companion-${showSetupGuide}-${showCompanionDetails}-${showPetCodex}-${data.settings.setupGuideCompleted}`}
             >
             <>
@@ -1793,7 +1793,7 @@ export default function App() {
           {activeTab === 'drops' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('drops')}
-              panelLabel="鎴樻姤"
+              panelLabel="战报"
               resetKey="drops"
             >
             <DropPanel
@@ -1813,7 +1813,7 @@ export default function App() {
           {activeTab === 'workshop' ? (
             <PanelErrorBoundary
               onReset={() => handleSelectTab('workshop')}
-              panelLabel="宸ュ潑"
+              panelLabel="工坊"
               resetKey="workshop"
             >
             <AutomationPanel

@@ -4189,7 +4189,7 @@ body {
 .tab-row {
   position: relative;
   z-index: 1;
-  padding-top: 10px;
+  padding-top: 8px;
   -webkit-app-region: no-drag;
 }
 
@@ -4217,10 +4217,10 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   margin: 10px 12px 0;
-  padding: 12px 14px;
-  border-radius: 18px;
+  padding: 10px 12px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 214, 143, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 249, 236, 0.04), rgba(255, 255, 255, 0.012)),
@@ -4246,7 +4246,7 @@ body {
 .page-feedback-bar strong {
   display: block;
   color: var(--pet-text-0);
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .page-feedback-bar .secondary-text {
@@ -8015,15 +8015,15 @@ body {
 .counter-mini-shell {
   width: min(100%, 420px);
   margin: 0 auto;
-  padding: 18px;
-  border: 1px solid rgba(59, 240, 255, 0.22);
-  border-radius: 24px;
+  padding: 16px;
+  border: 1px solid rgba(59, 240, 255, 0.16);
+  border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(4, 11, 18, 0.96), rgba(3, 6, 10, 0.96)),
-    radial-gradient(circle at top, rgba(17, 211, 240, 0.12), transparent 46%);
+    linear-gradient(180deg, rgba(5, 10, 16, 0.94), rgba(4, 8, 12, 0.94)),
+    radial-gradient(circle at top, rgba(17, 211, 240, 0.08), transparent 42%);
   box-shadow:
-    0 28px 52px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 18px 32px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .counter-mini-header {
@@ -8031,7 +8031,7 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .counter-mini-header h2 {
@@ -8135,7 +8135,7 @@ body {
 
 .counter-mini-count {
   color: #ff3f71;
-  font-size: clamp(72px, 18vw, 110px);
+  font-size: clamp(60px, 16vw, 88px);
   line-height: 0.9;
   font-weight: 800;
   text-align: center;
@@ -8295,6 +8295,10 @@ body {
 .counter-mini-inline-form {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
+}
+
+.counter-mini-inline-form-two {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .counter-mini-inline-form input {

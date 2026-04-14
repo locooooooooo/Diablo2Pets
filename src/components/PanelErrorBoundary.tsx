@@ -31,7 +31,7 @@ export class PanelErrorBoundary extends Component<
       message:
         error instanceof Error && error.message
           ? error.message
-          : '这个页面刚才渲染失败了。',
+          : '这个页面刚刚渲染失败了。',
       tone: 'error'
     };
   }
@@ -41,10 +41,7 @@ export class PanelErrorBoundary extends Component<
   }
 
   componentDidUpdate(prevProps: PanelErrorBoundaryProps) {
-    if (
-      this.state.hasError &&
-      prevProps.resetKey !== this.props.resetKey
-    ) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
       this.setState({
         hasError: false,
         message: '',
@@ -75,10 +72,10 @@ export class PanelErrorBoundary extends Component<
       <article className={`card panel-fallback panel-fallback-${this.state.tone}`}>
         <div className="panel-fallback-head">
           <div>
-            <p className="eyebrow">页面兜底</p>
-            <h3>{this.props.panelLabel} 暂时没有正常渲染出来</h3>
+            <p className="eyebrow">页面保护</p>
+            <h3>{this.props.panelLabel} 暂时没有正常显示出来</h3>
             <p className="secondary-text">
-              我先把整页保住了，避免你直接看到白屏。可以先重试当前页，或者刷新整个桌宠。
+              我先把整页保护住了，避免你直接看到白屏。可以先重试当前页面，或者刷新整个桌宠。
             </p>
           </div>
           <span className="status-pill error">已拦截异常</span>
@@ -91,7 +88,7 @@ export class PanelErrorBoundary extends Component<
 
         <div className="tool-row">
           <button className="primary-button" onClick={this.handleReset} type="button">
-            重试当前页
+            重试当前页面
           </button>
           <button className="ghost-button" onClick={this.handleReload} type="button">
             刷新整个桌宠
